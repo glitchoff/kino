@@ -1,6 +1,6 @@
 {
-  "name": "kino",
-  "version": "0.3.4",
+  "name": "@glitchoff/kino",
+  "version": "0.3.5",
   "description": "Compile declarative JSON video compositions to FFmpeg",
   "type": "module",
   "main": "./dist/index.cjs",
