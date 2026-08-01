@@ -67,11 +67,36 @@ export function normalizeAudio(audio?: AudioTrack | AudioTrack[]): AudioTrack[] 
 export function normalizeComposition(comp: KinoComposition): NormalizedComposition {
   const width = comp.width || 1920;
   const height = comp.height || 1080;
-  const duration = comp.duration || 5;
   const fps = comp.fps || 30;
 
-  const background = normalizeBackground(comp.background);
+  const audioTracks: AudioTrack[] = normalizeAudio(comp.audio);
+  const elements: ElementInput[] = [];
 
+  let duration = comp.duration || 5;
+
+  const scenes = (comp.scenes || []).map((scene: KinoScene, index: number) => ({
+    id: scene.id || `scene-${index + 1}`,
+    duration: scene.duration,
+    background: normalizeBackground(scene.background),
+    elements: (scene.elements || []).map(normalizeElement),
+  }));
+
+  // If scenes exist, calculate sequential scene offsets and total duration
+  if (scenes.length > 0) {
+    let sceneOffset = 0;
+    for (const scene of scenes) {
+      for (const rawElem of scene.elements) {
+        const elem = { ...rawElem };
+        elem.startTime = sceneOffset + (elem.startTime || 0);
+        elem.duration = elem.duration || scene.duration;
+        elements.push(elem);
+      }
+      sceneOffset += scene.duration;
+    }
+    duration = sceneOffset;
+  }
+
+  // Include root level elements & text
   const rawElements: any[] = [];
   if (comp.text) {
     if (Array.isArray(comp.text)) {
@@ -83,10 +108,9 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
   if (comp.elements) {
     rawElements.push(...comp.elements);
   }
+  elements.push(...rawElements.map(normalizeElement));
 
-  const elements: ElementInput[] = rawElements.map(normalizeElement);
-
-  const audioTracks: AudioTrack[] = normalizeAudio(comp.audio);
+  const background = scenes.length > 0 ? scenes[0].background : normalizeBackground(comp.background);
 
   // Extract sfx from elements into audio tracks
   for (const elem of elements) {
@@ -104,13 +128,6 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
       }
     }
   }
-
-  const scenes = (comp.scenes || []).map((scene: KinoScene, index: number) => ({
-    id: scene.id || `scene-${index + 1}`,
-    duration: scene.duration,
-    background: normalizeBackground(scene.background),
-    elements: (scene.elements || []).map(normalizeElement),
-  }));
 
   return {
     width,

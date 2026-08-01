@@ -296,8 +296,9 @@ body {
 
 /* Video Section */
 .video-wrapper {
-  aspect-ratio: 9 / 16;
-  max-height: 400px;
+  width: 100%;
+  max-height: 440px;
+  aspect-ratio: 16 / 9;
   background-color: #000;
   border-radius: 0.5rem;
   border: 1px solid var(--border-color);
@@ -306,6 +307,7 @@ body {
   justify-content: center;
   overflow: hidden;
   margin: 0 auto;
+  transition: aspect-ratio 0.3s ease;
 }
 
 .video-element {

@@ -95,6 +95,18 @@ async function updateFFmpegCompilePreview() {
   }
 }
 
+const videoWrapper = document.querySelector(".video-wrapper");
+
+function updatePreviewAspectRatio() {
+  if (currentComposition && currentComposition.width && currentComposition.height) {
+    const w = currentComposition.width;
+    const h = currentComposition.height;
+    videoWrapper.style.aspectRatio = `${w} / ${h}`;
+  } else {
+    videoWrapper.style.aspectRatio = "16 / 9";
+  }
+}
+
 function onJsonChange() {
   try {
     const parsed = JSON.parse(jsonEditor.value);
@@ -102,6 +114,7 @@ function onJsonChange() {
     jsonStatus.textContent = "Valid JSON";
     jsonStatus.className = "status-badge valid";
     
+    updatePreviewAspectRatio();
     clearTimeout(updateDebounceTimeout);
     updateDebounceTimeout = setTimeout(updateFFmpegCompilePreview, 250);
   } catch (err) {
