@@ -2,32 +2,36 @@ let presets = {
   basic: {
     width: 1080,
     height: 1920,
-    duration: 5,
-    background: "#0f172a",
     fps: 30,
-    elements: [
+    scenes: [
       {
-        type: "text",
-        content: "Hello Kino",
-        fontSize: 72,
-        fontColor: "white",
-        box: true,
-        boxColor: "black@0.6",
-        boxPadding: 16,
-        x: "center",
-        y: "center",
-        startTime: 0,
-        duration: 3
-      },
-      {
-        type: "text",
-        content: "JSON to FFmpeg",
-        fontSize: 48,
-        fontColor: "#38bdf8",
-        x: "center",
-        y: "(h-text_h)/2+140",
-        startTime: 2,
-        duration: 3
+        duration: 5,
+        background: "#0f172a",
+        elements: [
+          {
+            type: "text",
+            content: "Hello Kino",
+            fontSize: 72,
+            fontColor: "white",
+            box: true,
+            boxColor: "black@0.6",
+            boxPadding: 16,
+            x: "center",
+            y: "center",
+            startTime: 0,
+            duration: 3
+          },
+          {
+            type: "text",
+            content: "JSON to FFmpeg",
+            fontSize: 48,
+            fontColor: "#38bdf8",
+            x: "center",
+            y: "(h-text_h)/2+140",
+            startTime: 2,
+            duration: 3
+          }
+        ]
       }
     ]
   }
@@ -76,13 +80,18 @@ async function fetchExamples() {
   }
 }
 
+const encoderSelect = document.getElementById("encoder-select");
+const speedSelect = document.getElementById("speed-select");
+
 async function updateFFmpegCompilePreview() {
   if (!currentComposition) return;
   try {
+    const encoder = encoderSelect ? encoderSelect.value : "auto";
+    const preset = speedSelect ? speedSelect.value : "veryfast";
     const res = await fetch("/api/compile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(currentComposition)
+      body: JSON.stringify({ composition: currentComposition, encoder, preset })
     });
     const data = await res.json();
     if (data.success) {
@@ -127,6 +136,13 @@ function onJsonChange() {
 
 jsonEditor.addEventListener("input", onJsonChange);
 
+if (encoderSelect) {
+  encoderSelect.addEventListener("change", onJsonChange);
+}
+if (speedSelect) {
+  speedSelect.addEventListener("change", onJsonChange);
+}
+
 presetSelect.addEventListener("change", (e) => {
   loadPreset(e.target.value);
 });
@@ -158,14 +174,16 @@ renderBtn.addEventListener("click", async () => {
 
   renderBtn.disabled = true;
   renderSpinner.classList.remove("hidden");
-  renderStatusMsg.textContent = "Compiling & rendering with FFmpeg...";
+  const selectedEncoder = encoderSelect ? encoderSelect.value : "auto";
+  const selectedSpeed = speedSelect ? speedSelect.value : "veryfast";
+  renderStatusMsg.textContent = `Rendering with FFmpeg (${selectedEncoder}, ${selectedSpeed})...`;
   renderStatusMsg.className = "status-message";
 
   try {
     const res = await fetch("/api/render", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(currentComposition)
+      body: JSON.stringify({ composition: currentComposition, encoder: selectedEncoder, preset: selectedSpeed })
     });
 
     const data = await res.json();

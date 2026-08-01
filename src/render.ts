@@ -49,6 +49,47 @@ function formatPosition(val: number | string | undefined, defaultExpr: string): 
   return val;
 }
 
+function formatTextPosition(val: number | string | undefined, defaultExpr: string): string {
+  if (val === undefined || val === "center") {
+    return defaultExpr;
+  }
+  if (typeof val === "number") {
+    return String(val);
+  }
+
+  const bottom = val.match(/^bottom-(\d+(?:\.\d+)?)$/);
+  if (bottom) {
+    return `h-text_h-${bottom[1]}`;
+  }
+
+  const top = val.match(/^top-(\d+(?:\.\d+)?)$/);
+  if (top) {
+    return top[1];
+  }
+
+  return val;
+}
+
+function addFFmpegInput(
+  inputs: string[],
+  src: string,
+  options: { loop?: boolean; streamLoop?: boolean } = {}
+) {
+  if (options.streamLoop) {
+    inputs.push("-stream_loop", "-1");
+  }
+  if (options.loop) {
+    inputs.push("-loop", "1");
+  }
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    inputs.push(
+      "-user_agent",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Kino/0.2.0"
+    );
+  }
+  inputs.push("-i", src);
+}
+
 export function compile(composition: KinoComposition, options?: Partial<RenderOptions>): CompileResult {
   const norm = normalizeComposition(composition);
   const { width, height, duration, fps } = norm;
@@ -57,32 +98,72 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const inputs: string[] = [];
   const filterComplex: string[] = [];
 
-  let lastVideoPad = "0:v";
+  let inputIndex = 0;
 
-  // 1. Setup Base Background Input
-  if (norm.background.type === "color") {
-    const bgHex = normalizeColor(norm.background.value);
-    const colorSource = `color=c=${bgHex}:s=${width}x${height}:r=${fps}:d=${duration}`;
-    inputs.push("-f", "lavfi", "-i", colorSource);
-  } else if (norm.background.type === "gradient") {
-    const from = normalizeColor(norm.background.from);
-    const to = normalizeColor(norm.background.to);
-    const gradSource = `gradients=c0=${from}:c1=${to}:s=${width}x${height}:r=${fps}:d=${duration}`;
-    inputs.push("-f", "lavfi", "-i", gradSource);
-  } else if (norm.background.type === "image") {
-    inputs.push("-loop", "1", "-i", norm.background.src);
-    filterComplex.push(`[0:v]scale=${width}:${height}[bg_scaled]`);
-    lastVideoPad = "[bg_scaled]";
-  } else if (norm.background.type === "video") {
-    if (norm.background.loop) {
-      inputs.push("-stream_loop", "-1");
+  // 1. Process Per-Scene Background Inputs
+  const sceneBgPads: string[] = [];
+
+  for (let i = 0; i < norm.scenes.length; i++) {
+    const scene = norm.scenes[i];
+    const sceneDur = scene.duration;
+    const bg = scene.background;
+    const bgPad = `[bg_scene_${i}]`;
+    const currInputIdx = inputIndex++;
+
+    if (bg.type === "color") {
+      const bgHex = normalizeColor(bg.value);
+      const colorSource = `color=c=${bgHex}:s=${width}x${height}:r=${fps}:d=${sceneDur}`;
+      inputs.push("-f", "lavfi", "-i", colorSource);
+      filterComplex.push(`[${currInputIdx}:v]fps=${fps},setsar=1,format=yuv420p,settb=AVTB${bgPad}`);
+    } else if (bg.type === "gradient") {
+      const from = normalizeColor(bg.from);
+      const to = normalizeColor(bg.to);
+      const gradSource = `gradients=c0=${from}:c1=${to}:s=${width}x${height}:r=${fps}:d=${sceneDur}`;
+      inputs.push("-f", "lavfi", "-i", gradSource);
+      filterComplex.push(`[${currInputIdx}:v]fps=${fps},setsar=1,format=yuv420p,settb=AVTB${bgPad}`);
+    } else if (bg.type === "image") {
+      addFFmpegInput(inputs, bg.src, { loop: true });
+      filterComplex.push(
+        `[${currInputIdx}:v]scale=${width}:${height},setsar=1,format=yuv420p,trim=duration=${sceneDur},fps=${fps},settb=AVTB,setpts=PTS-STARTPTS${bgPad}`
+      );
+    } else if (bg.type === "video") {
+      addFFmpegInput(inputs, bg.src, { streamLoop: bg.loop });
+      filterComplex.push(
+        `[${currInputIdx}:v]scale=${width}:${height},setsar=1,format=yuv420p,trim=duration=${sceneDur},fps=${fps},settb=AVTB,setpts=PTS-STARTPTS${bgPad}`
+      );
     }
-    inputs.push("-i", norm.background.src);
-    filterComplex.push(`[0:v]scale=${width}:${height}[bg_scaled]`);
-    lastVideoPad = "[bg_scaled]";
+
+    sceneBgPads.push(bgPad);
   }
 
-  let inputIndex = 1;
+  let lastVideoPad = "";
+
+  if (norm.scenes.length === 1) {
+    lastVideoPad = sceneBgPads[0];
+  } else if (norm.timeline === "absolute") {
+    const baseColorIdx = inputIndex++;
+    const baseSource = `color=c=black:s=${width}x${height}:r=${fps}:d=${duration}`;
+    inputs.push("-f", "lavfi", "-i", baseSource);
+    let currBasePad = `[${baseColorIdx}:v]`;
+
+    for (let i = 0; i < norm.scenes.length; i++) {
+      const scene = norm.scenes[i];
+      const outPad = `[bg_abs_${i}]`;
+      const start = scene.startTime;
+      const end = start + scene.duration;
+      filterComplex.push(
+        `${currBasePad}${sceneBgPads[i]}overlay=x=0:y=0:enable='between(t\\,${start}\\,${end})'${outPad}`
+      );
+      currBasePad = outPad;
+    }
+    lastVideoPad = currBasePad;
+  } else {
+    // Sequential timeline (default)
+    const concatInputs = sceneBgPads.join("");
+    const outPad = "[bg_concat]";
+    filterComplex.push(`${concatInputs}concat=n=${norm.scenes.length}:v=1:a=0${outPad}`);
+    lastVideoPad = outPad;
+  }
 
   // 2. Separate Image Elements vs Text Elements
   const imageElements: ImageElement[] = [];
@@ -99,7 +180,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   // Process Image Overlay Inputs
   for (let i = 0; i < imageElements.length; i++) {
     const img = imageElements[i];
-    inputs.push("-i", img.src);
+    addFFmpegInput(inputs, img.src);
     const currInputIdx = inputIndex++;
     const scaledPad = `[img_scaled_${i}]`;
     const outPad = `[v_over_${i}]`;
@@ -130,8 +211,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     const textStr = escapeFFmpegStr(item.content || "");
     const fontSize = item.fontSize ?? 48;
     const fontColor = item.fontColor ?? "white";
-    const xExpr = formatPosition(item.x, "(w-text_w)/2");
-    const yExpr = formatPosition(item.y, "(h-text_h)/2");
+    const xExpr = formatTextPosition(item.x, "(w-text_w)/2");
+    const yExpr = formatTextPosition(item.y, "(h-text_h)/2");
 
     let filter = `drawtext=text='${textStr}':fontsize=${fontSize}:fontcolor=${fontColor}:x=${xExpr}:y=${yExpr}`;
 
@@ -166,10 +247,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const audioInputIndices: number[] = [];
 
   for (const track of audioTracks) {
-    if (track.loop) {
-      inputs.push("-stream_loop", "-1");
-    }
-    inputs.push("-i", track.src);
+    addFFmpegInput(inputs, track.src, { streamLoop: track.loop });
     audioInputIndices.push(inputIndex++);
   }
 
@@ -241,35 +319,40 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     args.push("-map", "0:v");
   }
 
-  args.push(
-    "-t",
-    String(duration),
-    "-c:v",
-    "libx264",
-    "-pix_fmt",
-    "yuv420p",
-    output
-  );
+  // Encoder Flag Selection
+  const defaultGpuEncoder = process.platform === "darwin" ? "h264_videotoolbox" : "h264_nvenc";
+  const encoder = options?.encoder === "auto" ? defaultGpuEncoder : (options?.encoder || "libx264");
+  const encoderFlags: string[] = [];
+
+  if (encoder === "h264_nvenc") {
+    encoderFlags.push("-c:v", "h264_nvenc", "-preset", options?.preset || "p2", "-rc:v", "vbr", "-pix_fmt", "yuv420p");
+  } else if (encoder === "hevc_nvenc") {
+    encoderFlags.push("-c:v", "hevc_nvenc", "-preset", options?.preset || "p2", "-rc:v", "vbr", "-pix_fmt", "yuv420p");
+  } else if (encoder === "h264_qsv") {
+    encoderFlags.push("-c:v", "h264_qsv", "-preset", options?.preset || "veryfast", "-pix_fmt", "nv12");
+  } else if (encoder === "h264_amf") {
+    encoderFlags.push("-c:v", "h264_amf", "-quality", "speed", "-pix_fmt", "yuv420p");
+  } else if (encoder === "h264_videotoolbox") {
+    encoderFlags.push("-c:v", "h264_videotoolbox", "-pix_fmt", "yuv420p");
+  } else {
+    encoderFlags.push("-c:v", "libx264", "-preset", options?.preset || "veryfast", "-pix_fmt", "yuv420p");
+  }
+
+  args.push("-t", String(duration), ...encoderFlags, output);
 
   return { args, filtergraph: filtergraphStr };
 }
 
-export async function render(
-  composition: KinoComposition,
-  options: RenderOptions
-): Promise<{ output: string }> {
-  const ffmpegBin = getFFmpegBinaryPath(options.ffmpegPath);
-  const { args } = compile(composition, options);
-
-  if (options.verbose) {
-    console.log(`[kino] Spawning: ${ffmpegBin} ${args.join(" ")}`);
-  }
-
+function spawnFFmpegProcess(
+  ffmpegBin: string,
+  args: string[],
+  verbose?: boolean
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const process = spawn(ffmpegBin, args, { stdio: options.verbose ? "inherit" : "pipe" });
+    const process = spawn(ffmpegBin, args, { stdio: verbose ? "inherit" : "pipe" });
 
     let stderr = "";
-    if (!options.verbose && process.stderr) {
+    if (!verbose && process.stderr) {
       process.stderr.on("data", (chunk) => {
         stderr += chunk.toString();
       });
@@ -285,7 +368,7 @@ export async function render(
 
     process.on("close", (code) => {
       if (code === 0) {
-        resolve({ output: options.output });
+        resolve();
       } else {
         reject(
           new Error(
@@ -295,4 +378,36 @@ export async function render(
       }
     });
   });
+}
+
+export async function render(
+  composition: KinoComposition,
+  options: RenderOptions
+): Promise<{ output: string }> {
+  const ffmpegBin = getFFmpegBinaryPath(options.ffmpegPath);
+  const { args } = compile(composition, options);
+
+  if (options.verbose) {
+    console.log(`[kino] Spawning: ${ffmpegBin} ${args.join(" ")}`);
+  }
+
+  try {
+    await spawnFFmpegProcess(ffmpegBin, args, options.verbose);
+    return { output: options.output };
+  } catch (err: any) {
+    const reqEncoder = options.encoder;
+    if (reqEncoder && reqEncoder !== "libx264") {
+      console.warn(
+        `[kino] GPU encoder '${reqEncoder}' failed or unavailable on host system. Automatically falling back to universal CPU encoder 'libx264'...`
+      );
+      const fallbackOptions: RenderOptions = { ...options, encoder: "libx264" };
+      const fallbackCompile = compile(composition, fallbackOptions);
+      if (options.verbose) {
+        console.log(`[kino] Fallback spawning: ${ffmpegBin} ${fallbackCompile.args.join(" ")}`);
+      }
+      await spawnFFmpegProcess(ffmpegBin, fallbackCompile.args, options.verbose);
+      return { output: options.output };
+    }
+    throw err;
+  }
 }

@@ -21,12 +21,30 @@
         </div>
       </div>
       <div class="header-actions">
-        <label for="preset-select" class="preset-label">Presets:</label>
+        <label for="preset-select" class="preset-label">Preset:</label>
         <select id="preset-select" class="preset-dropdown">
-          <option value="basic">Basic Text Overlay (1080x1920)</option>
-          <option value="timeline">Multi-Text Timeline (1920x1080)</option>
-          <option value="minimal">Minimal Dark Scene</option>
+          <option value="basic">basic.json (Mobile 9:16)</option>
         </select>
+
+        <label for="encoder-select" class="preset-label">Encoder:</label>
+        <select id="encoder-select" class="preset-dropdown">
+          <option value="auto">⚡ Auto (GPU / CPU Fallback)</option>
+          <option value="h264_nvenc" selected>🚀 NVIDIA GPU (h264_nvenc)</option>
+          <option value="hevc_nvenc">🚀 NVIDIA HEVC (hevc_nvenc)</option>
+          <option value="libx264">💻 CPU (libx264)</option>
+          <option value="h264_qsv">⚡ Intel QSV (h264_qsv)</option>
+          <option value="h264_amf">⚡ AMD AMF (h264_amf)</option>
+          <option value="h264_videotoolbox">⚡ Apple VideoToolbox</option>
+        </select>
+
+        <label for="speed-select" class="preset-label">Speed/Quality:</label>
+        <select id="speed-select" class="preset-dropdown">
+          <option value="veryfast" selected>⚡ Very Fast (Recommended)</option>
+          <option value="ultrafast">🚀 Ultra Fast (Max Speed)</option>
+          <option value="medium">⚖️ Balanced (Medium)</option>
+          <option value="slow">💎 High Quality (Slow)</option>
+        </select>
+
         <button id="format-json-btn" class="btn btn-secondary">Format JSON</button>
       </div>
     </header>

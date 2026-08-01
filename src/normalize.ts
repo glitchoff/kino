@@ -7,6 +7,7 @@ import type {
   AudioTrack,
   KinoComposition,
   NormalizedComposition,
+  NormalizedScene,
   KinoScene,
 } from "./types.js";
 
@@ -65,55 +66,84 @@ export function normalizeAudio(audio?: AudioTrack | AudioTrack[]): AudioTrack[] 
 }
 
 export function normalizeComposition(comp: KinoComposition): NormalizedComposition {
+  if (!comp.scenes || !Array.isArray(comp.scenes) || comp.scenes.length === 0) {
+    throw new Error(
+      "Invalid KinoComposition: 'scenes' array is required and must contain at least one scene."
+    );
+  }
+
   const width = comp.width || 1920;
   const height = comp.height || 1080;
   const fps = comp.fps || 30;
+  const timeline = comp.timeline || "sequential";
 
   const audioTracks: AudioTrack[] = normalizeAudio(comp.audio);
-  const elements: ElementInput[] = [];
+  const normalizedScenes: NormalizedScene[] = [];
+  const flattenedElements: ElementInput[] = [];
 
-  let duration = comp.duration || 5;
+  let duration = 0;
 
-  const scenes = (comp.scenes || []).map((scene: KinoScene, index: number) => ({
-    id: scene.id || `scene-${index + 1}`,
-    duration: scene.duration,
-    background: normalizeBackground(scene.background),
-    elements: (scene.elements || []).map(normalizeElement),
-  }));
-
-  // If scenes exist, calculate sequential scene offsets and total duration
-  if (scenes.length > 0) {
-    let sceneOffset = 0;
-    for (const scene of scenes) {
-      for (const rawElem of scene.elements) {
-        const elem = { ...rawElem };
-        elem.startTime = sceneOffset + (elem.startTime || 0);
-        elem.duration = elem.duration || scene.duration;
-        elements.push(elem);
+  if (timeline === "absolute") {
+    for (let i = 0; i < comp.scenes.length; i++) {
+      const scene = comp.scenes[i];
+      const sceneStart = scene.startTime ?? 0;
+      const sceneDur = scene.duration || 5;
+      if (sceneStart + sceneDur > duration) {
+        duration = sceneStart + sceneDur;
       }
-      sceneOffset += scene.duration;
-    }
-    duration = sceneOffset;
-  }
 
-  // Include root level elements & text
-  const rawElements: any[] = [];
-  if (comp.text) {
-    if (Array.isArray(comp.text)) {
-      rawElements.push(...comp.text);
-    } else {
-      rawElements.push(comp.text);
-    }
-  }
-  if (comp.elements) {
-    rawElements.push(...comp.elements);
-  }
-  elements.push(...rawElements.map(normalizeElement));
+      const normBg = normalizeBackground(scene.background);
+      const normElems = (scene.elements || []).map(normalizeElement);
 
-  const background = scenes.length > 0 ? scenes[0].background : normalizeBackground(comp.background);
+      normalizedScenes.push({
+        id: scene.id || `scene-${i + 1}`,
+        startTime: sceneStart,
+        duration: sceneDur,
+        background: normBg,
+        elements: normElems,
+      });
+
+      for (const rawElem of normElems) {
+        const elem = { ...rawElem };
+        const relStart = elem.startTime ?? 0;
+        elem.startTime = sceneStart + relStart;
+        elem.duration = elem.duration ?? Math.max(0, sceneDur - relStart);
+        flattenedElements.push(elem);
+      }
+    }
+  } else {
+    // Sequential timeline (default)
+    let currentOffset = 0;
+    for (let i = 0; i < comp.scenes.length; i++) {
+      const scene = comp.scenes[i];
+      const sceneDur = scene.duration || 5;
+      const sceneStart = currentOffset;
+      currentOffset += sceneDur;
+
+      const normBg = normalizeBackground(scene.background);
+      const normElems = (scene.elements || []).map(normalizeElement);
+
+      normalizedScenes.push({
+        id: scene.id || `scene-${i + 1}`,
+        startTime: sceneStart,
+        duration: sceneDur,
+        background: normBg,
+        elements: normElems,
+      });
+
+      for (const rawElem of normElems) {
+        const elem = { ...rawElem };
+        const relStart = elem.startTime ?? 0;
+        elem.startTime = sceneStart + relStart;
+        elem.duration = elem.duration ?? Math.max(0, sceneDur - relStart);
+        flattenedElements.push(elem);
+      }
+    }
+    duration = currentOffset;
+  }
 
   // Extract sfx from elements into audio tracks
-  for (const elem of elements) {
+  for (const elem of flattenedElements) {
     if (elem.sfx) {
       if (typeof elem.sfx === "string") {
         audioTracks.push({
@@ -134,9 +164,10 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
     height,
     duration,
     fps,
-    background,
-    elements,
-    scenes,
+    timeline,
+    background: normalizedScenes[0].background,
+    elements: flattenedElements,
+    scenes: normalizedScenes,
     audio: audioTracks,
   };
 }

@@ -4,7 +4,7 @@ Kino exports core compiler and renderer functions for Node.js and TypeScript app
 
 ```typescript
 import { render, compile } from "kino";
-import type { KinoComposition, RenderOptions, CompileResult } from "kino";
+import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from "kino";
 ```
 
 ---
@@ -23,13 +23,13 @@ function compile(
 
 ### Return Value (`CompileResult`)
 - `args: string[]` — FFmpeg command arguments array (e.g. `["-y", "-f", "lavfi", ...]`).
-- `filtergraph?: string` — Generated FFmpeg `-vf` filter complex string.
+- `filtergraph?: string` — Generated FFmpeg filter complex string.
 
 ---
 
 ## `render(composition, options)`
 
-Compiles the composition and spawns `ffmpeg` to render the output video file. Returns a Promise resolving upon successful completion.
+Compiles the composition and spawns `ffmpeg` to render the output video file. Automatically falls back to CPU `libx264` if a requested GPU hardware encoder is unavailable.
 
 ### Signature
 ```typescript
@@ -41,14 +41,29 @@ async function render(
 
 ### `RenderOptions`
 - `output: string` — Output video file path (e.g., `./out.mp4`).
-- `ffmpegPath?: string` — Custom path to `ffmpeg` binary. If omitted, automatically resolves system `ffmpeg` or `ffmpeg-static`.
-- `verbose?: boolean` — Set to `true` to log FFmpeg spawn command and stream FFmpeg log output to stdout/stderr.
+- `encoder?: VideoEncoder` — Target video encoder (`"libx264"`, `"h264_nvenc"`, `"hevc_nvenc"`, `"h264_qsv"`, `"h264_amf"`, `"h264_videotoolbox"`, or `"auto"`). Defaults to `"libx264"`.
+- `preset?: string` — Encoder speed/quality preset (e.g. `"veryfast"`, `"ultrafast"`, `"medium"`, `"slow"`, or `"p2"` for NVENC). Defaults to `"veryfast"` (CPU) / `"p2"` (GPU) for maximum rendering speed.
+- `ffmpegPath?: string` — Custom path to `ffmpeg` binary. Defaults to system `ffmpeg` or bundled `ffmpeg-static`.
+- `verbose?: boolean` — Set to `true` to log FFmpeg command and stream output.
+
+---
+
+## GPU Acceleration & Automatic Fallback
+
+When `encoder` is set to a GPU encoder (`"h264_nvenc"`, `"auto"`, etc.), Kino attempts hardware-accelerated rendering first. If the host machine lacks GPU drivers or hardware support, Kino catches the process failure, logs a warning, and seamlessly falls back to CPU (`libx264`):
+
+```typescript
+await render(composition, {
+  output: "./out.mp4",
+  encoder: "h264_nvenc" // Uses NVENC on NVIDIA GPUs, falls back to libx264 on CPU-only machines
+});
+```
 
 ---
 
 ## Error Handling
 
-`render()` rejects with a descriptive Error if `ffmpeg` process fails or exits with a non-zero status code:
+`render()` rejects with a descriptive Error if the `ffmpeg` process fails and no fallback is possible:
 
 ```typescript
 try {

@@ -1,20 +1,15 @@
 # JSON Schema Reference
 
-The `KinoComposition` JSON object defines canvas properties, duration, background types, FPS, polymorphic scene element timelines, and audio/SFX mixing.
+The `KinoComposition` JSON object defines canvas properties, frame rate, optional timeline mode (`"sequential"` or `"absolute"`), global audio tracks, and mandatory `scenes[]`.
 
 ---
 
-## Normalization Layer
+## 🎬 Core Mental Model
 
-Kino accepts clean shorthand syntax and normalizes it internally:
-
-- `"background": "#0f172a"`  
-  ↓ *normalizes to*  
-  `"background": { "type": "color", "value": "#0f172a" }`
-
-- `"elements": [{ "content": "Text" }]`  
-  ↓ *normalizes to*  
-  `"elements": [{ "type": "text", "content": "Text" }]`
+> **Composition contains Scenes.**  
+> **Scenes own time and backgrounds.**  
+> **Elements are layers inside Scenes.**  
+> **Elements never float directly in the Composition.**
 
 ---
 
@@ -24,11 +19,37 @@ Kino accepts clean shorthand syntax and normalizes it internally:
 | :--- | :--- | :--- | :--- |
 | `width` | `number` | `1920` | Output video canvas width in pixels. |
 | `height` | `number` | `1080` | Output video canvas height in pixels. |
-| `duration` | `number` | `5` | Total video duration in seconds. |
-| `background` | `BackgroundInput` | `"#000000"` | Hex string shorthand or background object (Color, Image, Gradient, Video). |
 | `fps` | `number` | `30` | Frame rate in FPS. |
-| `elements` | `ElementInput[]` | `[]` | Polymorphic elements array (`text`, `image`). |
+| `timeline` | `"sequential" \| "absolute"` | `"sequential"` | Timeline calculation mode for scenes. |
+| `scenes` | `KinoScene[]` | **Required** | Array of scene objects. Must contain at least 1 scene. |
 | `audio` | `AudioTrack \| AudioTrack[]` | `[]` | Background music / audio track configurations. |
+
+---
+
+## Timeline Modes (`timeline`)
+
+### 1. `sequential` (Default)
+Scenes play back-to-back automatically.
+- Scene 1 start time = `0`
+- Scene 2 start time = `Scene 1.duration`
+- Scene 3 start time = `Scene 1.duration + Scene 2.duration`
+
+### 2. `absolute`
+Scenes specify their own `startTime`.
+- Each scene provides an explicit `startTime: number` (defaults to `0` if omitted).
+- Scenes can overlap or play concurrently.
+
+---
+
+## Scene Configuration (`KinoScene`)
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | `scene-1`, ... | Optional unique identifier for the scene. |
+| `duration` | `number` | **Required** | Duration of the scene in seconds. |
+| `startTime` | `number` | `0` | Start time offset (Only used in `timeline: "absolute"` mode). |
+| `background` | `BackgroundInput` | `"#000000"` | Solid color hex string or background config object. |
+| `elements` | `ElementInput[]` | `[]` | Array of visual elements (`text`, `image`) inside the scene. |
 
 ---
 
@@ -48,7 +69,9 @@ Kino accepts clean shorthand syntax and normalizes it internally:
 
 ---
 
-## Polymorphic Elements
+## Elements (`ElementInput`)
+
+> Note: `startTime` on an element is **relative to its parent scene's start time**.
 
 ### 1. `TextElement` (`type: "text"`)
 
@@ -61,10 +84,10 @@ Kino accepts clean shorthand syntax and normalizes it internally:
 | `box` | `boolean` | `false` | Enable background box behind text. |
 | `boxColor` | `string` | `"black@0.5"` | Background box color with opacity. |
 | `boxPadding` | `number` | `10` | Border padding around text box. |
-| `x` | `number \| string` | `"center"` | Horizontal position (expression or number). |
-| `y` | `number \| string` | `"center"` | Vertical position (expression or number). |
-| `startTime` | `number` | `0` | Delay in seconds before text appears. |
-| `duration` | `number` | Video duration | Visible duration in seconds. |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"bottom-20"`, expression, or number). |
+| `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
+| `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
 
 ### 2. `ImageElement` (`type: "image"`)
@@ -77,8 +100,8 @@ Kino accepts clean shorthand syntax and normalizes it internally:
 | `height` | `number` | original | Target height in pixels. |
 | `x` | `number \| string` | `"center"` | Horizontal position. |
 | `y` | `number \| string` | `"center"` | Vertical position. |
-| `startTime` | `number` | `0` | Start time in seconds. |
-| `duration` | `number` | Video duration | Duration in seconds. |
+| `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
+| `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
 
 ---
@@ -92,6 +115,6 @@ Kino accepts clean shorthand syntax and normalizes it internally:
 | `offset` | `number` | `0` | Seek start offset within source audio file in seconds. |
 | `duration` | `number` | audio duration | Playback clip duration in seconds. |
 | `volume` | `number` | `1.0` | Volume multiplier (`0.3` = 30%, `1.5` = 150%). |
-| `loop` | `boolean` | `false` | Loop audio throughout scene duration. |
+| `loop` | `boolean` | `false` | Loop audio throughout duration. |
 | `fadeIn` | `number` | `0` | Fade-in duration in seconds. |
 | `fadeOut` | `number` | `0` | Fade-out duration in seconds. |

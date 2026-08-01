@@ -6,20 +6,17 @@ Kino allows you to specify video scenes using declarative JSON objects and compi
 
 ## 📦 Installation
 
-Add `kino` to your Node.js or TypeScript project:
+Add `@glitchoff/kino` to your Node.js or TypeScript project:
 
 ```bash
 # Using pnpm
-pnpm add kino
+pnpm add @glitchoff/kino
 
 # Using npm
-npm install kino
-
-# Using yarn
-yarn add kino
+npm install @glitchoff/kino
 ```
 
-> **Note:** Kino includes built-in binary fallback (`ffmpeg-static`), so manual installation of FFmpeg binary is optional!
+> **Note:** Kino includes built-in binary fallback (`ffmpeg-static`), so manual installation of an FFmpeg binary is optional!
 
 ---
 
@@ -28,32 +25,41 @@ yarn add kino
 Create a TypeScript or JavaScript file (e.g., `index.ts`):
 
 ```typescript
-import { render, compile } from "kino";
+import { render } from "kino";
 
-// 1. Define composition
+// 1. Define composition with mandatory scenes primitive
 const composition = {
   width: 1920,
   height: 1080,
-  duration: 5,
-  background: "#0f172a",
   fps: 30,
-  text: [
+  scenes: [
     {
-      content: "Welcome to Kino",
-      fontSize: 64,
-      fontColor: "#38bdf8",
-      x: "center",
-      y: "center",
-      startTime: 0,
-      duration: 5
+      duration: 5,
+      background: "#0f172a",
+      elements: [
+        {
+          type: "text",
+          content: "Welcome to Kino",
+          fontSize: 64,
+          fontColor: "#38bdf8",
+          x: "center",
+          y: "center",
+          startTime: 0,
+          duration: 5
+        }
+      ]
     }
   ]
 };
 
-// 2. Render directly to MP4
+// 2. Render directly to MP4 with GPU acceleration
 async function run() {
   console.log("Rendering video...");
-  const result = await render(composition, { output: "./welcome.mp4", verbose: true });
+  const result = await render(composition, {
+    output: "./welcome.mp4",
+    encoder: "h264_nvenc", // NVIDIA NVENC GPU acceleration
+    verbose: true
+  });
   console.log(`Video rendered successfully to ${result.output}`);
 }
 
@@ -66,10 +72,20 @@ run();
 
 Kino comes with a CLI utility for compiling and rendering JSON composition files.
 
-### Render JSON to Video
+### Render JSON to Video (CPU)
 
 ```bash
 npx kino path/to/scene.json -o output.mp4
+```
+
+### GPU Accelerated Render
+
+```bash
+# Auto GPU hardware acceleration with automatic CPU fallback
+npx kino path/to/scene.json -o output.mp4 --gpu
+
+# Target specific encoder
+npx kino path/to/scene.json -o output.mp4 --encoder h264_nvenc
 ```
 
 ### Dry Run (Inspect FFmpeg Command)
@@ -82,10 +98,10 @@ npx kino path/to/scene.json --dry-run
 
 ## 🎨 Kino Studio Playground
 
-Kino includes an interactive web studio with a JSON code editor, live FFmpeg command inspector, and HTML5 video player:
+Kino includes an interactive web studio with a JSON code editor, live FFmpeg command inspector, GPU hardware encoder selection, and HTML5 video player:
 
 ```bash
-pnpm studio
+npx kino studio --port 3333
 ```
 
 Open `http://localhost:3333` in your browser to start building scenes visually!

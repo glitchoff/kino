@@ -1,0 +1,2 @@
+- kino is see readme.md for more information
+- well our wokring is test based, and on finishing some updates, we update our  docs to keep aligned.

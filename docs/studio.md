@@ -6,10 +6,13 @@
 
 ## 🎨 Launching Kino Studio
 
-Start the local studio server using `pnpm studio` (runs with automatic file watching via `tsx watch`):
+Start the local studio server using `pnpm studio`:
 
 ```bash
 pnpm studio
+
+# Or specify custom port
+npx kino studio --port 3333
 ```
 
 Navigate to `http://localhost:3333` in your web browser.
@@ -18,16 +21,30 @@ Navigate to `http://localhost:3333` in your web browser.
 
 ## 🌟 Features
 
-1. **Live JSON Editor**:
+1. **GPU Encoder Selection**:
+   - Select hardware acceleration directly from the top navigation toolbar:
+     - `⚡ Auto (GPU / CPU Fallback)`
+     - `🚀 NVIDIA GPU (h264_nvenc / hevc_nvenc)`
+     - `💻 CPU (libx264)`
+     - `⚡ Apple VideoToolbox (macOS)`
+     - `⚡ Intel QSV / AMD AMF`
+
+2. **Speed & Quality Presets**:
+   - Choose encoder performance profiles:
+     - `⚡ Very Fast (Recommended)`
+     - `🚀 Ultra Fast (Max Speed)`
+     - `⚖️ Balanced (Medium)`
+     - `💎 High Quality (Slow)`
+
+3. **Live JSON Editor**:
    - Syntax validation status badge ("Valid JSON" / "Invalid JSON").
-   - Pre-loaded presets dropdown (Vertical 1080x1920, Landscape 1920x1080, Minimal Square).
+   - Pre-loaded composition presets (Mobile 9:16, Landscape 16:9, Multi-scene demo).
    - "Format JSON" action button.
 
-2. **Live FFmpeg Command Inspector**:
+4. **Live FFmpeg Command Inspector**:
    - Re-compiles FFmpeg command line arguments in real-time as you edit JSON.
    - "Copy Command" button for easy terminal execution.
 
-3. **Render & Check Engine**:
+5. **Render & Check Engine**:
    - "Render Video & Check" button sends JSON composition to Hono backend server (`/api/render`).
-   - Generates `.mp4` video files.
    - Plays rendered output video directly inside the browser player with a one-click download button.

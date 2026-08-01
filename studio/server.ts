@@ -36,8 +36,11 @@ app.get("/api/examples", (c) => {
 
 app.post("/api/compile", async (c) => {
   try {
-    const composition: KinoComposition = await c.req.json();
-    const result = compile(composition, { output: "./out.mp4" });
+    const body = await c.req.json();
+    const composition: KinoComposition = body.composition || body;
+    const encoder = body.encoder;
+    const preset = body.preset;
+    const result = compile(composition, { output: "./out.mp4", encoder, preset });
     return c.json({
       success: true,
       args: result.args,
@@ -51,15 +54,20 @@ app.post("/api/compile", async (c) => {
 
 app.post("/api/render", async (c) => {
   try {
-    const composition: KinoComposition = await c.req.json();
+    const body = await c.req.json();
+    const composition: KinoComposition = body.composition || body;
+    const encoder = body.encoder;
+    const preset = body.preset;
     const filename = `render-${Date.now()}.mp4`;
     const outputPath = join(rendersDir, filename);
 
-    const { args } = compile(composition, { output: outputPath });
+    const { args } = compile(composition, { output: outputPath, encoder, preset });
 
-    console.log(`[Kino Studio] Starting render: ${filename}`);
+    console.log(`[Kino Studio] Starting render (${encoder || "auto/default"}, preset=${preset || "default"}): ${filename}`);
     await render(composition, {
       output: outputPath,
+      encoder,
+      preset,
       verbose: true,
     });
 

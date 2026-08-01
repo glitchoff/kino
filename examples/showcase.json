@@ -1,0 +1,118 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "audio": [
+    {
+      "src": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3",
+      "volume": 0.7,
+      "fadeIn": 2,
+      "fadeOut": 3
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene-1-earth",
+      "duration": 12,
+      "background": {
+        "type": "image",
+        "src": "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?w=1920&auto=format&fit=crop"
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "KINO SHOWCASE — COSMIC EXPEDITION",
+          "fontSize": 84,
+          "fontColor": "#ffffff",
+          "box": true,
+          "boxColor": "black@0.6",
+          "boxPadding": 24,
+          "x": "center",
+          "y": "(h-text_h)/2-60",
+          "startTime": 1,
+          "duration": 10,
+          "sfx": {
+            "src": "https://cdn.pixabay.com/download/audio/2025/05/29/audio_ea96cedc40.mp3?filename=universfield-mouse-click-351398.mp3",
+            "volume": 0.9
+          }
+        },
+        {
+          "type": "text",
+          "content": "High-Definition 35-Second Master Render",
+          "fontSize": 38,
+          "fontColor": "#38bdf8",
+          "x": "center",
+          "y": "(h-text_h)/2+80",
+          "startTime": 3,
+          "duration": 8
+        }
+      ]
+    },
+    {
+      "id": "scene-2-paranal",
+      "duration": 13,
+      "background": {
+        "type": "image",
+        "src": "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=1920&auto=format&fit=crop"
+      },
+      "elements": [
+        {
+          "type": "image",
+          "src": "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800&auto=format&fit=crop",
+          "width": 520,
+          "x": "center",
+          "y": "(main_h-overlay_h)/2-60",
+          "startTime": 2,
+          "duration": 10
+        },
+        {
+          "type": "text",
+          "content": "Laser Guide Observatory & Deep Cosmos Nebula",
+          "fontSize": 44,
+          "fontColor": "#ffffff",
+          "box": true,
+          "boxColor": "black@0.7",
+          "boxPadding": 20,
+          "x": "center",
+          "y": "(h-text_h)/2+220",
+          "startTime": 3,
+          "duration": 9
+        }
+      ]
+    },
+    {
+      "id": "scene-3-outro",
+      "duration": 10,
+      "background": {
+        "type": "gradient",
+        "from": "#030712",
+        "to": "#1e1b4b"
+      },
+      "elements": [
+        {
+          "type": "image",
+          "src": "https://dummyjson.com/icon/square-512.png",
+          "width": 240,
+          "x": "center",
+          "y": "(main_h-overlay_h)/2-100",
+          "startTime": 1,
+          "duration": 8
+        },
+        {
+          "type": "text",
+          "content": "Kino — Open Source Video Synthesis",
+          "fontSize": 52,
+          "fontColor": "#34d399",
+          "box": true,
+          "boxColor": "black@0.5",
+          "boxPadding": 16,
+          "x": "center",
+          "y": "(h-text_h)/2+140",
+          "startTime": 2,
+          "duration": 7,
+          "sfx": "https://cdn.pixabay.com/download/audio/2025/05/29/audio_ea96cedc40.mp3?filename=universfield-mouse-click-351398.mp3"
+        }
+      ]
+    }
+  ]
+}

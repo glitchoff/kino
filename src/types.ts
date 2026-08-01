@@ -75,6 +75,7 @@ export interface AudioTrack {
 export interface KinoScene {
   id?: string;
   duration: number;
+  startTime?: number;
   background?: BackgroundInput;
   elements?: ElementInput[];
 }
@@ -82,13 +83,18 @@ export interface KinoScene {
 export interface KinoComposition {
   width?: number;
   height?: number;
-  duration?: number;
-  background?: BackgroundInput;
   fps?: number;
-  text?: TextElement | TextElement[];
-  elements?: ElementInput[];
-  scenes?: KinoScene[];
+  timeline?: "sequential" | "absolute";
+  scenes: KinoScene[];
   audio?: AudioTrack | AudioTrack[];
+}
+
+export interface NormalizedScene {
+  id: string;
+  startTime: number;
+  duration: number;
+  background: BackgroundConfig;
+  elements: ElementInput[];
 }
 
 export interface NormalizedComposition {
@@ -96,22 +102,29 @@ export interface NormalizedComposition {
   height: number;
   duration: number;
   fps: number;
+  timeline: "sequential" | "absolute";
   background: BackgroundConfig;
   elements: ElementInput[];
-  scenes: {
-    id: string;
-    duration: number;
-    background: BackgroundConfig;
-    elements: ElementInput[];
-  }[];
+  scenes: NormalizedScene[];
   audio: AudioTrack[];
 }
+
+export type VideoEncoder =
+  | "libx264"
+  | "h264_nvenc"
+  | "hevc_nvenc"
+  | "h264_qsv"
+  | "h264_amf"
+  | "h264_videotoolbox"
+  | "auto";
 
 export interface RenderOptions {
   output: string;
   ffmpegPath?: string;
   overwrite?: boolean;
   verbose?: boolean;
+  encoder?: VideoEncoder;
+  preset?: string;
 }
 
 export interface CompileResult {
