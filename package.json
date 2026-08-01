@@ -1,6 +1,6 @@
 {
-  "name": "@glitchoff/kino",
-  "version": "0.3.3",
+  "name": "kino",
+  "version": "0.3.4",
   "description": "Compile declarative JSON video compositions to FFmpeg",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -19,9 +19,6 @@
   "files": [
     "dist"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
