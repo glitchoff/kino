@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kino Studio — Visual JSON to FFmpeg Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header / Navbar -->
+    <header class="navbar">
+      <div class="brand">
+        <span class="logo-icon">🎬</span>
+        <div>
+          <h1 class="logo-text">Kino Studio</h1>
+          <p class="tagline">JSON → FFmpeg Video Compiler</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <label for="preset-select" class="preset-label">Presets:</label>
+        <select id="preset-select" class="preset-dropdown">
+          <option value="basic">Basic Text Overlay (1080x1920)</option>
+          <option value="timeline">Multi-Text Timeline (1920x1080)</option>
+          <option value="minimal">Minimal Dark Scene</option>
+        </select>
+        <button id="format-json-btn" class="btn btn-secondary">Format JSON</button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Left Panel: JSON Editor -->
+      <section class="panel editor-panel">
+        <div class="panel-header">
+          <h2>JSON Composition Editor</h2>
+          <span id="json-status" class="status-badge valid">Valid JSON</span>
+        </div>
+        <div class="editor-container">
+          <textarea id="json-editor" spellcheck="false"></textarea>
+        </div>
+      </section>
+
+      <!-- Right Panel: Live Inspector & Render Preview -->
+      <section class="panel preview-panel">
+        <!-- Live FFmpeg Command Inspector -->
+        <div class="inspector-card">
+          <div class="card-header">
+            <h3>FFmpeg Command Live Preview</h3>
+            <button id="copy-cmd-btn" class="btn btn-sm">Copy Command</button>
+          </div>
+          <pre class="code-block"><code id="ffmpeg-cmd-output">Loading command...</code></pre>
+        </div>
+
+        <!-- Render & Check Controls -->
+        <div class="render-card">
+          <div class="render-actions">
+            <button id="render-btn" class="btn btn-primary btn-lg">
+              <span class="btn-icon">⚡</span> Render Video & Check
+            </button>
+            <span id="render-spinner" class="spinner hidden"></span>
+          </div>
+          <div id="render-status-msg" class="status-message">Ready to render.</div>
+        </div>
+
+        <!-- Rendered Video Player -->
+        <div class="video-card">
+          <div class="card-header">
+            <h3>Video Output Preview</h3>
+            <a id="download-link" href="#" download="kino-render.mp4" class="hidden download-btn">Download .mp4</a>
+          </div>
+          <div class="video-wrapper">
+            <video id="video-player" controls preload="auto" class="video-element hidden"></video>
+            <div id="video-placeholder" class="video-placeholder">
+              <span class="placeholder-icon">📹</span>
+              <p>Click "Render Video & Check" to compile and play output video here.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
