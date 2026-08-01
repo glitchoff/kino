@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { resolve, join } from "node:path";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { compile, render } from "../src/index.js";
 import type { KinoComposition } from "../src/types.js";
 
@@ -10,12 +10,30 @@ const app = new Hono();
 
 const studioDir = resolve(process.cwd(), "studio");
 const rendersDir = join(studioDir, "public", "renders");
+const examplesDir = resolve(process.cwd(), "examples");
 
 if (!existsSync(rendersDir)) {
   mkdirSync(rendersDir, { recursive: true });
 }
 
 // API Routes
+app.get("/api/examples", (c) => {
+  try {
+    const examples: Record<string, any> = {};
+    if (existsSync(examplesDir)) {
+      const files = readdirSync(examplesDir).filter((f) => f.endsWith(".json"));
+      for (const file of files) {
+        const name = file.replace(".json", "");
+        const content = JSON.parse(readFileSync(join(examplesDir, file), "utf-8"));
+        examples[name] = content;
+      }
+    }
+    return c.json({ success: true, examples });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 app.post("/api/compile", async (c) => {
   try {
     const composition: KinoComposition = await c.req.json();

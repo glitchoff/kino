@@ -1,73 +1,33 @@
-const presets = {
+let presets = {
   basic: {
     width: 1080,
     height: 1920,
     duration: 5,
-    background: "#000000",
+    background: "#0f172a",
     fps: 30,
-    text: [
+    elements: [
       {
+        type: "text",
         content: "Hello Kino",
         fontSize: 72,
         fontColor: "white",
+        box: true,
+        boxColor: "black@0.6",
+        boxPadding: 16,
         x: "center",
         y: "center",
         startTime: 0,
         duration: 3
       },
       {
+        type: "text",
         content: "JSON to FFmpeg",
         fontSize: 48,
         fontColor: "#38bdf8",
         x: "center",
-        y: "(h-text_h)/2+120",
+        y: "(h-text_h)/2+140",
         startTime: 2,
         duration: 3
-      }
-    ]
-  },
-  timeline: {
-    width: 1920,
-    height: 1080,
-    duration: 8,
-    background: "#0f172a",
-    fps: 30,
-    text: [
-      {
-        content: "Scene 1: Introduction",
-        fontSize: 64,
-        fontColor: "#f8fafc",
-        x: "center",
-        y: "center",
-        startTime: 0,
-        duration: 4
-      },
-      {
-        content: "Scene 2: Compiled with FFmpeg",
-        fontSize: 56,
-        fontColor: "#34d399",
-        x: "center",
-        y: "center",
-        startTime: 4,
-        duration: 4
-      }
-    ]
-  },
-  minimal: {
-    width: 1080,
-    height: 1080,
-    duration: 4,
-    background: "#1e1b4b",
-    fps: 30,
-    text: [
-      {
-        content: "Minimal Square Video",
-        fontSize: 54,
-        fontColor: "#a78bfa",
-        x: "center",
-        y: "center",
-        startTime: 0,
-        duration: 4
       }
     ]
   }
@@ -90,9 +50,30 @@ let currentComposition = null;
 let updateDebounceTimeout = null;
 
 function loadPreset(key) {
-  const data = presets[key] || presets.basic;
+  const data = presets[key] || Object.values(presets)[0];
+  if (!data) return;
   jsonEditor.value = JSON.stringify(data, null, 2);
   onJsonChange();
+}
+
+async function fetchExamples() {
+  try {
+    const res = await fetch("/api/examples");
+    const data = await res.json();
+    if (data.success && data.examples && Object.keys(data.examples).length > 0) {
+      presets = data.examples;
+      presetSelect.innerHTML = "";
+      for (const key of Object.keys(presets)) {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = `examples/${key}.json`;
+        presetSelect.appendChild(option);
+      }
+      loadPreset(Object.keys(presets)[0]);
+    }
+  } catch (err) {
+    console.error("Could not fetch server examples, using default preset:", err);
+  }
 }
 
 async function updateFFmpegCompilePreview() {
@@ -201,5 +182,6 @@ renderBtn.addEventListener("click", async () => {
   }
 });
 
-// Initialize with default preset
+// Load examples dynamically from server
+fetchExamples();
 loadPreset("basic");

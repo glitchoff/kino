@@ -6,10 +6,4 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  banner: ({ format }) => {
-    return {};
-  },
-  onSuccess: async () => {
-    // Post build actions if needed
-  },
 });

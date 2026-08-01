@@ -1,86 +1,97 @@
 # JSON Schema Reference
 
-The `KinoComposition` JSON object defines canvas properties, video duration, background colors, frame rates, and scene element timelines.
+The `KinoComposition` JSON object defines canvas properties, duration, background types, FPS, polymorphic scene element timelines, and audio/SFX mixing.
 
 ---
 
-## `KinoComposition` Properties
+## Normalization Layer
+
+Kino accepts clean shorthand syntax and normalizes it internally:
+
+- `"background": "#0f172a"`  
+  ↓ *normalizes to*  
+  `"background": { "type": "color", "value": "#0f172a" }`
+
+- `"elements": [{ "content": "Text" }]`  
+  ↓ *normalizes to*  
+  `"elements": [{ "type": "text", "content": "Text" }]`
+
+---
+
+## Canvas & Composition Properties
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `width` | `number` | `1920` | Output video canvas width in pixels. |
 | `height` | `number` | `1080` | Output video canvas height in pixels. |
 | `duration` | `number` | `5` | Total video duration in seconds. |
-| `background` | `string` | `"#000000"` | Canvas background color (Hex `#RRGGBB` or color name like `"black"`, `"blue"`). |
-| `fps` | `number` | `30` | Frame rate (frames per second). |
-| `text` | `TextOverlay \| TextOverlay[]` | `[]` | Text overlays to render on the timeline. |
-| `elements` | `TextOverlay[]` | `[]` | Array alias for scene elements. |
+| `background` | `BackgroundInput` | `"#000000"` | Hex string shorthand or background object (Color, Image, Gradient, Video). |
+| `fps` | `number` | `30` | Frame rate in FPS. |
+| `elements` | `ElementInput[]` | `[]` | Polymorphic elements array (`text`, `image`). |
+| `audio` | `AudioTrack \| AudioTrack[]` | `[]` | Background music / audio track configurations. |
 
 ---
 
-## `TextOverlay` Properties
+## Background Configurations
 
-Each text element object defines text content, font styling, screen positioning, and active time windows.
+### 1. Solid Color
+`"background": "#0f172a"` or `"background": { "type": "color", "value": "#0f172a" }`
+
+### 2. Gradient
+`"background": { "type": "gradient", "from": "#0f172a", "to": "#7c3aed" }`
+
+### 3. Image Fill
+`"background": { "type": "image", "src": "./bg.jpg" }`
+
+### 4. Video Loop
+`"background": { "type": "video", "src": "./loop.mp4", "loop": true }`
+
+---
+
+## Polymorphic Elements
+
+### 1. `TextElement` (`type: "text"`)
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `content` | `string` | `""` (required) | Text string to draw on screen. |
+| `type` | `"text"` | `"text"` | Element type discriminator. |
+| `content` | `string` | `""` | Text string to render. |
 | `fontSize` | `number` | `48` | Font size in pixels. |
-| `fontColor` | `string` | `"white"` | Text color (Hex format or color name). |
-| `x` | `number \| string` | `"center"` | Horizontal position. `"center"` maps to `(w-text_w)/2`. FFmpeg expressions allowed (e.g. `100`, `(w-text_w)/2`). |
-| `y` | `number \| string` | `"center"` | Vertical position. `"center"` maps to `(h-text_h)/2`. FFmpeg expressions allowed (e.g. `(h-text_h)/2+100`). |
-| `startTime` | `number` | `0` | Delay in seconds before text appears on screen. |
-| `duration` | `number` | Total video duration | Duration in seconds the text remains visible. |
-| `fontFile` | `string` | System font | Path to custom `.ttf` or `.otf` font file. |
+| `fontColor` | `string` | `"white"` | Text color. |
+| `box` | `boolean` | `false` | Enable background box behind text. |
+| `boxColor` | `string` | `"black@0.5"` | Background box color with opacity. |
+| `boxPadding` | `number` | `10` | Border padding around text box. |
+| `x` | `number \| string` | `"center"` | Horizontal position (expression or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (expression or number). |
+| `startTime` | `number` | `0` | Delay in seconds before text appears. |
+| `duration` | `number` | Video duration | Visible duration in seconds. |
+| `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
+
+### 2. `ImageElement` (`type: "image"`)
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `type` | `"image"` | required | Element type discriminator. |
+| `src` | `string` | required | File path or URL to image file. |
+| `width` | `number` | original | Target width in pixels. |
+| `height` | `number` | original | Target height in pixels. |
+| `x` | `number \| string` | `"center"` | Horizontal position. |
+| `y` | `number \| string` | `"center"` | Vertical position. |
+| `startTime` | `number` | `0` | Start time in seconds. |
+| `duration` | `number` | Video duration | Duration in seconds. |
+| `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
 
 ---
 
-## 💡 Examples
+## Audio Tracks & SFX (`AudioTrack`)
 
-### 1. Vertical Video (1080x1920)
-
-```json
-{
-  "width": 1080,
-  "height": 1920,
-  "duration": 5,
-  "background": "#000000",
-  "fps": 30,
-  "text": [
-    {
-      "content": "Short Form Video",
-      "fontSize": 72,
-      "fontColor": "#38bdf8",
-      "x": "center",
-      "y": "center"
-    }
-  ]
-}
-```
-
-### 2. Multi-Text Timeline
-
-```json
-{
-  "width": 1920,
-  "height": 1080,
-  "duration": 6,
-  "background": "#0f172a",
-  "text": [
-    {
-      "content": "First 3 Seconds",
-      "fontSize": 60,
-      "fontColor": "#ffffff",
-      "startTime": 0,
-      "duration": 3
-    },
-    {
-      "content": "Last 3 Seconds",
-      "fontSize": 60,
-      "fontColor": "#34d399",
-      "startTime": 3,
-      "duration": 3
-    }
-  ]
-}
-```
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `src` | `string` | required | File path or URL to audio file (`.mp3`, `.wav`, `.aac`). |
+| `startTime` | `number` | `0` | Timeline delay start offset in seconds. |
+| `offset` | `number` | `0` | Seek start offset within source audio file in seconds. |
+| `duration` | `number` | audio duration | Playback clip duration in seconds. |
+| `volume` | `number` | `1.0` | Volume multiplier (`0.3` = 30%, `1.5` = 150%). |
+| `loop` | `boolean` | `false` | Loop audio throughout scene duration. |
+| `fadeIn` | `number` | `0` | Fade-in duration in seconds. |
+| `fadeOut` | `number` | `0` | Fade-out duration in seconds. |

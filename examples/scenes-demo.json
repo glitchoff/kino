@@ -1,0 +1,26 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "duration": 6,
+  "background": {
+    "type": "gradient",
+    "from": "#0f172a",
+    "to": "#1e1b4b"
+  },
+  "fps": 30,
+  "elements": [
+    {
+      "type": "text",
+      "content": "Normalized Background & Elements",
+      "fontSize": 64,
+      "fontColor": "#ffffff",
+      "box": true,
+      "boxColor": "black@0.5",
+      "boxPadding": 20,
+      "x": "center",
+      "y": "center",
+      "startTime": 0,
+      "duration": 6
+    }
+  ]
+}
