@@ -108,20 +108,36 @@ if (existsSync(join(studioDir, "dist"))) {
   app.use("/*", serveStatic({ root: "./studio" }));
 }
 
-export function startStudio(port?: number) {
-  const PORT = port || Number(process.env.PORT) || 3333;
-  return serve(
-    {
-      fetch: app.fetch,
-      port: PORT,
-    },
-    (info) => {
-      console.log(`
+export function startStudio(preferredPort?: number) {
+  const initialPort = preferredPort || Number(process.env.PORT) || 3333;
+  let currentPort = initialPort;
+
+  while (currentPort < initialPort + 20) {
+    try {
+      const serverInstance = serve(
+        {
+          fetch: app.fetch,
+          port: currentPort,
+        },
+        (info) => {
+          console.log(`
   🎬 Kino Studio (Hono Server) is running!
   👉 Open in browser: http://localhost:${info.port}
   `);
+        }
+      );
+      return serverInstance;
+    } catch (err: any) {
+      if (err.code === "EADDRINUSE" && !preferredPort) {
+        console.warn(`[Kino Studio] Port ${currentPort} in use, trying ${currentPort + 1}…`);
+        currentPort++;
+      } else {
+        throw err;
+      }
     }
-  );
+  }
+
+  throw new Error(`[Kino Studio] Could not find an open port starting from ${initialPort}`);
 }
 
 // Start server if script executed directly
