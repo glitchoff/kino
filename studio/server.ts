@@ -3,7 +3,7 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { resolve, join } from "node:path";
 import { mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
-import { compile, render } from "../src/index.js";
+import { render } from "../src/index.js";
 import type { KinoComposition } from "../src/types.js";
 
 const app = new Hono();
@@ -34,40 +34,28 @@ app.get("/api/examples", (c) => {
   }
 });
 
-app.post("/api/compile", async (c) => {
-  try {
-    const body = await c.req.json();
-    const composition: KinoComposition = body.composition || body;
-    const encoder = body.encoder;
-    const preset = body.preset;
-    const result = compile(composition, { output: "./out.mp4", encoder, preset });
-    return c.json({
-      success: true,
-      args: result.args,
-      filtergraph: result.filtergraph,
-      command: `ffmpeg ${result.args.join(" ")}`,
-    });
-  } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 400);
-  }
-});
-
 app.post("/api/render", async (c) => {
   try {
     const body = await c.req.json();
     const composition: KinoComposition = body.composition || body;
     const encoder = body.encoder;
     const preset = body.preset;
+    const unsafeInlineText = body.unsafeInlineText;
     const filename = `render-${Date.now()}.mp4`;
     const outputPath = join(rendersDir, filename);
 
-    const { args } = compile(composition, { output: outputPath, encoder, preset });
+    if (unsafeInlineText) {
+      console.warn(
+        "[kino] Warning: unsafeInlineText disables textfile delivery; text with apostrophes may render blank on some platforms."
+      );
+    }
 
     console.log(`[Kino Studio] Starting render (${encoder || "auto/default"}, preset=${preset || "default"}): ${filename}`);
     await render(composition, {
       output: outputPath,
       encoder,
       preset,
+      unsafeInlineText,
       verbose: true,
     });
 
@@ -76,7 +64,6 @@ app.post("/api/render", async (c) => {
       success: true,
       videoUrl: `/renders/${filename}`,
       filename,
-      command: `ffmpeg ${args.join(" ")}`,
     });
   } catch (err: any) {
     console.error(`[Kino Studio] Render error:`, err.message);

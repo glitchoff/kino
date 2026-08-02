@@ -35,9 +35,11 @@ async function main() {
   Options:
     -o, --output <path>    Output video file path (default: ./out.mp4)
     -e, --encoder <name>   Video encoder (libx264, h264_nvenc, hevc_nvenc, h264_qsv, h264_amf, h264_videotoolbox, auto)
+    --ffmpeg-path <path>   Use a specific ffmpeg binary instead of the bundled one
     --gpu                  Enable GPU hardware acceleration (alias for --encoder auto with CPU fallback)
     -p, --port <number>    Port for studio server (default: 3333)
     --dry-run              Print compiled FFmpeg command without rendering
+    --unsafe-inline-text   Disable textfile delivery (text passed inline; apostrophes may render blank)
     --verbose              Show full FFmpeg output logs during render
     -h, --help             Show help output
 `);
@@ -47,8 +49,10 @@ async function main() {
   let jsonPath = "";
   let outputPath = "./out.mp4";
   let encoder: any = undefined;
+  let ffmpegPath: string | undefined = undefined;
   let isDryRun = false;
   let isVerbose = false;
+  let isUnsafeInlineText = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -56,12 +60,16 @@ async function main() {
       continue;
     } else if (arg === "-o" || arg === "--output") {
       outputPath = args[++i] || "./out.mp4";
+    } else if (arg === "--ffmpeg-path") {
+      ffmpegPath = args[++i];
     } else if (arg === "-e" || arg === "--encoder") {
       encoder = args[++i];
     } else if (arg === "--gpu") {
       encoder = "auto";
     } else if (arg === "--dry-run") {
       isDryRun = true;
+    } else if (arg === "--unsafe-inline-text") {
+      isUnsafeInlineText = true;
     } else if (arg === "--verbose") {
       isVerbose = true;
     } else if (!arg.startsWith("-") && !jsonPath) {
@@ -79,9 +87,20 @@ async function main() {
     const fileContent = readFileSync(fullPath, "utf-8");
     const composition: KinoComposition = JSON.parse(fileContent);
 
+    if (isUnsafeInlineText) {
+      console.warn(
+        "[kino] Warning: --unsafe-inline-text disables textfile delivery; text with apostrophes may render blank on some platforms."
+      );
+    }
+
     if (isDryRun) {
-      const { args: ffmpegArgs } = compile(composition, { output: outputPath, encoder });
-      console.log(`[kino dry-run] FFmpeg command:\nffmpeg ${ffmpegArgs.join(" ")}`);
+      const { args: ffmpegArgs, kinoFilePath } = compile(composition, {
+        output: outputPath,
+        encoder,
+        unsafeInlineText: isUnsafeInlineText,
+      });
+      console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
+      console.log(`[kino dry-run] FFmpeg command (relative paths, cwd = extraction dir):\nffmpeg ${ffmpegArgs.join(" ")}`);
       return;
     }
 
@@ -90,6 +109,8 @@ async function main() {
       output: outputPath,
       verbose: isVerbose,
       encoder,
+      ffmpegPath,
+      unsafeInlineText: isUnsafeInlineText,
     });
     console.log(`[kino] Successfully rendered to ${result.output}`);
   } catch (err: any) {

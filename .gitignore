@@ -6,6 +6,9 @@ studio/public/renders/
 
 node_modules
 
+# Bundled ffmpeg binaries downloaded at install time (Linux)
+vendor/
+
 # Logs
 logs
 *.log

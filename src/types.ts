@@ -125,9 +125,12 @@ export interface RenderOptions {
   verbose?: boolean;
   encoder?: VideoEncoder;
   preset?: string;
+  kinoPath?: string;
+  unsafeInlineText?: boolean;
 }
 
 export interface CompileResult {
   args: string[];
   filtergraph?: string;
+  kinoFilePath: string;
 }

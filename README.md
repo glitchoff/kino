@@ -7,11 +7,12 @@ A high-performance TypeScript library, CLI, and local web studio for compiling J
 ## ⚡ Key Features
 
 - **Mandatory `scenes[]` Primitive**: Modular, scene-driven timeline architecture with relative element positioning.
-- **GPU Hardware Acceleration**: Native support for NVIDIA (`h264_nvenc`, `hevc_nvenc`), Intel (`h264_qsv`), AMD (`h264_amf`), and Apple VideoToolbox with automatic CPU (`libx264`) fallback.
+- **GPU Hardware Acceleration**: Native support for NVIDIA (`h264_nvenc`, `hevc_nvenc`), Intel (`h264_qsv`), AMD (`h264_amf`), and Apple VideoToolbox. `encoder: "auto"` probes the host machine and picks the best available GPU encoder, with automatic CPU (`libx264`) fallback.
 - **Sequential & Absolute Timelines**: Automatic end-to-end scene sequencing or explicit absolute start time layer stacking.
 - **Audio & SFX Mixing**: Multi-track background music with fade-in/fade-out and element-level sound effect triggers.
 - **Kino Studio**: Local web editor (powered by Hono) with live FFmpeg command preview and GPU encoder controls.
 - **Binary Fallback**: Bundles `ffmpeg-static` for instant zero-config execution.
+- **Portable `.kino` Artifacts**: `compile()` produces a self-contained zip (relative paths, text/asset files included) that can be archived, cached, or handed to another machine and rendered as-is.
 
 ---
 
@@ -76,6 +77,9 @@ npx kino examples/basic.json -o out.mp4 --encoder h264_nvenc
 
 # Inspect generated FFmpeg command
 npx kino examples/basic.json --dry-run
+
+# Opt out of textfile text delivery (DANGEROUS: apostrophes may render blank)
+npx kino examples/basic.json --unsafe-inline-text
 ```
 
 ### Kino Studio (Visual Web Editor)
