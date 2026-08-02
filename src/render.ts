@@ -12,6 +12,7 @@ import type {
   CompileResult,
   TextElement,
   ImageElement,
+  VideoElement,
   AudioTrack,
   VideoEncoder,
   Easing,
@@ -78,7 +79,7 @@ function getFFmpegBinaryPath(customPath?: string): string {
 
 function compositionHasText(composition: KinoComposition): boolean {
   return (composition.scenes ?? []).some((scene) =>
-    (scene.elements ?? []).some((element) => element.type !== "image")
+    (scene.elements ?? []).some((element) => element.type === "text")
   );
 }
 
@@ -280,10 +281,10 @@ function normalizeColor(color?: string): string {
   return color;
 }
 
-function buildImageScaleFilter(img: ImageElement): string {
-  const w = img.width ?? -1;
-  const h = img.height ?? -1;
-  const fit = img.fit;
+function buildMediaScaleFilter(elem: ImageElement | VideoElement): string {
+  const w = elem.width ?? -1;
+  const h = elem.height ?? -1;
+  const fit = elem.fit;
 
   if (w > 0 && h > 0) {
     if (fit === "cover") {
@@ -363,7 +364,7 @@ function animationValueExpression(
 }
 
 function buildAnimationExpressions(
-  elem: TextElement | ImageElement,
+  elem: TextElement | ImageElement | VideoElement,
   timeVar: string
 ): { opacity?: string; tx?: string; ty?: string; scale?: string } {
   const anim = elem.animation;
@@ -377,13 +378,99 @@ function buildAnimationExpressions(
   return out;
 }
 
+interface MediaLayerLike {
+  x?: number | string;
+  y?: number | string;
+  startTime?: number;
+  duration?: number;
+}
+
+interface MediaAnimation {
+  opacity?: string;
+  tx?: string;
+  ty?: string;
+  scale?: string;
+}
+
+function applyMediaOverlay(
+  filterComplex: string[],
+  elemIdx: number,
+  startPad: string,
+  elem: MediaLayerLike,
+  ax: MediaAnimation,
+  hasAnimation: boolean,
+  duration: number,
+  lastVideoPad: string
+): string {
+  const outPad = `[v_layer_${elemIdx}]`;
+  const inPad = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
+
+  if (hasAnimation) {
+    let transPad = startPad;
+
+    if (ax.scale) {
+      const scaleExpr = `max(0.01,(${ax.scale}))`;
+      const np = `[img_scaled_${elemIdx}]`;
+      filterComplex.push(`${transPad}scale=w='max(2,iw*${scaleExpr})':h=-2:eval=frame${np}`);
+      transPad = np;
+    }
+
+    if (ax.opacity) {
+      const np = `[img_alpha_${elemIdx}]`;
+      const oExpr = ax.opacity.replace(/\bt\b/g, "T").replace(/,/g, "\\,");
+      filterComplex.push(
+        `${transPad}format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='255*(${oExpr})'${np}`
+      );
+      transPad = np;
+    }
+
+    const staticX = formatPosition(elem.x, "(main_w-overlay_w)/2");
+    const staticY = formatPosition(elem.y, "(main_h-overlay_h)/2");
+
+    let ox = staticX;
+    let oy = staticY;
+    if (ax.tx) ox = `(${staticX}) + (${ax.tx})`;
+    if (ax.ty) oy = `(${staticY}) + (${ax.ty})`;
+    if (ax.scale) {
+      const scaleExpr = `max(0.01,(${ax.scale}))`;
+      ox += ` - (overlay_w*(1-(1/${scaleExpr})))/2`;
+      oy += ` - (overlay_h*(1-(1/${scaleExpr})))/2`;
+    }
+
+    let overlayFilter = `overlay=x='${escapeExpr(ox)}':y='${escapeExpr(oy)}':eval=frame`;
+    const hasTiming = elem.startTime !== undefined || elem.duration !== undefined;
+    if (hasTiming) {
+      const s = elem.startTime ?? 0;
+      const e = elem.duration !== undefined ? s + elem.duration : duration;
+      overlayFilter += `:enable='between(t\\,${s}\\,${e})'`;
+    }
+    filterComplex.push(`${inPad}${transPad}${overlayFilter}${outPad}`);
+    return outPad;
+  } else {
+    const xExpr = formatPosition(elem.x, "(main_w-overlay_w)/2");
+    const yExpr = formatPosition(elem.y, "(main_h-overlay_h)/2");
+    let overlayFilter = `overlay=x=${xExpr}:y=${yExpr}`;
+    const hasTiming = elem.startTime !== undefined || elem.duration !== undefined;
+    if (hasTiming) {
+      const s = elem.startTime ?? 0;
+      const e = elem.duration !== undefined ? s + elem.duration : duration;
+      overlayFilter += `:enable='between(t\\,${s}\\,${e})'`;
+    }
+    filterComplex.push(`${inPad}${startPad}${overlayFilter}${outPad}`);
+    return outPad;
+  }
+}
+
 function addFFmpegInput(
   inputs: string[],
   src: string,
-  options: { loop?: boolean; streamLoop?: boolean } = {}
+  options: { loop?: boolean; streamLoop?: boolean; seek?: number } = {}
 ) {
   if (options.streamLoop) {
     inputs.push("-stream_loop", "-1");
+  }
+  if (options.seek !== undefined && options.seek > 0) {
+    inputs.push("-ss", String(options.seek));
   }
   if (options.loop) {
     inputs.push("-loop", "1");
@@ -437,6 +524,8 @@ function prestageRemoteAssets(
   }
   for (const elem of norm.elements) {
     if (elem.type === "image") {
+      if (isRemote(elem.src)) urls.add(elem.src);
+    } else if (elem.type === "video") {
       if (isRemote(elem.src)) urls.add(elem.src);
     } else if (elem.fontFile) {
       if (isRemote(elem.fontFile)) urls.add(elem.fontFile);
@@ -583,88 +672,76 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     // 2. Composite Elements as Layers (already z-order sorted by normalizeComposition)
     const useTextFiles = !options?.unsafeInlineText;
 
+    // Audio pads collected from video elements (opt-in via volume > 0)
+    const videoElemAudioPads: string[] = [];
+
     for (const [elemIdx, elem] of norm.elements.entries()) {
       const isImage = elem.type === "image";
-      const anim = elem.animation;
-      const hasAnimation = !!(
-        anim && (anim.opacity || anim.x || anim.y || anim.scale)
-      );
+      const isVideo = elem.type === "video";
+      const isText = !isImage && !isVideo;
 
-      if (isImage) {
-        const img = elem as ImageElement;
-        addFFmpegInput(inputs, stageAsset(img.src));
+      if (isImage || isVideo) {
+        const media = elem as ImageElement | VideoElement;
         const currInputIdx = inputIndex++;
         const outPad = `[v_layer_${elemIdx}]`;
 
-        const scaleFilter = buildImageScaleFilter(img);
-
-        const ax = buildAnimationExpressions(img, "t");
-
-        let curPad = `[${currInputIdx}:v]`;
-        if (hasAnimation) {
-          const basePad = `[img_base_${elemIdx}]`;
-          filterComplex.push(`${curPad}${scaleFilter}${basePad}`);
-          curPad = basePad;
-
-          if (ax.scale) {
-            const scaleExpr = `max(0.01,(${ax.scale}))`;
-            const np = `[img_scaled_${elemIdx}]`;
-            filterComplex.push(
-              `${curPad}scale=w='max(2,iw*${scaleExpr})':h=-2:eval=frame${np}`
-            );
-            curPad = np;
-          }
-
-          if (ax.opacity) {
-            const np = `[img_alpha_${elemIdx}]`;
-            const oExpr = ax.opacity.replace(/\bt\b/g, "T").replace(/,/g, "\\,");
-            filterComplex.push(
-              `${curPad}format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='255*(${oExpr})'${np}`
-            );
-            curPad = np;
-          }
-
-          const staticX = formatPosition(img.x, "(main_w-overlay_w)/2");
-          const staticY = formatPosition(img.y, "(main_h-overlay_h)/2");
-
-          let ox = staticX;
-          let oy = staticY;
-          if (ax.tx) ox = `(${staticX}) + (${ax.tx})`;
-          if (ax.ty) oy = `(${staticY}) + (${ax.ty})`;
-          if (ax.scale) {
-            const scaleExpr = `max(0.01,(${ax.scale}))`;
-            ox += ` - (overlay_w*(1-(1/${scaleExpr})))/2`;
-            oy += ` - (overlay_h*(1-(1/${scaleExpr})))/2`;
-          }
-
-          let overlayFilter = `overlay=x='${escapeExpr(ox)}':y='${escapeExpr(oy)}':eval=frame`;
-          if (img.startTime !== undefined || img.duration !== undefined) {
-            const start = img.startTime ?? 0;
-            const end = img.duration !== undefined ? start + img.duration : duration;
-            overlayFilter += `:enable='between(t\\,${start}\\,${end})'`;
-          }
-
-          const inPad = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
-          filterComplex.push(`${inPad}${curPad}${overlayFilter}${outPad}`);
-          lastVideoPad = outPad;
+        if (isVideo) {
+          const vid = elem as VideoElement;
+          addFFmpegInput(inputs, stageAsset(vid.src), {
+            seek: vid.trimStart,
+            streamLoop: vid.loop,
+          });
         } else {
-          const scaledPad = `[img_scaled_${elemIdx}]`;
-          filterComplex.push(`${curPad}${scaleFilter}${scaledPad}`);
-
-          const xExpr = formatPosition(img.x, "(main_w-overlay_w)/2");
-          const yExpr = formatPosition(img.y, "(main_h-overlay_h)/2");
-
-          let overlayFilter = `overlay=x=${xExpr}:y=${yExpr}`;
-          if (img.startTime !== undefined || img.duration !== undefined) {
-            const start = img.startTime ?? 0;
-            const end = img.duration !== undefined ? start + img.duration : duration;
-            overlayFilter += `:enable='between(t\\,${start}\\,${end})'`;
-          }
-
-          const inPad = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
-          filterComplex.push(`${inPad}${scaledPad}${overlayFilter}${outPad}`);
-          lastVideoPad = outPad;
+          addFFmpegInput(inputs, stageAsset(media.src));
         }
+
+        const scaleFilter = buildMediaScaleFilter(media);
+        const ax = buildAnimationExpressions(media, "t");
+        const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
+
+        let startPad: string;
+        if (isVideo) {
+          const vid = elem as VideoElement;
+          const elemStart = vid.startTime ?? 0;
+          const elemDur = vid.duration ?? Math.max(0, duration - elemStart);
+          // Fit + duration clip + timestamp reset + shift to composition timeline, then force a sane pixel format for overlay.
+          const fitPad = `[vid_fit_${elemIdx}]`;
+          filterComplex.push(
+            `[${currInputIdx}:v]${scaleFilter},trim=duration=${elemDur},setpts=PTS-STARTPTS+${elemStart}/TB,fps=${fps},setsar=1,format=yuv420p${fitPad}`
+          );
+          startPad = fitPad;
+
+          // Optional audio track from the video source (opt-in via volume > 0)
+          if (vid.volume !== undefined && vid.volume > 0) {
+            const aPad = `[vid_a_${elemIdx}]`;
+            const afs: string[] = [`atrim=duration=${elemDur}`, `asetpts=PTS-STARTPTS`];
+            if (vid.volume !== 1.0) {
+              afs.push(`volume=${vid.volume}`);
+            }
+            const aStart = vid.startTime ?? 0;
+            if (aStart > 0) {
+              const delayMs = Math.round(aStart * 1000);
+              afs.push(`adelay=${delayMs}|${delayMs}`);
+            }
+            filterComplex.push(`[${currInputIdx}:a]${afs.join(",")}${aPad}`);
+            videoElemAudioPads.push(aPad);
+          }
+        } else {
+          const basePad = `[img_base_${elemIdx}]`;
+          filterComplex.push(`[${currInputIdx}:v]${scaleFilter}${basePad}`);
+          startPad = basePad;
+        }
+
+        lastVideoPad = applyMediaOverlay(
+          filterComplex,
+          elemIdx,
+          startPad,
+          media,
+          ax,
+          hasAnimation,
+          duration,
+          lastVideoPad
+        );
       } else {
         const item = elem as TextElement;
         const content = item.content || "";
@@ -747,9 +824,9 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
         }
 
         const inPad = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
-        const outPad = `[v_layer_${elemIdx}]`;
-        filterComplex.push(`${inPad}${filter}${outPad}`);
-        lastVideoPad = outPad;
+        const textOutPad = `[v_layer_${elemIdx}]`;
+        filterComplex.push(`${inPad}${filter}${textOutPad}`);
+        lastVideoPad = textOutPad;
       }
     }
 
@@ -794,12 +871,17 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
         afs.push(`adelay=${delayMs}|${delayMs}`);
       }
 
-      if (afs.length > 0) {
+       if (afs.length > 0) {
         filterComplex.push(`[${aIdx}:a]${afs.join(",")}${outPad}`);
         audioFilterPads.push(outPad);
       } else {
         audioFilterPads.push(`[${aIdx}:a]`);
       }
+    }
+
+    // Fold video-element audio (opt-in) into the master mix alongside track audio.
+    if (videoElemAudioPads.length > 0) {
+      audioFilterPads.push(...videoElemAudioPads);
     }
 
     let finalAudioMap: string | undefined;

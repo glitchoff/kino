@@ -267,6 +267,68 @@ export function validateComposition(comp: unknown): void {
                 });
               }
             }
+          } else if (elemType === "video") {
+            if (!isNonEmptyString(elem.src)) {
+              issues.push({
+                path: `${elemPath}.src`,
+                message: `Expected a non-empty file path or URL for video element`,
+              });
+            }
+
+            if (elem.width !== undefined) {
+              if (!isFiniteNumber(elem.width) || elem.width <= 0) {
+                issues.push({
+                  path: `${elemPath}.width`,
+                  message: `Expected a positive number, received ${elem.width}`,
+                });
+              }
+            }
+
+            if (elem.height !== undefined) {
+              if (!isFiniteNumber(elem.height) || elem.height <= 0) {
+                issues.push({
+                  path: `${elemPath}.height`,
+                  message: `Expected a positive number, received ${elem.height}`,
+                });
+              }
+            }
+
+            if (elem.fit !== undefined) {
+              const validFits = ["contain", "cover", "fill", "none"];
+              if (typeof elem.fit !== "string" || !validFits.includes(elem.fit)) {
+                issues.push({
+                  path: `${elemPath}.fit`,
+                  message: `Expected "contain", "cover", "fill", or "none", received ${JSON.stringify(elem.fit)}`,
+                });
+              }
+            }
+
+            if (elem.trimStart !== undefined) {
+              if (!isFiniteNumber(elem.trimStart) || elem.trimStart < 0) {
+                issues.push({
+                  path: `${elemPath}.trimStart`,
+                  message: `Expected a non-negative number, received ${elem.trimStart}`,
+                });
+              }
+            }
+
+            if (elem.loop !== undefined) {
+              if (typeof elem.loop !== "boolean") {
+                issues.push({
+                  path: `${elemPath}.loop`,
+                  message: `Expected a boolean, received ${typeof elem.loop}`,
+                });
+              }
+            }
+
+            if (elem.volume !== undefined) {
+              if (!isFiniteNumber(elem.volume) || elem.volume < 0) {
+                issues.push({
+                  path: `${elemPath}.volume`,
+                  message: `Expected a non-negative number, received ${elem.volume}`,
+                });
+              }
+            }
           } else if (elemType === "text") {
             if (elem.content !== undefined && typeof elem.content !== "string") {
               issues.push({
@@ -382,7 +444,7 @@ export function validateComposition(comp: unknown): void {
           } else {
             issues.push({
               path: `${elemPath}.type`,
-              message: `Expected "text" or "image", received ${JSON.stringify(elem.type)}`,
+              message: `Expected "text", "image", or "video", received ${JSON.stringify(elem.type)}`,
             });
           }
 

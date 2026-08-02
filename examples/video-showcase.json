@@ -1,0 +1,387 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "timeline": "sequential",
+
+  "scenes": [
+    {
+      "id": "walk-hero",
+      "duration": 7,
+      "background": "#020617",
+      "elements": [
+        {
+          "type": "video",
+          "src": "https://videos.pexels.com/video-files/3998656/3998656-hd_1920_1080_24fps.mp4",
+          "width": 1920,
+          "height": 1080,
+          "fit": "cover",
+          "x": "center",
+          "y": "center",
+          "startTime": 0,
+          "duration": 7,
+          "trimStart": 0,
+          "loop": true,
+          "volume": 0,
+          "zIndex": 1,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 0.8,
+              "duration": 0.8,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 1.08,
+              "to": 1,
+              "duration": 7,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "DON'T JUST\nRENDER FRAMES.",
+          "fontSize": 125,
+          "fontColor": "#ffffff",
+          "textAlign": "center",
+          "lineHeight": 0.95,
+          "stroke": {
+            "color": "#000000",
+            "width": 5
+          },
+          "shadow": {
+            "color": "black@0.8",
+            "x": 12,
+            "y": 12
+          },
+          "x": "center",
+          "y": "center",
+          "startTime": 0.8,
+          "duration": 5.8,
+          "zIndex": 10,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.7,
+              "easing": "easeOut"
+            },
+            "y": {
+              "from": 130,
+              "to": 0,
+              "duration": 1.2,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 0.75,
+              "to": 1,
+              "duration": 1.1,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "dance-wide",
+      "duration": 6,
+      "background": "#030712",
+      "elements": [
+        {
+          "type": "video",
+          "src": "https://videos.pexels.com/video-files/28870912/12500672_1920_1080_24fps.mp4",
+          "width": 1920,
+          "height": 1080,
+          "fit": "cover",
+          "x": "center",
+          "y": "center",
+          "startTime": 0,
+          "duration": 6,
+          "trimStart": 1,
+          "loop": true,
+          "volume": 0,
+          "zIndex": 1,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 0.75,
+              "duration": 0.5,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 1,
+              "to": 1.1,
+              "duration": 6,
+              "easing": "easeInOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "MAKE THEM MOVE.",
+          "fontSize": 145,
+          "fontColor": "#ffffff",
+          "stroke": {
+            "color": "#000000",
+            "width": 6
+          },
+          "shadow": {
+            "color": "black@0.85",
+            "x": 14,
+            "y": 14
+          },
+          "x": "center",
+          "y": "center",
+          "startTime": 0.6,
+          "duration": 5,
+          "zIndex": 10,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.5,
+              "easing": "easeOut"
+            },
+            "x": {
+              "from": -500,
+              "to": 0,
+              "duration": 1.1,
+              "easing": "easeInOut"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "portrait",
+      "duration": 7,
+      "background": {
+        "type": "gradient",
+        "from": "#020617",
+        "to": "#4c1d95",
+        "direction": "horizontal"
+      },
+      "elements": [
+        {
+          "type": "video",
+          "src": "https://videos.pexels.com/video-files/7502788/7502788-hd_1080_1920_30fps.mp4",
+          "width": 620,
+          "height": 900,
+          "fit": "cover",
+          "x": "(main_w-overlay_w)/2-430",
+          "y": "center",
+          "startTime": 0,
+          "duration": 7,
+          "trimStart": 1,
+          "loop": true,
+          "volume": 0,
+          "zIndex": 2,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.6
+            },
+            "x": {
+              "from": -450,
+              "to": 0,
+              "duration": 1.2,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 0.8,
+              "to": 1,
+              "duration": 1.3,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "LANDSCAPE.\nPORTRAIT.\nWHATEVER.",
+          "fontSize": 100,
+          "fontColor": "#ffffff",
+          "maxWidth": 720,
+          "textAlign": "left",
+          "lineHeight": 1,
+          "stroke": {
+            "color": "#111827",
+            "width": 4
+          },
+          "shadow": {
+            "color": "black@0.7",
+            "x": 10,
+            "y": 10
+          },
+          "x": "(w-text_w)/2+420",
+          "y": "center",
+          "startTime": 0.7,
+          "duration": 5.8,
+          "zIndex": 10,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.7
+            },
+            "x": {
+              "from": 400,
+              "to": 0,
+              "duration": 1.2,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "walk-card",
+      "duration": 7,
+      "background": "#09090b",
+      "elements": [
+        {
+          "type": "video",
+          "src": "https://videos.pexels.com/video-files/3998656/3998656-hd_1920_1080_24fps.mp4",
+          "width": 1280,
+          "height": 720,
+          "fit": "cover",
+          "x": "center",
+          "y": "center",
+          "startTime": 0,
+          "duration": 7,
+          "trimStart": 3,
+          "loop": true,
+          "volume": 0,
+          "zIndex": 2,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.8
+            },
+            "scale": {
+              "from": 0.65,
+              "to": 1,
+              "duration": 1.5,
+              "easing": "easeOut"
+            },
+            "y": {
+              "from": 150,
+              "to": 0,
+              "duration": 1.4,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "VIDEO IS JUST\nANOTHER ELEMENT.",
+          "fontSize": 90,
+          "fontColor": "#ffffff",
+          "textAlign": "center",
+          "lineHeight": 0.95,
+          "stroke": {
+            "color": "#000000",
+            "width": 6
+          },
+          "shadow": {
+            "color": "black@0.9",
+            "x": 12,
+            "y": 12
+          },
+          "x": "center",
+          "y": "center",
+          "startTime": 1.2,
+          "duration": 5,
+          "zIndex": 20,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.7
+            },
+            "scale": {
+              "from": 1.5,
+              "to": 1,
+              "duration": 1.2,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "outro",
+      "duration": 5,
+      "background": {
+        "type": "gradient",
+        "from": "#020617",
+        "to": "#312e81",
+        "direction": "horizontal"
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "KINO",
+          "fontSize": 210,
+          "fontColor": "#ffffff",
+          "stroke": {
+            "color": "#7c3aed",
+            "width": 6
+          },
+          "shadow": {
+            "color": "black@0.8",
+            "x": 14,
+            "y": 16
+          },
+          "x": "center",
+          "y": "(h-text_h)/2-50",
+          "startTime": 0,
+          "duration": 4.5,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.6,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 0.2,
+              "to": 1,
+              "duration": 1.4,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "PROGRAMMATIC VIDEO WITHOUT THE PAIN.",
+          "fontSize": 45,
+          "fontColor": "#c4b5fd",
+          "x": "center",
+          "y": "(h-text_h)/2+170",
+          "startTime": 1,
+          "duration": 3.5,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 1
+            },
+            "y": {
+              "from": 60,
+              "to": 0,
+              "duration": 1,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

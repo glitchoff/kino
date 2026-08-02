@@ -63,17 +63,35 @@ export interface TextElement extends BaseElement {
   };
 }
 
-export type ObjectFit = "cover" | "contain" | "fill" | "none";
+export type MediaFit = "contain" | "cover" | "fill" | "none";
+
+// Backward compatible alias
+export type ObjectFit = MediaFit;
 
 export interface ImageElement extends BaseElement {
   type: "image";
   src: string;
   width?: number;
   height?: number;
-  fit?: ObjectFit;
+  fit?: MediaFit;
 }
 
-export type ElementInput = TextElement | ImageElement;
+export interface VideoElement extends BaseElement {
+  type: "video";
+  src: string;
+
+  // Layout
+  width?: number;
+  height?: number;
+  fit?: MediaFit;
+
+  // Source playback
+  trimStart?: number;
+  loop?: boolean;
+  volume?: number;
+}
+
+export type ElementInput = TextElement | ImageElement | VideoElement;
 
 export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut";
 

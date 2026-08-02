@@ -13,7 +13,7 @@ import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from
 
 Compiles a `KinoComposition` object into a portable **`.kino` artifact** (a zip archive) containing the full FFmpeg command, all text files, and every asset file the composition references — using relative paths only.
 
-Any `http(s)` asset or font URLs referenced by the composition (backgrounds, image elements, `fontFile`, audio tracks) are **downloaded at compile time** into the archive (their MIME type determines the staged extension). Local paths are copied in as-is. The resulting artifact is fully self-contained and renders **offline**, with no network access at render time. If `encoder` is omitted or `"auto"`, `compile()` probes the host ffmpeg binary and selects the best available GPU encoder (NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux), falling back to `libx264` if none works.
+Any `http(s)` asset or font URLs referenced by the composition (backgrounds, image/video elements, `fontFile`, audio tracks) are **downloaded at compile time** into the archive (their MIME type determines the staged extension). Local paths are copied in as-is. The resulting artifact is fully self-contained and renders **offline**, with no network access at render time. If `encoder` is omitted or `"auto"`, `compile()` probes the host ffmpeg binary and selects the best available GPU encoder (NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux), falling back to `libx264` if none works.
 
 ### Signature
 ```typescript

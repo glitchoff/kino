@@ -13,6 +13,7 @@ export type {
   CompileResult,
   TextElement,
   ImageElement,
+  VideoElement,
   AudioTrack,
   BackgroundInput,
   BackgroundConfig,
@@ -21,5 +22,6 @@ export type {
   Easing,
   AnimationValue,
   ElementAnimation,
+  MediaFit,
   ObjectFit,
 } from "./types.js";

@@ -49,7 +49,7 @@ Scenes specify their own `startTime`.
 | `duration` | `number` | **Required** | Duration of the scene in seconds. |
 | `startTime` | `number` | `0` | Start time offset (Only used in `timeline: "absolute"` mode). |
 | `background` | `BackgroundInput` | `"#000000"` | Solid color hex string or background config object. |
-| `elements` | `ElementInput[]` | `[]` | Array of visual elements (`text`, `image`) inside the scene. |
+| `elements` | `ElementInput[]` | `[]` | Array of visual elements (`text`, `image`, `video`) inside the scene. |
 
 ---
 
@@ -113,11 +113,58 @@ Scenes specify their own `startTime`.
 | `zIndex` | `number` | declaration index | Layering order. Lower values render first (background), higher values render on top. Negative values clamp to `0`. When omitted, elements stack in declaration order. Applied composition-globally across all scenes. |
 | `animation` | `ElementAnimation` | undefined | Per-element animations (opacity / x / y / scale). See **Animation Reference**. |
 
+### 3. `VideoElement` (`type: "video"`)
+
+A positional video clip overlaid inside a scene. Supports source seeking, duration clipping, optional looping, optional audio extraction (opt-in via `volume`), shared `fit` layout, and the same per-element animations as `ImageElement`.
+
+By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded unless `volume` is set to a positive value, at which point it is folded into Kino's shared `amix` master alongside background tracks and element SFX.
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `type` | `"video"` | required | Element type discriminator. |
+| `src` | `string` | required | File path or `http(s)` URL to a video file. Remote URLs are downloaded into the `.kino` artifact at compile time. |
+| `width` | `number` | original | Target width in pixels. |
+| `height` | `number` | original | Target height in pixels. |
+| `fit` | `MediaFit` | `"contain"` | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"bottom-20"`, expression, or number). |
+| `startTime` | `number` | `0` | Delay in seconds relative to scene start time (absolute on the composition timeline once normalized). |
+| `duration` | `number` | Scene duration | Visible duration in seconds. This is also the length of source footage consumed. |
+| `trimStart` | `number` | `0` | Seek offset in seconds into the source file for playback (source segment = `trimStart` → `trimStart + duration`). |
+| `loop` | `boolean` | `false` | Loop the source to fill `duration` when the footage is shorter. If `false` and the remaining source (after `trimStart`) is shorter than `duration`, the clip is clipped at the source end. |
+| `volume` | `number` | `0` | Source audio gain. `0` (default) **silences** element audio (no audio stream is emitted). Set to a positive value (e.g. `1`) to opt the source audio into the shared `amix` master. |
+| `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
+| `zIndex` | `number` | declaration index | Layering order (see `ImageElement`). |
+| `animation` | `ElementAnimation` | undefined | Per-element animations (opacity / x / y / scale). See **Animation Reference**. |
+
+#### Semantics
+
+```
+scene t=4s                         (startTime)
+   ↓ video element appears
+source playback begins at t=12s   (trimStart)
+   ↓
+plays for 6 seconds               (duration)
+   ↓
+source segment = 12s → 18s        (trimStart → trimStart + duration)
+```
+
+##### Shared Media Fit (`MediaFit`)
+
+`fit` is shared between `ImageElement.fit` and `VideoElement.fit` and only applies when **both** `width` and `height` are specified:
+
+| Value | Behavior |
+| :--- | :--- |
+| `"contain"` (default for video) | Scale to fit entirely inside the box, preserving aspect ratio; pad the remainder with transparency (`0x00000000`). |
+| `"cover"` | Scale to fully cover the box, preserving aspect ratio; crop overflow. |
+| `"fill"` | Force-scale to the exact `width` × `height`, ignoring aspect ratio. |
+| `"none"` | No scaling; use native dimensions. |
+
 ---
 
 ## Animation Reference (`ElementAnimation`)
 
-Every `TextElement` and `ImageElement` may define an `animation` object with up to four channels: `opacity`, `x`, `y`, and `scale`. Each channel is an `AnimationValue`:
+Every `TextElement`, `ImageElement`, and `VideoElement` may define an `animation` object with up to four channels: `opacity`, `x`, `y`, and `scale`. Each channel is an `AnimationValue`:
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
