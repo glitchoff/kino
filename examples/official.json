@@ -1,0 +1,525 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "fps": 60,
+  "timeline": "sequential",
+  "scenes": [
+    {
+      "id": "cold-open",
+      "duration": 4,
+      "background": {
+        "type": "gradient",
+        "from": "#020617",
+        "to": "#172554",
+        "direction": "horizontal"
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "VIDEO SHOULDN'T\nFEEL LIKE THIS.",
+          "fontSize": 124,
+          "fontColor": "#ffffff",
+          "maxWidth": 1250,
+          "textAlign": "center",
+          "lineHeight": 1.05,
+          "stroke": {
+            "color": "#020617",
+            "width": 3
+          },
+          "shadow": {
+            "color": "black@0.65",
+            "x": 8,
+            "y": 10
+          },
+          "x": "center",
+          "y": "center",
+          "startTime": 0,
+          "duration": 3.7,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.8,
+              "easing": "easeOut"
+            },
+            "x": {
+              "from": -500,
+              "to": 0,
+              "duration": 1.4,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 1.4,
+              "to": 1,
+              "duration": 1.5,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "filter_complex → escaping → timing → overlays → suffering",
+          "fontSize": 34,
+          "fontColor": "#94a3b8",
+          "maxWidth": 1100,
+          "textAlign": "center",
+          "x": "center",
+          "y": "(h-text_h)/2+300",
+          "startTime": 1.2,
+          "duration": 2.4,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 0.85,
+              "duration": 1
+            },
+            "y": {
+              "from": 50,
+              "to": 0,
+              "duration": 1.2,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "just-describe-it",
+      "duration": 4,
+      "background": {
+        "type": "gradient",
+        "from": "#1e1b4b",
+        "to": "#0f172a",
+        "direction": "vertical"
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "JUST",
+          "fontSize": 62,
+          "fontColor": "#818cf8",
+          "x": "center",
+          "y": "(h-text_h)/2-240",
+          "startTime": 0,
+          "duration": 3.7,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.5
+            },
+            "y": {
+              "from": -100,
+              "to": 0,
+              "duration": 1,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "DESCRIBE\nTHE VIDEO.",
+          "fontSize": 150,
+          "fontColor": "#ffffff",
+          "maxWidth": 1200,
+          "textAlign": "center",
+          "lineHeight": 0.95,
+          "stroke": {
+            "color": "#312e81",
+            "width": 5
+          },
+          "shadow": {
+            "color": "black@0.7",
+            "x": 10,
+            "y": 12
+          },
+          "x": "center",
+          "y": "center",
+          "startTime": 0.3,
+          "duration": 3.4,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.7,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 0.25,
+              "to": 1,
+              "duration": 1.4,
+              "easing": "easeOut"
+            },
+            "y": {
+              "from": 130,
+              "to": 0,
+              "duration": 1.3,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "text-flex",
+      "duration": 5,
+      "background": {
+        "type": "gradient",
+        "from": "#052e16",
+        "to": "#083344",
+        "direction": "horizontal"
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "Text that actually knows where to stop instead of wandering gloriously off the edge of the fucking screen.",
+          "fontSize": 72,
+          "fontColor": "#ecfdf5",
+          "maxWidth": 900,
+          "textAlign": "left",
+          "lineHeight": 1.18,
+          "stroke": {
+            "color": "#022c22",
+            "width": 3
+          },
+          "shadow": {
+            "color": "black@0.7",
+            "x": 7,
+            "y": 7
+          },
+          "x": "center",
+          "y": "center",
+          "startTime": 0,
+          "duration": 4.7,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 1,
+              "easing": "easeOut"
+            },
+            "x": {
+              "from": -600,
+              "to": 0,
+              "duration": 1.5,
+              "easing": "easeOut"
+            },
+            "y": {
+              "from": 100,
+              "to": 0,
+              "duration": 1.5,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "WRAP  •  ALIGN  •  SPACE  •  STROKE  •  SHADOW",
+          "fontSize": 35,
+          "fontColor": "#6ee7b7",
+          "maxWidth": 1200,
+          "textAlign": "center",
+          "x": "center",
+          "y": "(h-text_h)/2+350",
+          "startTime": 1.5,
+          "duration": 3,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.8
+            },
+            "scale": {
+              "from": 0.7,
+              "to": 1,
+              "duration": 1,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "everything-moves",
+      "duration": 4.5,
+      "background": {
+        "type": "gradient",
+        "from": "#020617",
+        "to": "#312e81",
+        "direction": "horizontal"
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "TEXT",
+          "fontSize": 54,
+          "fontColor": "#93c5fd",
+          "x": "(w-text_w)/2-600",
+          "y": "(h-text_h)/2-270",
+          "startTime": 0,
+          "duration": 4.2,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 0.8,
+              "duration": 0.7
+            },
+            "x": {
+              "from": -180,
+              "to": 130,
+              "duration": 4,
+              "easing": "easeInOut"
+            },
+            "y": {
+              "from": 90,
+              "to": -50,
+              "duration": 4,
+              "easing": "easeInOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "IMAGES",
+          "fontSize": 46,
+          "fontColor": "#c4b5fd",
+          "x": "(w-text_w)/2+570",
+          "y": "(h-text_h)/2-250",
+          "startTime": 0.2,
+          "duration": 4,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 0.75,
+              "duration": 0.7
+            },
+            "x": {
+              "from": 180,
+              "to": -120,
+              "duration": 4,
+              "easing": "easeInOut"
+            },
+            "y": {
+              "from": -100,
+              "to": 80,
+              "duration": 4,
+              "easing": "easeInOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "AUDIO",
+          "fontSize": 48,
+          "fontColor": "#67e8f9",
+          "x": "(w-text_w)/2-580",
+          "y": "(h-text_h)/2+260",
+          "startTime": 0.4,
+          "duration": 3.8,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 0.75,
+              "duration": 0.8
+            },
+            "x": {
+              "from": -130,
+              "to": 100,
+              "duration": 3.8,
+              "easing": "easeInOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "SCENES",
+          "fontSize": 50,
+          "fontColor": "#a5b4fc",
+          "x": "(w-text_w)/2+560",
+          "y": "(h-text_h)/2+260",
+          "startTime": 0.6,
+          "duration": 3.5,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 0.8,
+              "duration": 0.8
+            },
+            "x": {
+              "from": 130,
+              "to": -100,
+              "duration": 3.5,
+              "easing": "easeInOut"
+            },
+            "y": {
+              "from": 80,
+              "to": -80,
+              "duration": 3.5,
+              "easing": "easeInOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "COMPOSE.",
+          "fontSize": 170,
+          "fontColor": "#ffffff",
+          "stroke": {
+            "color": "#1e1b4b",
+            "width": 5
+          },
+          "shadow": {
+            "color": "black@0.75",
+            "x": 12,
+            "y": 12
+          },
+          "x": "center",
+          "y": "center",
+          "zIndex": 20,
+          "startTime": 0.5,
+          "duration": 3.7,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.8,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 0.1,
+              "to": 1,
+              "duration": 1.5,
+              "easing": "easeOut"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "kino",
+      "duration": 5,
+      "background": {
+        "type": "gradient",
+        "from": "#020617",
+        "to": "#0f172a",
+        "direction": "vertical"
+      },
+      "elements": [
+        {
+          "type": "image",
+          "src": "./examples/assets/logo-badge.png",
+          "width": 230,
+          "x": "center",
+          "y": "(main_h-overlay_h)/2-190",
+          "startTime": 0,
+          "duration": 4.7,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 1,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 0.1,
+              "to": 1,
+              "duration": 1.3,
+              "easing": "easeOut"
+            },
+            "y": {
+              "from": 80,
+              "to": 0,
+              "duration": 1.3,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "KINO",
+          "fontSize": 190,
+          "fontColor": "#ffffff",
+          "stroke": {
+            "color": "#312e81",
+            "width": 4
+          },
+          "shadow": {
+            "color": "black@0.8",
+            "x": 10,
+            "y": 12
+          },
+          "x": "center",
+          "y": "(h-text_h)/2+80",
+          "startTime": 0.4,
+          "duration": 4.2,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 0.8,
+              "easing": "easeOut"
+            },
+            "scale": {
+              "from": 2.5,
+              "to": 1,
+              "duration": 1.5,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "Describe the video.\nKino handles the ugly part.",
+          "fontSize": 46,
+          "fontColor": "#cbd5e1",
+          "maxWidth": 900,
+          "textAlign": "center",
+          "lineHeight": 1.25,
+          "x": "center",
+          "y": "(h-text_h)/2+280",
+          "startTime": 1.1,
+          "duration": 3.3,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 1.2,
+              "easing": "easeOut"
+            },
+            "y": {
+              "from": 60,
+              "to": 0,
+              "duration": 1.2,
+              "easing": "easeOut"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "content": "@glitchoff/kino",
+          "fontSize": 32,
+          "fontColor": "#818cf8",
+          "x": "center",
+          "y": "(h-text_h)/2+420",
+          "startTime": 2,
+          "duration": 2.4,
+          "animation": {
+            "opacity": {
+              "from": 0,
+              "to": 1,
+              "duration": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "audio": [
+    {
+      "src": "./examples/assets/lofi-track.mp3",
+      "volume": 0.32,
+      "fadeIn": 1.2,
+      "fadeOut": 2.5
+    }
+  ]
+}

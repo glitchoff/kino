@@ -9,6 +9,7 @@ A high-performance TypeScript library, CLI, and local web studio for compiling J
 - **Mandatory `scenes[]` Primitive**: Modular, scene-driven timeline architecture with relative element positioning.
 - **Layering (`zIndex`)**: Optional `zIndex` controls draw order across a composition. When omitted, elements stack in declaration order; when set, lower values render first (background) and higher values render on top. Stable, declaration-order-respecting, composition-global.
 - **Per-Element Animations**: `opacity`, `x`, `y`, and `scale` animations with `from`/`to`/`duration`/`delay`/easing curves (`"linear"`, `"easeIn"`, `"easeOut"`, `"easeInOut"`). Animations use an element-local clock, hold `from`→interpolate→hold `to`, and clip (never rescale the layer) past the element's own duration.
+- **Text Layout & Styling**: Automatic word wrapping via `maxWidth` (preserves hard newlines and oversized tokens), multi-line alignment (`textAlign`: `"left"` | `"center"` | `"right"`), multiplier-based line spacing (`lineHeight`), text outline (`stroke`: `{ color, width }`), and drop shadow (`shadow`: `{ color, x, y }`).
 - **GPU Hardware Acceleration**: Native support for NVIDIA (`h264_nvenc`, `hevc_nvenc`), Intel (`h264_qsv`), AMD (`h264_amf`), and Apple VideoToolbox. `encoder: "auto"` (the default) probes the host machine and picks the best available GPU encoder before rendering, with automatic CPU (`libx264`) fallback when the GPU path fails.
 - **Sequential & Absolute Timelines**: Automatic end-to-end scene sequencing or explicit absolute start time layer stacking.
 - **Audio & SFX Mixing**: Multi-track background music with fade-in/fade-out and element-level sound effect triggers.
@@ -68,17 +69,17 @@ await render(
 ### CLI
 
 ```bash
-# Render JSON to MP4 (GPU-first by default; falls back to CPU if no GPU)
-npx kino examples/basic.json -o out.mp4
+# Render the official Kino trailer composition to MP4 (GPU-first by default)
+npx kino examples/official.json -o trailer.mp4
 
 # GPU Accelerated Render (NVIDIA NVENC with CPU fallback)
-npx kino examples/basic.json -o out.mp4 --gpu
+npx kino examples/official.json -o trailer.mp4 --gpu
 
 # Explicit Encoder
-npx kino examples/basic.json -o out.mp4 --encoder h264_nvenc
+npx kino examples/official.json -o trailer.mp4 --encoder h264_nvenc
 
 # Compile to a portable .kino artifact (downloads remote assets into the zip) then inspect
-npx kino examples/basic.json --dry-run
+npx kino examples/official.json --dry-run
 
 # Opt out of textfile text delivery (DANGEROUS: apostrophes may render blank)
 npx kino examples/basic.json --unsafe-inline-text

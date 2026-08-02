@@ -25,7 +25,7 @@ npm install @glitchoff/kino
 Create a TypeScript or JavaScript file (e.g., `index.ts`):
 
 ```typescript
-import { render } from "kino";
+import { render } from "@glitchoff/kino";
 
 // 1. Define composition with mandatory scenes primitive
 const composition = {

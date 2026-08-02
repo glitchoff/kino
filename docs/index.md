@@ -16,7 +16,7 @@
 ## Quick Example
 
 ```typescript
-import { render } from "kino";
+import { render } from "@glitchoff/kino";
 
 await render(
   {

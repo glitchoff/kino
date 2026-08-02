@@ -3,7 +3,7 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { resolve, join } from "node:path";
 import { mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
-import { render } from "../src/index.js";
+import { render, validateComposition, KinoValidationError } from "../src/index.js";
 import type { KinoComposition } from "../src/types.js";
 
 const app = new Hono();
@@ -31,6 +31,25 @@ app.get("/api/examples", (c) => {
     return c.json({ success: true, examples });
   } catch (err: any) {
     return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+app.post("/api/validate", async (c) => {
+  try {
+    const body = await c.req.json();
+    const composition: KinoComposition = body.composition || body;
+    validateComposition(composition);
+    return c.json({ success: true, valid: true, issues: [] });
+  } catch (err: any) {
+    if (err.name === "KinoValidationError" || (err && Array.isArray(err.issues))) {
+      return c.json({
+        success: false,
+        valid: false,
+        error: err.message,
+        issues: err.issues,
+      });
+    }
+    return c.json({ success: false, valid: false, error: err.message, issues: [] });
   }
 });
 
@@ -67,13 +86,27 @@ app.post("/api/render", async (c) => {
     });
   } catch (err: any) {
     console.error(`[Kino Studio] Render error:`, err.message);
+    if (err.name === "KinoValidationError" || (err && Array.isArray(err.issues))) {
+      return c.json(
+        {
+          success: false,
+          error: err.message,
+          issues: err.issues,
+        },
+        400
+      );
+    }
     return c.json({ success: false, error: err.message }, 500);
   }
 });
 
 // Serve static assets
 app.use("/renders/*", serveStatic({ root: "./studio/public" }));
-app.use("/*", serveStatic({ root: "./studio" }));
+if (existsSync(join(studioDir, "dist"))) {
+  app.use("/*", serveStatic({ root: "./studio/dist" }));
+} else {
+  app.use("/*", serveStatic({ root: "./studio" }));
+}
 
 export function startStudio(port?: number) {
   const PORT = port || Number(process.env.PORT) || 3333;

@@ -49,13 +49,28 @@ export interface TextElement extends BaseElement {
   box?: boolean;
   boxColor?: string;
   boxPadding?: number;
+  maxWidth?: number;
+  textAlign?: "left" | "center" | "right";
+  lineHeight?: number;
+  stroke?: {
+    color: string;
+    width: number;
+  };
+  shadow?: {
+    color: string;
+    x?: number;
+    y?: number;
+  };
 }
+
+export type ObjectFit = "cover" | "contain" | "fill" | "none";
 
 export interface ImageElement extends BaseElement {
   type: "image";
   src: string;
   width?: number;
   height?: number;
+  fit?: ObjectFit;
 }
 
 export type ElementInput = TextElement | ImageElement;

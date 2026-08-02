@@ -1,3 +1,4 @@
+import { validateComposition } from "./validate.js";
 import type {
   BackgroundInput,
   BackgroundConfig,
@@ -21,6 +22,58 @@ export function normalizeBackground(bg?: BackgroundInput): BackgroundConfig {
   return bg;
 }
 
+function getCharWidth(char: string, fontSize: number): number {
+  if ("WwM@#%&".includes(char)) return fontSize * 0.8;
+  if ("ilmI'|!.,:;()[]{}t-`".includes(char)) return fontSize * 0.28;
+  if (char >= "A" && char <= "Z") return fontSize * 0.65;
+  if (char === " ") return fontSize * 0.3;
+  return fontSize * 0.52;
+}
+
+export function estimateTextWidth(text: string, fontSize: number): number {
+  let width = 0;
+  for (const ch of text) {
+    width += getCharWidth(ch, fontSize);
+  }
+  return width;
+}
+
+export function wrapText(content: string, fontSize: number, maxWidth?: number): string {
+  if (!maxWidth || maxWidth <= 0 || !content) return content;
+
+  const existingLines = content.split("\n");
+  const wrappedLines: string[] = [];
+
+  for (const line of existingLines) {
+    if (estimateTextWidth(line, fontSize) <= maxWidth) {
+      wrappedLines.push(line);
+      continue;
+    }
+
+    const words = line.split(" ");
+    let currentLine = "";
+
+    for (const word of words) {
+      if (!currentLine) {
+        currentLine = word;
+      } else {
+        const testLine = `${currentLine} ${word}`;
+        if (estimateTextWidth(testLine, fontSize) <= maxWidth) {
+          currentLine = testLine;
+        } else {
+          wrappedLines.push(currentLine);
+          currentLine = word;
+        }
+      }
+    }
+    if (currentLine) {
+      wrappedLines.push(currentLine);
+    }
+  }
+
+  return wrappedLines.join("\n");
+}
+
 export function normalizeElement(elem: any): ElementInput {
   if (!elem) {
     return { type: "text", content: "" };
@@ -34,6 +87,7 @@ export function normalizeElement(elem: any): ElementInput {
       y: elem.y,
       width: elem.width,
       height: elem.height,
+      fit: elem.fit,
       startTime: elem.startTime,
       duration: elem.duration,
       sfx: elem.sfx,
@@ -43,15 +97,34 @@ export function normalizeElement(elem: any): ElementInput {
     return img;
   }
 
+  if (elem.maxWidth !== undefined && elem.maxWidth <= 0) {
+    throw new Error(`Invalid TextElement 'maxWidth': ${elem.maxWidth}. Must be greater than 0.`);
+  }
+  if (elem.lineHeight !== undefined && elem.lineHeight <= 0) {
+    throw new Error(`Invalid TextElement 'lineHeight': ${elem.lineHeight}. Must be greater than 0.`);
+  }
+  if (elem.stroke?.width !== undefined && elem.stroke.width < 0) {
+    throw new Error(`Invalid TextElement 'stroke.width': ${elem.stroke.width}. Must be non-negative.`);
+  }
+
+  const rawContent = elem.content || "";
+  const fontSize = elem.fontSize ?? 48;
+  const content = elem.maxWidth ? wrapText(rawContent, fontSize, elem.maxWidth) : rawContent;
+
   const text: TextElement = {
     type: "text",
-    content: elem.content || "",
+    content,
     fontSize: elem.fontSize,
     fontColor: elem.fontColor,
     fontFile: elem.fontFile,
     box: elem.box,
     boxColor: elem.boxColor,
     boxPadding: elem.boxPadding,
+    maxWidth: elem.maxWidth,
+    textAlign: elem.textAlign,
+    lineHeight: elem.lineHeight,
+    stroke: elem.stroke,
+    shadow: elem.shadow,
     x: elem.x,
     y: elem.y,
     startTime: elem.startTime,
@@ -70,11 +143,7 @@ export function normalizeAudio(audio?: AudioTrack | AudioTrack[]): AudioTrack[] 
 }
 
 export function normalizeComposition(comp: KinoComposition): NormalizedComposition {
-  if (!comp.scenes || !Array.isArray(comp.scenes) || comp.scenes.length === 0) {
-    throw new Error(
-      "Invalid KinoComposition: 'scenes' array is required and must contain at least one scene."
-    );
-  }
+  validateComposition(comp);
 
   const width = comp.width || 1920;
   const height = comp.height || 1080;

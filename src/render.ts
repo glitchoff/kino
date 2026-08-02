@@ -252,6 +252,22 @@ function normalizeColor(color?: string): string {
   return color;
 }
 
+function buildImageScaleFilter(img: ImageElement): string {
+  const w = img.width ?? -1;
+  const h = img.height ?? -1;
+  const fit = img.fit;
+
+  if (w > 0 && h > 0) {
+    if (fit === "cover") {
+      return `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+    }
+    if (fit === "contain") {
+      return `scale=${w}:${h}:force_original_aspect_ratio=decrease,format=rgba,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`;
+    }
+  }
+  return `scale=${w}:${h}`;
+}
+
 function escapeFFmpegStr(str: string): string {
   return str
     .replace(/\\/g, "\\\\")
@@ -552,15 +568,14 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
         const currInputIdx = inputIndex++;
         const outPad = `[v_layer_${elemIdx}]`;
 
-        const imgW = img.width || -1;
-        const imgH = img.height || -1;
+        const scaleFilter = buildImageScaleFilter(img);
 
         const ax = buildAnimationExpressions(img, "t");
 
         let curPad = `[${currInputIdx}:v]`;
         if (hasAnimation) {
           const basePad = `[img_base_${elemIdx}]`;
-          filterComplex.push(`${curPad}scale=${imgW}:${imgH}${basePad}`);
+          filterComplex.push(`${curPad}${scaleFilter}${basePad}`);
           curPad = basePad;
 
           if (ax.scale) {
@@ -606,7 +621,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           lastVideoPad = outPad;
         } else {
           const scaledPad = `[img_scaled_${elemIdx}]`;
-          filterComplex.push(`${curPad}scale=${imgW}:${imgH}${scaledPad}`);
+          filterComplex.push(`${curPad}${scaleFilter}${scaledPad}`);
 
           const xExpr = formatPosition(img.x, "(main_w-overlay_w)/2");
           const yExpr = formatPosition(img.y, "(main_h-overlay_h)/2");
@@ -663,6 +678,27 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           }
         } else {
           filter = `drawtext=${textRef}:fontsize=${fontSize}:fontcolor=${fontColor}:x=${staticX}:y=${staticY}`;
+        }
+
+        if (item.textAlign) {
+          filter += `:text_align=${item.textAlign}`;
+        }
+
+        if (item.lineHeight !== undefined) {
+          const lineSpacing = Math.round(fontSize * (item.lineHeight - 1));
+          filter += `:line_spacing=${lineSpacing}`;
+        }
+
+        if (item.stroke) {
+          const borderColor = normalizeColor(item.stroke.color);
+          filter += `:bordercolor=${borderColor}:borderw=${item.stroke.width}`;
+        }
+
+        if (item.shadow) {
+          const shadowColor = normalizeColor(item.shadow.color);
+          const sx = item.shadow.x ?? 2;
+          const sy = item.shadow.y ?? 2;
+          filter += `:shadowcolor=${shadowColor}:shadowx=${sx}:shadowy=${sy}`;
         }
 
         if (item.box) {
@@ -936,7 +972,8 @@ export async function render(
   try {
     extractKino(kinoPath, extractionDir);
     const manifest = readKinoManifest(kinoPath);
-    const args = [...manifest.ffmpegArgs.slice(0, -1), options.output];
+    const finalOutput = resolve(options.output);
+    const args = [...manifest.ffmpegArgs.slice(0, -1), finalOutput];
 
     const spawnWith = (spawnArgs: string[]) => {
       if (options.verbose) {

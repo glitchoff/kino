@@ -3,8 +3,8 @@
 Kino exports core compiler and renderer functions for Node.js and TypeScript applications.
 
 ```typescript
-import { render, compile } from "kino";
-import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from "kino";
+import { render, compile } from "@glitchoff/kino";
+import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from "@glitchoff/kino";
 ```
 
 ---
@@ -88,14 +88,38 @@ await render(composition, {
 
 ---
 
-## Error Handling
+## `validateComposition(composition)`
 
-`render()` rejects with a descriptive Error if the `ffmpeg` process fails and no fallback is possible:
+Validates an unknown or untrusted JSON composition before normalization or compilation. Collects all structural, finite number, range, and property errors across scenes, elements, and animations.
+
+```typescript
+import { validateComposition, KinoValidationError } from "@glitchoff/kino";
+
+try {
+  validateComposition(userComposition);
+} catch (error) {
+  if (error instanceof KinoValidationError) {
+    // Array of structured path-indexed issues: [{ path: "scenes[2].elements[4].width", message: "Expected a positive number, received -500" }]
+    console.log(error.issues);
+    console.error(error.message); // Human / agent readable formatted string
+  }
+}
+```
+
+---
+
+## Error Handling & Schema Validation
+
+`normalizeComposition()`, `compile()`, and `render()` run `validateComposition()` at the entry of the pipeline (**unknown JSON → validate → normalize → compile → FFmpeg**). Malformed inputs throw `KinoValidationError` immediately with path-indexed issues without spawning FFmpeg:
 
 ```typescript
 try {
   await render(composition, { output: "./out.mp4" });
 } catch (error) {
-  console.error("Render failed:", error.message);
+  if (error instanceof KinoValidationError) {
+    console.error("Invalid composition format:", error.issues);
+  } else {
+    console.error("Render failed:", error.message);
+  }
 }
 ```

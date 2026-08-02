@@ -84,7 +84,12 @@ Scenes specify their own `startTime`.
 | `box` | `boolean` | `false` | Enable background box behind text. |
 | `boxColor` | `string` | `"black@0.5"` | Background box color with opacity. |
 | `boxPadding` | `number` | `10` | Border padding around text box. |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). |
+| `maxWidth` | `number` | undefined | Target maximum width in pixels for automatic line wrapping. Preserves hard newlines (`\n`) and never splits unbreakable tokens. (Approximate measurement in V1 zero-dependency mode). |
+| `textAlign` | `"left" \| "center" \| "right"` | `"left"` | Alignment of text lines inside the text box. |
+| `lineHeight` | `number` | `1` | Multiplier for line height spacing (`1` = normal, `1.5` = 50% extra line spacing). |
+| `stroke` | `{ color: string; width: number }` | undefined | Text outline stroke color and border width. |
+| `shadow` | `{ color: string; x?: number; y?: number }` | undefined | Text drop shadow color and x/y pixel offsets (defaults to `x: 2, y: 2`). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). Position applies to the overall text region. |
 | `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"bottom-20"`, expression, or number). |
 | `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
