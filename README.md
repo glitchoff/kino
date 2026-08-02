@@ -33,7 +33,7 @@ npm install @glitchoff/kino
 ### Programmatic
 
 ```typescript
-import { render } from "kino";
+import { render } from "@glitchoff/kino";
 
 await render(
   {
