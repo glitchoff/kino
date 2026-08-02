@@ -18,14 +18,15 @@
   },
   "files": [
     "dist",
-    "scripts"
+    "scripts",
+    "studio"
   ],
   "publishConfig": {
     "access": "public"
   },
   "packageManager": "pnpm@10.30.3",
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && pnpm studio:build",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "studio": "tsx watch studio/server.ts",
