@@ -24,6 +24,7 @@ A high-performance TypeScript library, CLI, and local web studio for compiling J
 ```bash
 # Using pnpm
 pnpm add @glitchoff/kino
+pnpm approve-builds
 
 # Using npm
 npm install @glitchoff/kino

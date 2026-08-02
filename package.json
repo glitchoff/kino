@@ -19,7 +19,7 @@
   "files": [
     "dist",
     "scripts",
-    "studio"
+    "studio/dist"
   ],
   "publishConfig": {
     "access": "public"

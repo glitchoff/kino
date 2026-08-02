@@ -1,0 +1,13 @@
+# Exclude dev/source files from npm package
+studio/src/
+studio/server.ts
+studio/vite.config.ts
+studio/index.html
+studio/public/renders/
+studio/dist/renders/
+
+# Exclude node_modules and build artifacts
+node_modules/
+dist/
+*.log
+*.tsbuildinfo

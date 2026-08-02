@@ -2,6 +2,7 @@
 dist/
 *.mp4
 studio/public/renders/
+studio/dist/renders/
 .npmrc
 
 node_modules

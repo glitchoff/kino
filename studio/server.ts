@@ -1,16 +1,19 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { render, validateComposition, KinoValidationError } from "../src/index.js";
 import type { KinoComposition } from "../src/types.js";
 
 const app = new Hono();
 
-const studioDir = resolve(process.cwd(), "studio");
+const currentDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+const pkgRoot = resolve(currentDir, "..");
+const studioDir = resolve(pkgRoot, "studio");
 const rendersDir = join(studioDir, "public", "renders");
-const examplesDir = resolve(process.cwd(), "examples");
+const examplesDir = resolve(pkgRoot, "examples");
 
 if (!existsSync(rendersDir)) {
   mkdirSync(rendersDir, { recursive: true });
@@ -101,11 +104,11 @@ app.post("/api/render", async (c) => {
 });
 
 // Serve static assets
-app.use("/renders/*", serveStatic({ root: "./studio/public" }));
-if (existsSync(join(studioDir, "dist"))) {
-  app.use("/*", serveStatic({ root: "./studio/dist" }));
+app.use("/renders/*", serveStatic({ root: resolve(studioDir, "public") }));
+if (existsSync(resolve(studioDir, "dist"))) {
+  app.use("/*", serveStatic({ root: resolve(studioDir, "dist") }));
 } else {
-  app.use("/*", serveStatic({ root: "./studio" }));
+  app.use("/*", serveStatic({ root: studioDir }));
 }
 
 export function startStudio(preferredPort?: number) {
