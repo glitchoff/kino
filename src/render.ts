@@ -45,6 +45,34 @@ function getFFmpegBinaryPath(customPath?: string): string {
   if (ffmpegStatic && typeof ffmpegStatic === "string" && existsSync(ffmpegStatic)) {
     return ffmpegStatic;
   }
+  if (ffmpegStatic && typeof ffmpegStatic === "string" && !existsSync(ffmpegStatic)) {
+    const isPnpm = existsSync(join(process.cwd(), "pnpm-workspace.yaml")) || !!process.env.npm_config_user_agent?.includes("pnpm");
+    const isNpm = !!process.env.npm_config_user_agent?.includes("npm") || (!isPnpm && !process.env.npm_config_user_agent?.includes("yarn"));
+    const installHint = isPnpm
+      ? "pnpm approve-builds (then select ffmpeg-static)"
+      : "npm rebuild ffmpeg-static (or yarn rebuild ffmpeg-static)";
+    throw new Error(
+      `[kino] ffmpeg binary not found at ${ffmpegStatic}.\n` +
+        `[kino] The ffmpeg-static package was installed but its postinstall script\n` +
+        `[kino] did not run, so the binary was never downloaded.\n` +
+        `[kino] Fix: run \`${installHint}\`,\n` +
+        `[kino] or set the FFMPEG_PATH environment variable to a working ffmpeg binary path.`
+    );
+  }
+  const systemProbe = spawnSync("ffmpeg", ["-version"]);
+  if (systemProbe.error || systemProbe.status !== 0) {
+    const pmHint = process.env.npm_config_user_agent?.includes("pnpm")
+      ? "pnpm approve-builds (then select ffmpeg-static)"
+      : process.env.npm_config_user_agent?.includes("yarn")
+        ? "yarn rebuild ffmpeg-static"
+        : "npm rebuild ffmpeg-static";
+    throw new Error(
+      `[kino] No ffmpeg binary found in PATH or bundled via ffmpeg-static.\n` +
+        `[kino] Install ffmpeg (e.g. apt install ffmpeg / brew install ffmpeg)\n` +
+        `[kino] or run \`${pmHint}\` to download the bundled binary,\n` +
+        `[kino] or set the FFMPEG_PATH environment variable to a working ffmpeg binary path.`
+    );
+  }
   return "ffmpeg";
 }
 
