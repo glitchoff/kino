@@ -89,13 +89,15 @@ Scenes specify their own `startTime`.
 | `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
+| `zIndex` | `number` | declaration index | Layering order. Lower values render first (background), higher values render on top. Negative values clamp to `0`. When omitted, elements stack in declaration order. Applied composition-globally across all scenes. |
+| `animation` | `ElementAnimation` | undefined | Per-element animations (opacity / x / y / scale). See **Animation Reference**. |
 
 ### 2. `ImageElement` (`type: "image"`)
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `type` | `"image"` | required | Element type discriminator. |
-| `src` | `string` | required | File path or URL to image file. |
+| `src` | `string` | required | File path or `http(s)` URL to image file. Remote URLs are downloaded into the `.kino` artifact at compile time. |
 | `width` | `number` | original | Target width in pixels. |
 | `height` | `number` | original | Target height in pixels. |
 | `x` | `number \| string` | `"center"` | Horizontal position. |
@@ -103,6 +105,50 @@ Scenes specify their own `startTime`.
 | `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
+| `zIndex` | `number` | declaration index | Layering order. Lower values render first (background), higher values render on top. Negative values clamp to `0`. When omitted, elements stack in declaration order. Applied composition-globally across all scenes. |
+| `animation` | `ElementAnimation` | undefined | Per-element animations (opacity / x / y / scale). See **Animation Reference**. |
+
+---
+
+## Animation Reference (`ElementAnimation`)
+
+Every `TextElement` and `ImageElement` may define an `animation` object with up to four channels: `opacity`, `x`, `y`, and `scale`. Each channel is an `AnimationValue`:
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `from` | `number` | **required** | Starting value. For `opacity`, `0`–`1`; for `scale`, multiplier (`1` = 100%); for `x`/`y`, pixels of translation offset on top of the element's static position. |
+| `to` | `number` | **required** | Ending value. |
+| `duration` | `number` | **required** | Duration of the transition in seconds. |
+| `delay` | `number` | `0` | Delay in seconds before the animation begins (per channel). |
+| `easing` | `Easing` | `"linear"` | Timing curve: `"linear"`, `"easeIn"`, `"easeOut"`, or `"easeInOut"`. |
+
+`Easing` curves: `linear` = `p`, `easeIn` = `p³`, `easeOut` = `1-(1-p)³`, `easeInOut` = `3p²-2p³`.
+
+### Behavior
+
+- **Element-local clock.** An animation begins at `scene.startTime + element.startTime + delay`, independent of other channels.
+- **Hold → Interpolate → Hold.** The value equals `from` before the window, interpolates during `[start, start+duration]`, and holds `to` afterward.
+- **Clip, never rescale.** If `delay + duration` exceeds the element's own lifetime, the animation is clipped at the element boundary; it never rescales the layer or affects other elements.
+- **Static positioning is preserved.** `x`/`y` are translation offsets layered on top of the element's static `x`/`y` layout (static layout is never overridden). `scale` is a center-anchored multiplier — `1` = natural size; `to:0` collapses to zero size.
+- **Opacity** is a `0`–`1` alpha multiplier applied via the alpha channel.
+
+### Example
+
+```json
+{
+  "type": "text",
+  "content": "Hello, Kino",
+  "x": "center",
+  "y": "(h-text_h)/2",
+  "startTime": 0,
+  "duration": 6,
+  "animation": {
+    "opacity": { "from": 0, "to": 1, "duration": 1, "easing": "easeOut" },
+    "x":      { "from": -400, "to": 0, "duration": 1.2, "delay": 0.2, "easing": "easeInOut" },
+    "scale":  { "from": 0.2, "to": 1, "duration": 1, "easing": "easeOut" }
+  }
+}
+```
 
 ---
 

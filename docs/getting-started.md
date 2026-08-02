@@ -70,22 +70,16 @@ run();
 
 ## 🖥️ CLI Usage
 
-Kino comes with a CLI utility for compiling and rendering JSON composition files.
+Kino comes with a CLI utility for compiling and rendering JSON composition files. GPU hardware encoding is used by default when available.
 
-### Render JSON to Video (CPU)
+### Render JSON to Video (GPU-first by default)
 
 ```bash
+# GPU hardware encoder (auto-detected; falls back to CPU if unavailable)
 npx kino path/to/scene.json -o output.mp4
-```
 
-### GPU Accelerated Render
-
-```bash
-# Auto GPU hardware acceleration with automatic CPU fallback
-npx kino path/to/scene.json -o output.mp4 --gpu
-
-# Target specific encoder
-npx kino path/to/scene.json -o output.mp4 --encoder h264_nvenc
+# Explicit CPU
+npx kino path/to/scene.json -o output.mp4 --encoder libx264
 ```
 
 `--gpu` (and `encoder: "auto"`) probes the actual hardware on the host machine and picks the best available GPU encoder for it — NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux — then falls back to CPU `libx264` if no GPU encoder is usable.
@@ -97,6 +91,8 @@ Encoder presets are validated per encoder: NVENC accepts `p1`–`p7` (invalid or
 ```bash
 npx kino path/to/scene.json --dry-run
 ```
+
+`--dry-run` compiles to a portable `.kino` artifact (downloading any remote `http(s)` assets referenced by the composition into the archive), then prints the FFmpeg command (all relative paths — no live URLs) without rendering. The artifact and its renders are fully offline and reproducible.
 
 ### Text Delivery & `--unsafe-inline-text`
 

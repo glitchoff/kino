@@ -16,4 +16,7 @@ export type {
   BackgroundConfig,
   ElementInput,
   KinoScene,
+  Easing,
+  AnimationValue,
+  ElementAnimation,
 } from "./types.js";

@@ -36,6 +36,8 @@ export interface BaseElement {
   startTime?: number;
   duration?: number;
   sfx?: string | AudioTrack;
+  zIndex?: number;
+  animation?: ElementAnimation;
 }
 
 export interface TextElement extends BaseElement {
@@ -57,6 +59,23 @@ export interface ImageElement extends BaseElement {
 }
 
 export type ElementInput = TextElement | ImageElement;
+
+export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut";
+
+export interface AnimationValue {
+  from: number;
+  to: number;
+  duration: number;
+  delay?: number;
+  easing?: Easing;
+}
+
+export interface ElementAnimation {
+  opacity?: AnimationValue;
+  x?: AnimationValue;
+  y?: AnimationValue;
+  scale?: AnimationValue;
+}
 
 // Backward compatible alias
 export type TextOverlay = TextElement;

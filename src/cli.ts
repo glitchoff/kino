@@ -35,10 +35,11 @@ async function main() {
   Options:
     -o, --output <path>    Output video file path (default: ./out.mp4)
     -e, --encoder <name>   Video encoder (libx264, h264_nvenc, hevc_nvenc, h264_qsv, h264_amf, h264_videotoolbox, auto)
+    --preset <name>        Encoder preset (auto-detected when unset; e.g. NVENC p1-p7, x264 veryfast/slow, AMF speed/balanced/quality)
     --ffmpeg-path <path>   Use a specific ffmpeg binary instead of the bundled one
     --gpu                  Enable GPU hardware acceleration (alias for --encoder auto with CPU fallback)
     -p, --port <number>    Port for studio server (default: 3333)
-    --dry-run              Print compiled FFmpeg command without rendering
+    --dry-run              Compile to a portable .kino artifact and print the FFmpeg command without rendering (remote assets are downloaded at compile time)
     --unsafe-inline-text   Disable textfile delivery (text passed inline; apostrophes may render blank)
     --verbose              Show full FFmpeg output logs during render
     -h, --help             Show help output
@@ -49,6 +50,7 @@ async function main() {
   let jsonPath = "";
   let outputPath = "./out.mp4";
   let encoder: any = undefined;
+  let preset: string | undefined = undefined;
   let ffmpegPath: string | undefined = undefined;
   let isDryRun = false;
   let isVerbose = false;
@@ -66,6 +68,8 @@ async function main() {
       encoder = args[++i];
     } else if (arg === "--gpu") {
       encoder = "auto";
+    } else if (arg === "--preset") {
+      preset = args[++i];
     } else if (arg === "--dry-run") {
       isDryRun = true;
     } else if (arg === "--unsafe-inline-text") {
@@ -94,9 +98,10 @@ async function main() {
     }
 
     if (isDryRun) {
-      const { args: ffmpegArgs, kinoFilePath } = compile(composition, {
+       const { args: ffmpegArgs, kinoFilePath } = compile(composition, {
         output: outputPath,
         encoder,
+        preset,
         unsafeInlineText: isUnsafeInlineText,
       });
       console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
@@ -109,6 +114,7 @@ async function main() {
       output: outputPath,
       verbose: isVerbose,
       encoder,
+      preset,
       ffmpegPath,
       unsafeInlineText: isUnsafeInlineText,
     });

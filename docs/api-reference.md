@@ -11,7 +11,9 @@ import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from
 
 ## `compile(composition, options?)`
 
-Compiles a `KinoComposition` object into a portable **`.kino` artifact** (a zip archive) containing the full FFmpeg command, all text files, and any local asset files, using relative paths only.
+Compiles a `KinoComposition` object into a portable **`.kino` artifact** (a zip archive) containing the full FFmpeg command, all text files, and every asset file the composition references — using relative paths only.
+
+Any `http(s)` asset or font URLs referenced by the composition (backgrounds, image elements, `fontFile`, audio tracks) are **downloaded at compile time** into the archive (their MIME type determines the staged extension). Local paths are copied in as-is. The resulting artifact is fully self-contained and renders **offline**, with no network access at render time. If `encoder` is omitted or `"auto"`, `compile()` probes the host ffmpeg binary and selects the best available GPU encoder (NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux), falling back to `libx264` if none works.
 
 ### Signature
 ```typescript
@@ -38,9 +40,10 @@ A `.kino` file is a self-contained zip archive:
 manifest.json       — { ffmpegArgs: string[], output: string, kinoVersion: string }
 text-1.txt, ...     — one file per text element (verbatim UTF-8 content)
 asset-1.<ext>, ...  — local image/video/audio/font assets referenced by the composition
+remote-1.<ext>, ... — remote http(s) assets downloaded into the archive at compile time (extension from Content-Type)
 ```
 
-- **Relative paths only.** All `textfile=` and `-i` references inside `manifest.json` are relative filenames (e.g. `text-1.txt`, `asset-1.jpg`). No absolute paths, temp-dir names, or machine-specific strings live inside the archive, so a `.kino` can be copied across machines and OSes and re-rendered as-is.
+- **Relative paths only.** All `textfile=` and `-i` references inside `manifest.json` are relative filenames (e.g. `text-1.txt`, `asset-1.jpg`, `remote-1.jpg`). No absolute paths, temp-dir names, machine-specific strings, or live URLs live inside the archive, so a `.kino` can be copied across machines and OSes and re-rendered as-is — and renders never touch the network.
 - `manifest.ffmpegArgs` ends with a portable output placeholder (e.g. `out.mp4`); `render()` substitutes the real destination when spawning.
 
 ### Text Delivery

@@ -37,6 +37,8 @@ export function normalizeElement(elem: any): ElementInput {
       startTime: elem.startTime,
       duration: elem.duration,
       sfx: elem.sfx,
+      zIndex: elem.zIndex,
+      animation: elem.animation,
     };
     return img;
   }
@@ -55,6 +57,8 @@ export function normalizeElement(elem: any): ElementInput {
     startTime: elem.startTime,
     duration: elem.duration,
     sfx: elem.sfx,
+    zIndex: elem.zIndex,
+    animation: elem.animation,
   };
   return text;
 }
@@ -142,6 +146,17 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
     duration = currentOffset;
   }
 
+  // Stable z-order sort: zIndex wins when set, otherwise declaration order.
+  // Negative values clamp to 0.
+  const sortedElements = flattenedElements
+    .map((elem, index) => ({ elem, index }))
+    .sort((a, b) => {
+      const za = a.elem.zIndex === undefined ? a.index : Math.max(0, a.elem.zIndex);
+      const zb = b.elem.zIndex === undefined ? b.index : Math.max(0, b.elem.zIndex);
+      return za - zb;
+    })
+    .map(({ elem }) => elem);
+
   // Extract sfx from elements into audio tracks
   for (const elem of flattenedElements) {
     if (elem.sfx) {
@@ -166,7 +181,7 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
     fps,
     timeline,
     background: normalizedScenes[0].background,
-    elements: flattenedElements,
+    elements: sortedElements,
     scenes: normalizedScenes,
     audio: audioTracks,
   };
