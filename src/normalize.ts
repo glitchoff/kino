@@ -42,7 +42,10 @@ function deepMerge<T extends Record<string, unknown>>(
       base[key] !== null &&
       !Array.isArray(base[key])
     ) {
-      result[key] = { ...(base[key] as Record<string, unknown>), ...val } as T[keyof T];
+      result[key] = deepMerge(
+        base[key] as Record<string, unknown>,
+        val as Record<string, unknown>
+      ) as T[keyof T];
     } else {
       result[key] = val as T[keyof T];
     }

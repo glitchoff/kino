@@ -4,7 +4,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { resolve, join, dirname } from "node:path";
 import { mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { render, validateComposition, KinoValidationError } from "../src/index.js";
+import { render, normalizeComposition, KinoValidationError } from "../src/index.js";
 import type { KinoComposition } from "../src/types.js";
 
 const app = new Hono();
@@ -41,7 +41,7 @@ app.post("/api/validate", async (c) => {
   try {
     const body = await c.req.json();
     const composition: KinoComposition = body.composition || body;
-    validateComposition(composition);
+    normalizeComposition(composition);
     return c.json({ success: true, valid: true, issues: [] });
   } catch (err: any) {
     if (err.name === "KinoValidationError" || (err && Array.isArray(err.issues))) {
