@@ -36,7 +36,7 @@ Scenes play sequentially back-to-back automatically.
 | `duration` | `number` | **Required** | Duration of the scene in seconds. |
 | `transition` | `KinoTransition` | undefined | Optional transition into this scene from the previous scene (cannot be set on the first scene). |
 | `background` | `BackgroundInput` | `"#000000"` | Solid color hex string or background config object. |
-| `elements` | `ElementInput[]` | `[]` | Array of visual elements (`text`, `image`, `video`) inside the scene. |
+| `elements` | `ElementInput[]` | `[]` | Array of visual elements (`text`, `image`, `html`, `video`) inside the scene. |
 
 ---
 
@@ -178,7 +178,25 @@ This positions the element at `center + (0, -100)` and then animates its Y by an
 | `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
 
-### 3. `VideoElement` (`type: "video"`)
+### 3. `HtmlElement` (`type: "html"`)
+
+Static HTML is rendered once by Puppeteer into a transparent PNG, then handled like an image. The PNG is stored in the `.kino` artifact, so rendering an existing artifact does not require a browser. Omit `backgroundColor` for transparency.
+
+HTML elements use the normal image-layer timing pipeline after rasterization. `startAt`, `duration`, positioning, `zIndex`, and `x`/`y`/`scale` animations therefore apply to the generated PNG. The current FFmpeg opacity animation path should be avoided for HTML layers until its alpha-expression handling is corrected; position and scale animations are supported.
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `type` | `"html"` | required | Element type discriminator. |
+| `html` | `string` | required | Inline static HTML markup. |
+| `css` | `string` | undefined | Inline CSS. |
+| `width` | `number` | required | Browser viewport and rendered width in pixels. |
+| `height` | `number` | required | Browser viewport and rendered height in pixels. |
+| `backgroundColor` | `string` | transparent | Optional page background. |
+| `deviceScaleFactor` | `number` | `1` | Puppeteer device scale factor. |
+| `fit` | `MediaFit` | undefined | Image-style fit behavior. |
+| `x`, `y`, `offsetX`, `offsetY`, `startAt`, `duration`, `sfx`, `zIndex`, `animation` | shared element properties | shared defaults | Same behavior as `ImageElement`. |
+
+### 4. `VideoElement` (`type: "video"`)
 
 A positional video clip overlaid inside a scene. Supports source seeking, duration clipping, optional looping, optional audio extraction (opt-in via `volume`), shared `fit` layout, and the same per-element animations as `ImageElement`.
 
@@ -301,7 +319,7 @@ Reference a template by `id` on an element. The element must also specify `type`
 - Template `id` values must be unique within a composition.
 - Referenced template `id` values must exist in `templates`.
 - Elements using a template must specify `type` explicitly.
-- Template `type` must be `"text"`, `"image"`, or `"video"`.
+- Template `type` must be `"text"`, `"image"`, `"html"`, or `"video"`. HTML templates may provide shared `html`, `css`, dimensions, positioning, fit, and animation properties.
 
 ---
 

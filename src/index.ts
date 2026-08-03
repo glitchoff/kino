@@ -13,6 +13,7 @@ export type {
   CompileResult,
   TextElement,
   ImageElement,
+  HtmlElement,
   VideoElement,
   AudioTrack,
   BackgroundInput,

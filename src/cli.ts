@@ -41,6 +41,7 @@ async function main() {
     -e, --encoder <name>   Video encoder (libx264, h264_nvenc, hevc_nvenc, h264_qsv, h264_amf, h264_videotoolbox, auto)
     --preset <name>        Encoder preset (auto-detected when unset; e.g. NVENC p1-p7, x264 veryfast/slow, AMF speed/balanced/quality)
     --ffmpeg-path <path>   Use a specific ffmpeg binary instead of the bundled one
+    --browser-path <path>  Use a specific Chromium/Chrome executable for HTML elements
     --gpu                  Enable GPU hardware acceleration (alias for --encoder auto with CPU fallback)
     -p, --port <number>    Port for studio server (default: 3333)
     --dry-run              Compile to a portable .kino artifact and print the FFmpeg command without rendering (remote assets are downloaded at compile time)
@@ -56,6 +57,7 @@ async function main() {
   let encoder: any = undefined;
   let preset: string | undefined = undefined;
   let ffmpegPath: string | undefined = undefined;
+  let browserPath: string | undefined = undefined;
   let isDryRun = false;
   let isVerbose = false;
   let isUnsafeInlineText = false;
@@ -68,6 +70,8 @@ async function main() {
       outputPath = args[++i] || "./out.mp4";
     } else if (arg === "--ffmpeg-path") {
       ffmpegPath = args[++i];
+    } else if (arg === "--browser-path") {
+      browserPath = args[++i];
     } else if (arg === "-e" || arg === "--encoder") {
       encoder = args[++i];
     } else if (arg === "--gpu") {
@@ -110,6 +114,7 @@ async function main() {
         encoder,
         preset,
         ffmpegPath,
+        browserPath,
         unsafeInlineText: isUnsafeInlineText,
       });
       console.log(`[kino] Successfully rendered to ${result.output}`);
@@ -144,6 +149,7 @@ async function main() {
       encoder,
       preset,
       ffmpegPath,
+      browserPath,
       unsafeInlineText: isUnsafeInlineText,
     });
     console.log(`[kino] Successfully rendered to ${result.output}`);

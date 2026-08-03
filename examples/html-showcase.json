@@ -1,0 +1,120 @@
+{
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "scenes": [
+    {
+      "duration": 5,
+      "background": {
+        "type": "gradient",
+        "from": "#090b1a",
+        "to": "#182c4f",
+        "direction": "horizontal"
+      },
+      "elements": [
+        {
+          "type": "html",
+          "width": 1080,
+          "height": 560,
+          "x": "center",
+          "y": "center",
+          "animation": {
+            "scale": { "from": 0.92, "to": 1, "duration": 1.1, "easing": "easeOut" },
+            "y": { "from": 35, "to": 0, "duration": 0.9, "easing": "easeOut" }
+          },
+          "html": "<main class=hero><div class=eyebrow><span class=dot></span> KINO / STATIC HTML RENDER</div><h1>Design systems<br><em>in motion.</em></h1><p>Compose rich interface visuals with ordinary HTML and CSS, then render them as portable video layers.</p><div class=meta><span>1280 × 720</span><span>30 FPS</span><span>FFMPEG READY</span></div></main>",
+          "css": "*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:Arial,sans-serif;color:#f8fafc}.hero{height:100%;padding:70px 78px;display:flex;flex-direction:column;justify-content:center;border:1px solid rgba(148,163,184,.25);border-radius:28px;background:linear-gradient(135deg,rgba(15,23,42,.84),rgba(30,41,59,.45));box-shadow:0 30px 90px rgba(0,0,0,.32)}.eyebrow{font-size:15px;letter-spacing:3px;color:#93c5fd;font-weight:700}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#38bdf8;box-shadow:0 0 18px #38bdf8;margin-right:8px}h1{font-size:82px;line-height:.98;letter-spacing:-4px;margin:30px 0 24px}em{font-style:normal;color:#67e8f9}p{font-size:24px;line-height:1.45;max-width:650px;color:#cbd5e1;margin:0}.meta{display:flex;gap:34px;margin-top:48px;font-size:13px;letter-spacing:2px;color:#64748b}"
+        }
+      ]
+    },
+    {
+      "duration": 6,
+      "background": "#f1f5f9",
+      "transition": { "type": "fade", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "html",
+          "width": 1060,
+          "height": 560,
+          "x": "center",
+          "y": "center",
+          "animation": {
+            "x": { "from": 80, "to": 0, "duration": 0.9, "easing": "easeOut" },
+            "scale": { "from": 0.96, "to": 1, "duration": 0.8, "easing": "easeOut" }
+          },
+          "html": "<section class=dashboard><header><div><small>WEEKLY OPERATIONS</small><h2>Campaign overview</h2></div><div class=live><i></i> LIVE REPORT</div></header><div class=stats><article><span>Revenue</span><strong>$84,290</strong><b class=up>+18.4%</b></article><article><span>Conversion</span><strong>6.84%</strong><b class=up>+2.1%</b></article><article><span>Active users</span><strong>12,408</strong><b class=up>+9.7%</b></article></div><div class=lower><div class=chart><div class=title>Performance trend <span>Last 30 days</span></div><div class=bars><i style=height:42%></i><i style=height:60%></i><i style=height:48%></i><i style=height:74%></i><i style=height:66%></i><i style=height:88%></i><i style=height:79%></i><i style=height:96%></i></div></div><div class=activity><div class=title>Recent activity</div><p><b>Design review</b><br><small>Completed 12 min ago</small></p><p><b>Landing page export</b><br><small>Completed 38 min ago</small></p><p><b>Analytics sync</b><br><small>Completed 1 hr ago</small></p></div></div></section>",
+          "css": "*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:Arial,sans-serif;color:#0f172a}.dashboard{height:100%;padding:44px 52px;background:#fff;border-radius:24px;box-shadow:0 24px 70px rgba(15,23,42,.16)}header{display:flex;justify-content:space-between;align-items:center}small{font-size:11px;color:#64748b;letter-spacing:2px}h2{font-size:34px;margin:8px 0 0;letter-spacing:-1px}.live{font-size:11px;letter-spacing:1px;color:#059669;font-weight:bold}.live i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:7px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:38px}.stats article{padding:22px;border:1px solid #e2e8f0;border-radius:14px}.stats span{display:block;color:#64748b;font-size:14px}.stats strong{display:block;font-size:34px;margin:12px 0}.up{color:#059669;font-size:13px}.lower{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;margin-top:20px}.chart,.activity{border:1px solid #e2e8f0;border-radius:14px;padding:22px}.title{font-weight:bold;font-size:15px}.title span{float:right;color:#94a3b8;font-size:12px;font-weight:normal}.bars{height:150px;display:flex;align-items:end;gap:25px;padding:20px 12px 0}.bars i{display:block;flex:1;background:linear-gradient(#38bdf8,#6366f1);border-radius:7px 7px 2px 2px}.activity p{font-size:14px;border-bottom:1px solid #e2e8f0;padding-bottom:12px;line-height:1.45}.activity p:last-child{border:0}.activity small{letter-spacing:0;color:#94a3b8;font-size:12px}"
+        }
+      ]
+    },
+    {
+      "duration": 5,
+      "background": "#111827",
+      "transition": { "type": "slideLeft", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "html",
+          "width": 1000,
+          "height": 460,
+          "x": "center",
+          "y": "center",
+          "offsetY": -10,
+          "animation": {
+            "y": { "from": -30, "to": 0, "duration": 0.8, "easing": "easeOut" },
+            "scale": { "from": 0.9, "to": 1, "duration": 1, "easing": "easeOut" }
+          },
+          "html": "<div class=final><div class=logo>K</div><div><div class=kicker>THE KINO HTML ELEMENT</div><h2>One screenshot.<br><span>Infinite possibilities.</span></h2><p>Static HTML becomes a clean, transparent, portable layer inside your composition.</p></div><div class=chips><b>INLINE CSS</b><b>TRANSPARENT PNG</b><b>OFFLINE .KINO</b></div></div>",
+          "css": "*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:Arial,sans-serif;color:white}.final{height:100%;padding:60px 70px;display:grid;grid-template-columns:110px 1fr;gap:30px;align-content:center;border:1px solid #334155;border-radius:25px;background:radial-gradient(circle at 80% 20%,#164e63 0,#172554 35%,#111827 70%)}.logo{width:86px;height:86px;border-radius:22px;background:linear-gradient(135deg,#22d3ee,#6366f1);display:grid;place-items:center;font-size:48px;font-weight:900;box-shadow:0 15px 40px rgba(34,211,238,.25)}.kicker{font-size:13px;letter-spacing:3px;color:#67e8f9;font-weight:bold}h2{font-size:58px;line-height:1.05;letter-spacing:-2px;margin:16px 0}h2 span{color:#a5b4fc}p{color:#cbd5e1;font-size:19px;margin:0;max-width:620px}.chips{grid-column:2;display:flex;gap:12px;margin-top:12px}.chips b{font-size:11px;letter-spacing:1px;color:#cbd5e1;border:1px solid #475569;border-radius:20px;padding:10px 14px}"
+        }
+      ]
+    },
+    {
+      "duration": 7,
+      "background": {
+        "type": "gradient",
+        "from": "#160d2e",
+        "to": "#052e3a",
+        "direction": "horizontal"
+      },
+      "transition": { "type": "zoomIn", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "html", "width": 180, "height": 120, "x": 150, "y": 150,
+          "html": "<div class=tile><b>HTML</b><small>01</small></div>",
+          "css": ".tile{height:100%;border:2px solid #67e8f9;border-radius:22px;background:#164e63;color:#cffafe;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 26px Arial;box-shadow:0 0 35px #22d3ee66}.tile small{font-size:12px;letter-spacing:3px;margin-top:8px;color:#67e8f9}",
+          "animation": { "x": { "from": -120, "to": 0, "duration": 1.2, "easing": "easeOut" }, "y": { "from": 80, "to": 0, "duration": 1, "easing": "easeOut" }, "scale": { "from": 0.5, "to": 1, "duration": 1 } }
+        },
+        {
+          "type": "html", "width": 180, "height": 120, "x": 390, "y": 350,
+          "html": "<div class=tile><b>CSS</b><small>02</small></div>",
+          "css": ".tile{height:100%;border:2px solid #a5b4fc;border-radius:22px;background:#312e81;color:#eef2ff;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 26px Arial;box-shadow:0 0 35px #818cf866}.tile small{font-size:12px;letter-spacing:3px;margin-top:8px;color:#c4b5fd}",
+          "animation": { "x": { "from": 100, "to": 0, "duration": 1.1, "easing": "easeOut" }, "y": { "from": -100, "to": 0, "duration": 0.9, "easing": "easeOut" }, "scale": { "from": 0.6, "to": 1, "duration": 1.2 } }
+        },
+        {
+          "type": "html", "width": 180, "height": 120, "x": 650, "y": 130,
+          "html": "<div class=tile><b>PNG</b><small>03</small></div>",
+          "css": ".tile{height:100%;border:2px solid #f0abfc;border-radius:22px;background:#701a75;color:#fdf4ff;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 26px Arial;box-shadow:0 0 35px #e879f966}.tile small{font-size:12px;letter-spacing:3px;margin-top:8px;color:#f5d0fe}",
+          "animation": { "x": { "from": -90, "to": 0, "duration": 1, "easing": "easeOut" }, "y": { "from": 120, "to": 0, "duration": 1.3, "easing": "easeOut" }, "scale": { "from": 0.4, "to": 1, "duration": 0.9 } }
+        },
+        {
+          "type": "html", "width": 180, "height": 120, "x": 940, "y": 330,
+          "html": "<div class=tile><b>FFMPEG</b><small>04</small></div>",
+          "css": ".tile{height:100%;border:2px solid #86efac;border-radius:22px;background:#14532d;color:#f0fdf4;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 22px Arial;box-shadow:0 0 35px #4ade8066}.tile small{font-size:12px;letter-spacing:3px;margin-top:8px;color:#bbf7d0}",
+          "animation": { "x": { "from": 130, "to": 0, "duration": 1.3, "easing": "easeOut" }, "y": { "from": -80, "to": 0, "duration": 1.1, "easing": "easeOut" }, "scale": { "from": 0.5, "to": 1, "duration": 1 } }
+        },
+        {
+          "type": "html", "width": 180, "height": 120, "x": 920, "y": 120,
+          "html": "<div class=tile><b>KINO</b><small>05</small></div>",
+          "css": ".tile{height:100%;border:2px solid #fcd34d;border-radius:22px;background:#78350f;color:#fffbeb;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 26px Arial;box-shadow:0 0 35px #fbbf2466}.tile small{font-size:12px;letter-spacing:3px;margin-top:8px;color:#fde68a}",
+          "animation": { "x": { "from": 70, "to": 0, "duration": 0.8, "easing": "easeOut" }, "y": { "from": 100, "to": 0, "duration": 1.2, "easing": "easeOut" }, "scale": { "from": 0.3, "to": 1, "duration": 1.1 } }
+        },
+        {
+          "type": "html", "width": 180, "height": 120, "x": 360, "y": 110,
+          "html": "<div class=tile><b>VIDEO</b><small>06</small></div>",
+          "css": ".tile{height:100%;border:2px solid #fb7185;border-radius:22px;background:#881337;color:#fff1f2;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 22px Arial;box-shadow:0 0 35px #fb718566}.tile small{font-size:12px;letter-spacing:3px;margin-top:8px;color:#fecdd3}",
+          "animation": { "x": { "from": 120, "to": 0, "duration": 1, "easing": "easeOut" }, "y": { "from": -90, "to": 0, "duration": 1.2, "easing": "easeOut" }, "scale": { "from": 0.5, "to": 1, "duration": 0.8 } }
+        }
+      ]
+    }
+  ]
+}

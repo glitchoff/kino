@@ -16,6 +16,23 @@ pnpm add @glitchoff/kino
 npm install @glitchoff/kino
 ```
 
+### Optional HTML Element Setup
+
+Puppeteer and Chromium are only needed when a composition contains an `html` element. Standard Kino compositions do not need a browser. Puppeteer's install script downloads a compatible Chromium build during package installation. With pnpm, approve that script if prompted:
+
+```bash
+pnpm approve-builds
+```
+
+Select `puppeteer` and approve it. If browser downloads are unavailable, install Chrome or Chromium separately and provide its executable path:
+
+```bash
+npx kino examples/html-showcase.json -o html-showcase.mp4 \
+  --browser-path "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+```
+
+The browser is needed only while compiling HTML into the `.kino` artifact. Once compiled, the artifact contains the rasterized PNG and can render without Puppeteer or Chromium.
+
 > **Note:** Kino includes built-in binary fallback (`ffmpeg-static`), so manual installation of an FFmpeg binary is optional!
 
 > **Note:** Text elements use **Inter Regular** by default (bundled in the package). For custom fonts, set `fontFile` on the element.

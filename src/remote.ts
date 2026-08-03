@@ -46,7 +46,7 @@ export function prestageRemoteAssets(
       if (isRemote(elem.src)) urls.add(elem.src);
     } else if (elem.type === "video") {
       if (isRemote(elem.src)) urls.add(elem.src);
-    } else if (elem.fontFile) {
+    } else if (elem.type === "text" && elem.fontFile) {
       if (isRemote(elem.fontFile)) urls.add(elem.fontFile);
     }
   }

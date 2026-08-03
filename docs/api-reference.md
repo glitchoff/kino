@@ -72,6 +72,11 @@ async function render(
 - `verbose?: boolean` — Set to `true` to log FFmpeg command and stream output.
 - `kinoPath?: string` — Where `compile()` writes the `.kino` artifact. Defaults to `<output>.kino`.
 - `unsafeInlineText?: boolean` — **Dangerous.** When set, text is passed to drawtext inline via the `text=` option instead of a `textfile`, bypassing the `.kino` text mechanism. Text containing apostrophes (or other special characters) may render blank on some platforms with no error. Only use if you cannot write temp files. `render()` prints a warning when enabled.
+- `browserPath?: string` — Custom Chrome/Chromium executable path for `HtmlElement` compilation. If omitted, Puppeteer uses its bundled browser or automatically installs Chrome when needed.
+
+Puppeteer is an optional capability in practice: it is only invoked when the composition contains an `HtmlElement`. Its package install script downloads Chromium. Package managers that block install scripts, such as pnpm without approval, require `pnpm approve-builds` followed by approval of `puppeteer`.
+
+After compilation, an `HtmlElement` is an image asset inside the `.kino` archive. Its `startAt` and `duration` are evaluated by FFmpeg during rendering, so the archived artifact remains portable and offline. Position and scale animations work on the generated image layer; opacity animation is currently not supported reliably for HTML layers.
 
 ---
 

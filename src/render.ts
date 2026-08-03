@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
@@ -21,6 +21,7 @@ import type {
   TextElement,
   ImageElement,
   VideoElement,
+  HtmlElement,
   AudioTrack,
   VideoEncoder,
   NormalizedComposition,
@@ -64,6 +65,18 @@ function buildMediaScaleFilter(elem: ImageElement | VideoElement): string {
     }
   }
   return `scale=${w}:${h}`;
+}
+
+function renderHtmlSync(elem: HtmlElement, stagingDir: string, browserPath?: string): string {
+  const inputPath = join(stagingDir, `html-input-${Date.now()}.json`);
+  const outputPath = join(stagingDir, `html-output-${Date.now()}.png`);
+  writeFileSync(inputPath, JSON.stringify(elem), "utf8");
+  const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const helper = resolve(moduleDir, "../scripts/render-html.mjs");
+  const result = spawnSync(process.execPath, [helper, inputPath, outputPath, browserPath || ""], { encoding: "utf8", timeout: 120000 });
+  rmSync(inputPath, { force: true });
+  if (result.status !== 0) throw new Error(`Failed to render html element: ${(result.stderr || "").trim() || `exit code ${result.status}`}`);
+  return outputPath;
 }
 
 function escapeFFmpegStr(str: string): string {
@@ -384,11 +397,13 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
       for (const elem of sceneElems) {
         const elemIdx = ++globalElemIdx;
-        const isImage = elem.type === "image";
+        const isImage = elem.type === "image" || elem.type === "html";
         const isVideo = elem.type === "video";
 
         if (isImage || isVideo) {
-          const media = elem as ImageElement | VideoElement;
+          const media = elem.type === "html"
+            ? ({ ...elem, type: "image", src: renderHtmlSync(elem as HtmlElement, stagingDir, options?.browserPath) } as ImageElement)
+            : elem as ImageElement | VideoElement;
           const currInputIdx = inputIndex++;
 
           if (isVideo) {
@@ -433,7 +448,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             }
           } else {
             const basePad = `[img_base_${elemIdx}]`;
-            filterComplex.push(`[${currInputIdx}:v]${scaleFilter}${basePad}`);
+            filterComplex.push(`[${currInputIdx}:v]${scaleFilter},fps=${fps},setpts=PTS-STARTPTS,settb=AVTB${basePad}`);
             startPad = basePad;
           }
 

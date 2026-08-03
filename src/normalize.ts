@@ -5,6 +5,7 @@ import type {
   ElementInput,
   TextElement,
   ImageElement,
+  HtmlElement,
   VideoElement,
   AudioTrack,
   KinoComposition,
@@ -161,6 +162,30 @@ export function normalizeElement(elem: any): ElementInput {
       animation: elem.animation,
     };
     return img;
+  }
+
+  if (elem.type === "html") {
+    const html: HtmlElement = {
+      type: "html",
+      html: elem.html || "",
+      css: elem.css,
+      width: elem.width,
+      height: elem.height,
+      fit: elem.fit,
+      backgroundColor: elem.backgroundColor,
+      deviceScaleFactor: elem.deviceScaleFactor,
+      x: elem.x,
+      y: elem.y,
+      offsetX: elem.offsetX,
+      offsetY: elem.offsetY,
+      startAt,
+      startTime: elem.startTime,
+      duration: elem.duration,
+      sfx: elem.sfx,
+      zIndex: elem.zIndex,
+      animation: elem.animation,
+    };
+    return html;
   }
 
   if (elem.type === "video") {

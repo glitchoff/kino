@@ -136,7 +136,7 @@ export function validateComposition(comp: unknown): void {
           templateIds.add(tmpl.id);
         }
 
-        const validTypes = ["text", "image", "video"];
+        const validTypes = ["text", "image", "html", "video"];
         if (tmpl.type !== undefined) {
           if (typeof tmpl.type !== "string" || !validTypes.includes(tmpl.type)) {
             issues.push({
@@ -420,6 +420,21 @@ export function validateComposition(comp: unknown): void {
                 });
               }
             }
+          } else if (elemType === "html") {
+            if (!isNonEmptyString(elem.html)) {
+              issues.push({ path: `${elemPath}.html`, message: "Expected a non-empty HTML string" });
+            }
+            for (const key of ["width", "height"] as const) {
+              if (!isFiniteNumber(elem[key]) || elem[key] <= 0) {
+                issues.push({ path: `${elemPath}.${key}`, message: `Expected a positive number, received ${elem[key]}` });
+              }
+            }
+            if (elem.deviceScaleFactor !== undefined && (!isFiniteNumber(elem.deviceScaleFactor) || elem.deviceScaleFactor <= 0)) {
+              issues.push({ path: `${elemPath}.deviceScaleFactor`, message: `Expected a positive number, received ${elem.deviceScaleFactor}` });
+            }
+            if (elem.fit !== undefined && !["contain", "cover", "fill", "none"].includes(elem.fit as string)) {
+              issues.push({ path: `${elemPath}.fit`, message: `Expected "contain", "cover", "fill", or "none", received ${JSON.stringify(elem.fit)}` });
+            }
           } else if (elemType === "video") {
             if (!isNonEmptyString(elem.src)) {
               issues.push({
@@ -597,7 +612,7 @@ export function validateComposition(comp: unknown): void {
              } else {
                issues.push({
                  path: `${elemPath}.type`,
-                 message: `Expected "text", "image", or "video", received ${JSON.stringify(elem.type)}`,
+                 message: `Expected "text", "image", "html", or "video", received ${JSON.stringify(elem.type)}`,
                });
              }
 

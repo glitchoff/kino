@@ -97,6 +97,17 @@ export interface ImageElement extends BaseElement {
   fit?: MediaFit;
 }
 
+export interface HtmlElement extends BaseElement {
+  type: "html";
+  html: string;
+  css?: string;
+  width: number;
+  height: number;
+  fit?: MediaFit;
+  backgroundColor?: string;
+  deviceScaleFactor?: number;
+}
+
 export interface VideoElement extends BaseElement {
   type: "video";
   src: string;
@@ -112,7 +123,7 @@ export interface VideoElement extends BaseElement {
   volume?: number;
 }
 
-export type ElementInput = TextElement | ImageElement | VideoElement;
+export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement;
 
 export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut";
 
@@ -146,6 +157,8 @@ export interface AudioTrack {
 }
 
 export interface TemplateProps {
+  html?: string;
+  css?: string;
   fontSize?: number;
   fontColor?: string;
   fontFile?: string;
@@ -165,6 +178,7 @@ export interface TemplateProps {
   width?: number;
   height?: number;
   fit?: MediaFit;
+  deviceScaleFactor?: number;
   trimStart?: number;
   loop?: boolean;
   volume?: number;
@@ -176,7 +190,7 @@ export interface TemplateProps {
 
 export interface KinoTemplate {
   id: string;
-  type: "text" | "image" | "video";
+  type: "text" | "image" | "html" | "video";
   props: TemplateProps;
 }
 
@@ -235,6 +249,7 @@ export interface RenderOptions {
   preset?: string;
   kinoPath?: string;
   unsafeInlineText?: boolean;
+  browserPath?: string;
 }
 
 export interface CompileResult {

@@ -32,6 +32,14 @@ pnpm approve-builds
 npm install @glitchoff/kino
 ```
 
+Puppeteer/Chromium is only used by the `html` element. Regular text, image, video, audio, and background compositions do not require a browser. If your package manager blocks dependency install scripts, approve Puppeteer's install script so it can download Chromium:
+
+```bash
+pnpm approve-builds
+```
+
+You can also use an existing Chrome/Chromium installation with `--browser-path`.
+
 ---
 
 ## Example Usage
@@ -93,6 +101,9 @@ npx kino examples/basic.json --unsafe-inline-text
 
 # Render all 11 scene transitions in one video
 npx kino examples/all-transitions.json -o all-transitions.mp4
+
+# Render the static HTML/Puppeteer showcase
+npx kino examples/html-showcase.json -o html-showcase.mp4
 
 # Render a pre-compiled .kino artifact (fully offline, no recompilation)
 npx kino path/to/composition.kino -o output.mp4
