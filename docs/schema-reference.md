@@ -92,25 +92,46 @@ Kino uses a simple three-layer positioning model:
 
 | Property | Purpose |
 | :--- | :--- |
-| `x`, `y` | Anchor position: `"center"`, `"start"`, `"end"`, an FFmpeg expression, or a number. |
+| `x`, `y` | Anchor position: `"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, an FFmpeg expression, or a number. Also supports shorthand: `"center-90"`, `"right+50"`, `"bottom-20"`. |
 | `offsetX`, `offsetY` | Pixel offset applied on top of the anchor. |
 | `animation.x`, `animation.y` | Animated translation on top of the static position. |
 
-**Example:**
+**Explicit offset (canonical):**
 
 ```json
 {
   "x": "center",
   "y": "center",
   "offsetX": -90,
-  "offsetY": 120,
+  "offsetY": 120
+}
+```
+
+**Shorthand (sugar for the above):**
+
+```json
+{
+  "x": "center-90",
+  "y": "center+120"
+}
+```
+
+Both resolve to the same internal representation. Using both shorthand and explicit offset on the same axis is rejected as ambiguous.
+
+**With animation:**
+
+```json
+{
+  "x": "center",
+  "y": "center",
+  "offsetY": -100,
   "animation": {
     "y": { "from": 40, "to": 0, "duration": 0.6 }
   }
 }
 ```
 
-This positions the element at `center + (-90, 120)` and then animates its Y by an additional 40→0 pixels on top of that.
+This positions the element at `center + (0, -100)` and then animates its Y by an additional 40→0 pixels on top of that.
 
 ### 1. `TextElement` (`type: "text"`)
 
@@ -130,8 +151,8 @@ This positions the element at `center + (-90, 120)` and then animates its Y by a
 | `lineHeight` | `number` | `1` | Multiplier for line height spacing (`1` = normal, `1.5` = 50% extra line spacing). |
 | `stroke` | `{ color: string; width: number }` | undefined | Text outline stroke color and border width. |
 | `shadow` | `{ color: string; x?: number; y?: number }` | undefined | Text drop shadow color and x/y pixel offsets (defaults to `x: 2, y: 2`). |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"start"`, `"end"`, expression, or number). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"top-N"` / `"bottom-N"`, `"start"`, `"end"`, expression, or number). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"left"`, `"right"`, expression, number, or shorthand like `"center-90"`). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, `"top-N"`, `"bottom-N"`, expression, number, or shorthand like `"center+120"`). |
 | `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
 | `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
@@ -150,8 +171,8 @@ This positions the element at `center + (-90, 120)` and then animates its Y by a
 | `width` | `number` | original | Target width in pixels. |
 | `height` | `number` | original | Target height in pixels. |
 | `fit` | `MediaFit` | undefined | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). When unset: native dimensions if `width`/`height` are omitted, force-scale to `width`×`height` if both are set. |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"start"`, `"end"`, expression, or number). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"start"`, `"end"`, expression, or number). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"left"`, `"right"`, expression, number, or shorthand like `"center-90"`). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, expression, number, or shorthand like `"center+120"`). |
 | `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
 | `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
@@ -170,8 +191,8 @@ By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded u
 | `width` | `number` | original | Target width in pixels. |
 | `height` | `number` | original | Target height in pixels. |
 | `fit` | `MediaFit` | `"contain"` | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"start"`, `"end"`, expression, or number). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"start"`, `"end"`, expression, or number). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"left"`, `"right"`, expression, number, or shorthand like `"center-90"`). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, expression, number, or shorthand like `"center+120"`). |
 | `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
 | `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |

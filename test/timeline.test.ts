@@ -372,5 +372,299 @@ describe("Kino Timeline Simplification + Scene Transitions", () => {
       expect(result.filtergraph).toContain("(w-text_w)/2");
       expect(result.filtergraph).toContain("(h-text_h)/2");
     });
+
+    test("resolves 'left' named position to 0 for text x", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Left",
+                x: "left",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("x=0");
+    });
+
+    test("resolves 'right' named position to w-text_w for text x", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Right",
+                x: "right",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("x=w-text_w");
+    });
+
+    test("resolves 'top' named position to 0 for text y", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Top",
+                x: "center",
+                y: "top",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("y=0");
+    });
+
+    test("resolves 'bottom' named position to h-text_h for text y", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Bottom",
+                x: "center",
+                y: "bottom",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("y=h-text_h");
+    });
+
+    test("resolves 'left' named position to 0 for media x", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "image",
+                src: "test.png",
+                x: "left",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("x=0");
+    });
+
+    test("resolves 'right' named position to main_w-overlay_w for media x", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "image",
+                src: "test.png",
+                x: "right",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("x=main_w-overlay_w");
+    });
+
+    test("resolves 'bottom' named position to main_h-overlay_h for media y", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "image",
+                src: "test.png",
+                x: "center",
+                y: "bottom",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("y=main_h-overlay_h");
+    });
+
+    test("combines named position with offsetX/offsetY", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Offset Left",
+                x: "left",
+                y: "center",
+                offsetX: 20,
+                offsetY: -50,
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("x=(0)+(20)");
+      expect(result.filtergraph).toContain("y=((h-text_h)/2)+(-50)");
+    });
+
+    test("resolves shorthand 'center-90' to center + offsetX=-90", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Shorthand",
+                x: "center-90",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("(w-text_w)/2)+(-90)");
+    });
+
+    test("resolves shorthand 'right+50' to right + offsetX=50", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Right Shorthand",
+                x: "right+50",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("x=(w-text_w)+(50)");
+    });
+
+    test("resolves shorthand 'bottom-20' to bottom + offsetY=-20", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Bottom Shorthand",
+                x: "center",
+                y: "bottom-20",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("y=h-text_h-20");
+    });
+
+    test("resolves media shorthand 'center+120' to center + offsetY=120", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "image",
+                src: "test.png",
+                x: "center",
+                y: "center+120",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("y=((main_h-overlay_h)/2)+(120)");
+    });
+
+    test("rejects shorthand + explicit offsetX as ambiguous", () => {
+      const comp: any = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Ambiguous",
+                x: "center-90",
+                offsetX: 20,
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => validateComposition(comp)).toThrow(KinoValidationError);
+      try {
+        validateComposition(comp);
+      } catch (err: any) {
+        expect(err.issues).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              path: expect.stringContaining(".x"),
+              message: expect.stringContaining("Ambiguous position"),
+            }),
+          ])
+        );
+      }
+    });
+
+    test("rejects shorthand + explicit offsetY as ambiguous", () => {
+      const comp: any = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Ambiguous",
+                y: "bottom-20",
+                offsetY: 10,
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => validateComposition(comp)).toThrow(KinoValidationError);
+    });
   });
 });
+

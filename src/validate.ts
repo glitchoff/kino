@@ -308,6 +308,24 @@ export function validateComposition(comp: unknown): void {
             }
           }
 
+          if (typeof elem.x === "string" && elem.offsetX !== undefined) {
+            if (/^(left|center|right|top|bottom)[+-]/.test(elem.x)) {
+              issues.push({
+                path: `${elemPath}.x`,
+                message: `Ambiguous position: shorthand "${elem.x}" combined with explicit offsetX. Use either shorthand or offsetX, not both.`,
+              });
+            }
+          }
+
+          if (typeof elem.y === "string" && elem.offsetY !== undefined) {
+            if (/^(left|center|right|top|bottom)[+-]/.test(elem.y)) {
+              issues.push({
+                path: `${elemPath}.y`,
+                message: `Ambiguous position: shorthand "${elem.y}" combined with explicit offsetY. Use either shorthand or offsetY, not both.`,
+              });
+            }
+          }
+
           const elemType = elem.type ?? "text";
 
           if (elemType === "image") {

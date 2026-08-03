@@ -80,7 +80,46 @@ function formatPosition(val: number | string | undefined, defaultExpr: string): 
   if (typeof val === "number") {
     return String(val);
   }
+
+  const shorthand = parseShorthand(val);
+  if (shorthand) {
+    const base = resolveNamedPosition(shorthand.anchor, defaultExpr);
+    if (base !== null) return `(${base})+(${shorthand.offset})`;
+    return `(${defaultExpr})+(${shorthand.offset})`;
+  }
+
+  const named = resolveNamedPosition(val, defaultExpr);
+  if (named !== null) return named;
+
   return val;
+}
+
+interface ShorthandParse {
+  anchor: string;
+  offset: number;
+}
+
+function parseShorthand(val: string): ShorthandParse | null {
+  const match = val.match(/^(left|center|right|top|bottom)([+-]\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  return { anchor: match[1], offset: parseFloat(match[2]) };
+}
+
+function resolveNamedPosition(val: string, defaultExpr: string): string | null {
+  if (val === "left") return "0";
+  if (val === "right") {
+    if (defaultExpr.includes("w-text_w")) return "w-text_w";
+    if (defaultExpr.includes("main_w-overlay_w")) return "main_w-overlay_w";
+    return "0";
+  }
+  if (val === "top") return "0";
+  if (val === "bottom") {
+    if (defaultExpr.includes("h-text_h")) return "h-text_h";
+    if (defaultExpr.includes("main_h-overlay_h")) return "main_h-overlay_h";
+    return "0";
+  }
+
+  return null;
 }
 
 function formatBasePosition(val: number | string | undefined, offset: number | undefined, defaultExpr: string): string {
@@ -108,6 +147,16 @@ function formatTextPosition(val: number | string | undefined, defaultExpr: strin
   if (top) {
     return top[1];
   }
+
+  const shorthand = parseShorthand(val);
+  if (shorthand) {
+    const base = resolveNamedPosition(shorthand.anchor, defaultExpr);
+    if (base !== null) return `(${base})+(${shorthand.offset})`;
+    return `(${defaultExpr})+(${shorthand.offset})`;
+  }
+
+  const named = resolveNamedPosition(val, defaultExpr);
+  if (named !== null) return named;
 
   return val;
 }
