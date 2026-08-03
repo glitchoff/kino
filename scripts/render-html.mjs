@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import puppeteer from "puppeteer";
 
-const input = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-const output = process.argv[3];
+const inputs = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const outputDir = process.argv[3];
 const browserPath = process.argv[4] || undefined;
 
 let browser;
@@ -35,11 +35,26 @@ try {
   }
 }
 try {
-  const page = await browser.newPage();
-  await page.setViewport({ width: input.width, height: input.height, deviceScaleFactor: input.deviceScaleFactor || 1 });
-  await page.setContent(`<!doctype html><html><head><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:${input.backgroundColor || "transparent"}}${input.css || ""}</style></head><body>${input.html}</body></html>`, { waitUntil: "load" });
-  await page.evaluate(() => document.fonts?.ready);
-  await page.screenshot({ path: output, omitBackground: !input.backgroundColor });
+  const results = [];
+  const batchSize = 4;
+  for (let start = 0; start < inputs.length; start += batchSize) {
+    const batch = inputs.slice(start, start + batchSize);
+    const rendered = await Promise.all(batch.map(async (input, offset) => {
+      const page = await browser.newPage();
+      const output = `${outputDir}/html-output-${start + offset + 1}.png`;
+      try {
+        await page.setViewport({ width: input.width, height: input.height, deviceScaleFactor: input.deviceScaleFactor || 1 });
+        await page.setContent(`<!doctype html><html><head><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:${input.backgroundColor || "transparent"}}${input.css || ""}</style></head><body>${input.html}</body></html>`, { waitUntil: "load" });
+        await page.evaluate(() => document.fonts?.ready);
+        await page.screenshot({ path: output, omitBackground: !input.backgroundColor });
+        return output;
+      } finally {
+        await page.close();
+      }
+    }));
+    results.push(...rendered);
+  }
+  process.stdout.write(JSON.stringify(results));
 } finally {
   await browser.close();
 }

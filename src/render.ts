@@ -67,16 +67,16 @@ function buildMediaScaleFilter(elem: ImageElement | VideoElement): string {
   return `scale=${w}:${h}`;
 }
 
-function renderHtmlSync(elem: HtmlElement, stagingDir: string, browserPath?: string): string {
+function renderHtmlBatchSync(elements: HtmlElement[], stagingDir: string, browserPath?: string): string[] {
+  if (elements.length === 0) return [];
   const inputPath = join(stagingDir, `html-input-${Date.now()}.json`);
-  const outputPath = join(stagingDir, `html-output-${Date.now()}.png`);
-  writeFileSync(inputPath, JSON.stringify(elem), "utf8");
   const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
   const helper = resolve(moduleDir, "../scripts/render-html.mjs");
-  const result = spawnSync(process.execPath, [helper, inputPath, outputPath, browserPath || ""], { encoding: "utf8", timeout: 120000 });
+  writeFileSync(inputPath, JSON.stringify(elements), "utf8");
+  const result = spawnSync(process.execPath, [helper, inputPath, stagingDir, browserPath || ""], { encoding: "utf8", timeout: 120000 });
   rmSync(inputPath, { force: true });
   if (result.status !== 0) throw new Error(`Failed to render html element: ${(result.stderr || "").trim() || `exit code ${result.status}`}`);
-  return outputPath;
+  return JSON.parse(result.stdout) as string[];
 }
 
 function escapeFFmpegStr(str: string): string {
@@ -336,6 +336,9 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const filterComplex: string[] = [];
 
   let inputIndex = 0;
+  const htmlElements = norm.elements.filter((elem): elem is HtmlElement => elem.type === "html");
+  const htmlPaths = renderHtmlBatchSync(htmlElements, stagingDir, options?.browserPath);
+  const htmlPathMap = new Map(htmlElements.map((elem, index) => [elem, htmlPaths[index]]));
 
   try {
     // 1. Process Per-Scene Background Inputs
@@ -402,7 +405,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
         if (isImage || isVideo) {
           const media = elem.type === "html"
-            ? ({ ...elem, type: "image", src: renderHtmlSync(elem as HtmlElement, stagingDir, options?.browserPath) } as ImageElement)
+            ? ({ ...elem, type: "image", src: htmlPathMap.get(elem as HtmlElement)! } as ImageElement)
             : elem as ImageElement | VideoElement;
           const currInputIdx = inputIndex++;
 
