@@ -2,7 +2,6 @@
   "width": 1920,
   "height": 1080,
   "fps": 30,
-  "timeline": "sequential",
 
   "scenes": [
     {
@@ -18,7 +17,7 @@
           "fit": "cover",
           "x": "center",
           "y": "center",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 7,
           "trimStart": 0,
           "loop": true,
@@ -57,7 +56,7 @@
           },
           "x": "center",
           "y": "center",
-          "startTime": 0.8,
+          "startAt": 0.8,
           "duration": 5.8,
           "zIndex": 10,
           "animation": {
@@ -97,7 +96,7 @@
           "fit": "cover",
           "x": "center",
           "y": "center",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 6,
           "trimStart": 1,
           "loop": true,
@@ -134,7 +133,7 @@
           },
           "x": "center",
           "y": "center",
-          "startTime": 0.6,
+          "startAt": 0.6,
           "duration": 5,
           "zIndex": 10,
           "animation": {
@@ -173,7 +172,7 @@
           "fit": "cover",
           "x": "(main_w-overlay_w)/2-430",
           "y": "center",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 7,
           "trimStart": 1,
           "loop": true,
@@ -218,7 +217,7 @@
           },
           "x": "(w-text_w)/2+420",
           "y": "center",
-          "startTime": 0.7,
+          "startAt": 0.7,
           "duration": 5.8,
           "zIndex": 10,
           "animation": {
@@ -251,7 +250,7 @@
           "fit": "cover",
           "x": "center",
           "y": "center",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 7,
           "trimStart": 3,
           "loop": true,
@@ -295,7 +294,7 @@
           },
           "x": "center",
           "y": "center",
-          "startTime": 1.2,
+          "startAt": 1.2,
           "duration": 5,
           "zIndex": 20,
           "animation": {
@@ -341,7 +340,7 @@
           },
           "x": "center",
           "y": "(h-text_h)/2-50",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 4.5,
           "animation": {
             "opacity": {
@@ -365,7 +364,7 @@
           "fontColor": "#c4b5fd",
           "x": "center",
           "y": "(h-text_h)/2+170",
-          "startTime": 1,
+          "startAt": 1,
           "duration": 3.5,
           "animation": {
             "opacity": {

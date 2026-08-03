@@ -18,6 +18,8 @@ npm install @glitchoff/kino
 
 > **Note:** Kino includes built-in binary fallback (`ffmpeg-static`), so manual installation of an FFmpeg binary is optional!
 
+> **Note:** Text elements use **Inter Regular** by default (bundled in the package). For custom fonts, set `fontFile` on the element.
+
 ---
 
 ## 🚀 Programmatic Quickstart
@@ -44,7 +46,7 @@ const composition = {
           fontColor: "#38bdf8",
           x: "center",
           y: "center",
-          startTime: 0,
+          startAt: 0,
           duration: 5
         }
       ]
@@ -70,7 +72,7 @@ run();
 
 ## 🖥️ CLI Usage
 
-Kino comes with a CLI utility for compiling and rendering JSON composition files. GPU hardware encoding is used by default when available.
+Kino comes with a CLI utility for compiling and rendering JSON composition files and pre-compiled `.kino` artifacts. GPU hardware encoding is used by default when available.
 
 ### Render JSON to Video (GPU-first by default)
 
@@ -80,6 +82,15 @@ npx kino path/to/scene.json -o output.mp4
 
 # Explicit CPU
 npx kino path/to/scene.json -o output.mp4 --encoder libx264
+```
+
+### Render Pre-compiled `.kino` Artifacts
+
+`.kino` files are self-contained archives (produced by `--dry-run` or `compile()`) that can be rendered without recompiling:
+
+```bash
+# Render an existing .kino artifact directly (fully offline, no recompilation)
+npx kino path/to/composition.kino -o output.mp4
 ```
 
 `--gpu` (and `encoder: "auto"`) probes the actual hardware on the host machine and picks the best available GPU encoder for it — NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux — then falls back to CPU `libx264` if no GPU encoder is usable.
@@ -100,6 +111,79 @@ Text elements are delivered to drawtext via a portable `.kino` artifact (a self-
 
 ```bash
 npx kino path/to/scene.json --unsafe-inline-text
+```
+
+---
+
+## ✨ Scene Transitions
+
+Scenes play sequentially and can transition into each other with 11 built-in transition types. A transition belongs to the **entering** scene and is applied via FFmpeg's `xfade` filter:
+
+```json
+{
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "scenes": [
+    {
+      "duration": 5,
+      "background": "#0f172a",
+      "elements": [
+        {
+          "type": "text",
+          "content": "Scene One",
+          "fontSize": 64,
+          "fontColor": "#ffffff",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "duration": 5,
+      "background": "#312e81",
+      "transition": { "type": "slideLeft", "duration": 1 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "Scene Two",
+          "fontSize": 64,
+          "fontColor": "#a5b4fc",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Supported Transition Types
+
+| Type | Description |
+| :--- | :--- |
+| `fade` | Cross-fade between scenes. |
+| `slideLeft` | New scene slides in from the left. |
+| `slideRight` | New scene slides in from the right. |
+| `slideUp` | New scene slides in from the bottom. |
+| `slideDown` | New scene slides in from the top. |
+| `wipeLeft` | New scene wipes from left to right. |
+| `wipeRight` | New scene wipes from right to left. |
+| `wipeUp` | New scene wipes from bottom to top. |
+| `wipeDown` | New scene wipes from top to bottom. |
+| `zoomIn` | New scene zooms in from center. |
+| `zoomOut` | New scene zooms out to center. |
+
+The transition `duration` must not exceed the duration of either adjacent scene. Total composition duration equals `sum(scene.duration) - sum(transition.duration)`.
+
+Try the included examples:
+
+```bash
+# Showcase all 11 transitions
+npx kino examples/all-transitions.json -o all-transitions.mp4
+
+# Basic scene transitions demo
+npx kino examples/scene-transitions.json -o scene-transitions.mp4
 ```
 
 ---

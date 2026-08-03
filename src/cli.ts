@@ -24,13 +24,17 @@ async function main() {
   🎥 kino - JSON to FFmpeg video compiler
 
   Usage:
-    npx kino <json-file> [options]
-    npx kino render <json-file> [options]
+    npx kino <file> [options]
+    npx kino render <file> [options]
     npx kino studio [--port <number>]
 
   Commands:
     studio                 Launch Kino Studio web editor & preview server
-    render <json-file>     Render JSON composition to video file
+    render <file>          Render composition to video file
+
+  File formats:
+    .json                  JSON composition file
+    .kino                  Pre-compiled .kino artifact (renders without recompiling)
 
   Options:
     -o, --output <path>    Output video file path (default: ./out.mp4)
@@ -47,7 +51,7 @@ async function main() {
     process.exit(0);
   }
 
-  let jsonPath = "";
+  let inputPath = "";
   let outputPath = "./out.mp4";
   let encoder: any = undefined;
   let preset: string | undefined = undefined;
@@ -76,20 +80,44 @@ async function main() {
       isUnsafeInlineText = true;
     } else if (arg === "--verbose") {
       isVerbose = true;
-    } else if (!arg.startsWith("-") && !jsonPath) {
-      jsonPath = arg;
+    } else if (!arg.startsWith("-") && !inputPath) {
+      inputPath = arg;
     }
   }
 
-  if (!jsonPath) {
-    console.error("Error: Please provide a valid JSON input file or use `npx kino studio`.");
+  if (!inputPath) {
+    console.error("Error: Please provide a valid input file (.json or .kino) or use `npx kino studio`.");
+    process.exit(1);
+  }
+
+  const fullPath = resolve(process.cwd(), inputPath);
+  const ext = fullPath.slice(-5);
+  const isKinoFile = ext === ".kino";
+
+  if (isKinoFile && isDryRun) {
+    console.error("Error: --dry-run is not applicable to .kino files (they are already compiled artifacts).");
     process.exit(1);
   }
 
   try {
-    const fullPath = resolve(process.cwd(), jsonPath);
+    let composition: KinoComposition;
+
+    if (isKinoFile) {
+      console.log(`[kino] Rendering pre-compiled artifact ${inputPath} -> ${outputPath}...`);
+      const result = await render(fullPath, {
+        output: outputPath,
+        verbose: isVerbose,
+        encoder,
+        preset,
+        ffmpegPath,
+        unsafeInlineText: isUnsafeInlineText,
+      });
+      console.log(`[kino] Successfully rendered to ${result.output}`);
+      return;
+    }
+
     const fileContent = readFileSync(fullPath, "utf-8");
-    const composition: KinoComposition = JSON.parse(fileContent);
+    composition = JSON.parse(fileContent) as KinoComposition;
 
     if (isUnsafeInlineText) {
       console.warn(
@@ -109,7 +137,7 @@ async function main() {
       return;
     }
 
-    console.log(`[kino] Rendering ${jsonPath} -> ${outputPath}...`);
+    console.log(`[kino] Rendering ${inputPath} -> ${outputPath}...`);
     const result = await render(composition, {
       output: outputPath,
       verbose: isVerbose,

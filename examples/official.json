@@ -2,7 +2,6 @@
   "width": 1920,
   "height": 1080,
   "fps": 60,
-  "timeline": "sequential",
   "scenes": [
     {
       "id": "cold-open",
@@ -33,7 +32,7 @@
           },
           "x": "center",
           "y": "center",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 3.7,
           "animation": {
             "opacity": {
@@ -65,7 +64,7 @@
           "textAlign": "center",
           "x": "center",
           "y": "(h-text_h)/2+300",
-          "startTime": 1.2,
+          "startAt": 1.2,
           "duration": 2.4,
           "animation": {
             "opacity": {
@@ -100,7 +99,7 @@
           "fontColor": "#818cf8",
           "x": "center",
           "y": "(h-text_h)/2-240",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 3.7,
           "animation": {
             "opacity": {
@@ -135,7 +134,7 @@
           },
           "x": "center",
           "y": "center",
-          "startTime": 0.3,
+          "startAt": 0.3,
           "duration": 3.4,
           "animation": {
             "opacity": {
@@ -189,7 +188,7 @@
           },
           "x": "center",
           "y": "center",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 4.7,
           "animation": {
             "opacity": {
@@ -221,7 +220,7 @@
           "textAlign": "center",
           "x": "center",
           "y": "(h-text_h)/2+350",
-          "startTime": 1.5,
+          "startAt": 1.5,
           "duration": 3,
           "animation": {
             "opacity": {
@@ -256,7 +255,7 @@
           "fontColor": "#93c5fd",
           "x": "(w-text_w)/2-600",
           "y": "(h-text_h)/2-270",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 4.2,
           "animation": {
             "opacity": {
@@ -285,7 +284,7 @@
           "fontColor": "#c4b5fd",
           "x": "(w-text_w)/2+570",
           "y": "(h-text_h)/2-250",
-          "startTime": 0.2,
+          "startAt": 0.2,
           "duration": 4,
           "animation": {
             "opacity": {
@@ -314,7 +313,7 @@
           "fontColor": "#67e8f9",
           "x": "(w-text_w)/2-580",
           "y": "(h-text_h)/2+260",
-          "startTime": 0.4,
+          "startAt": 0.4,
           "duration": 3.8,
           "animation": {
             "opacity": {
@@ -337,7 +336,7 @@
           "fontColor": "#a5b4fc",
           "x": "(w-text_w)/2+560",
           "y": "(h-text_h)/2+260",
-          "startTime": 0.6,
+          "startAt": 0.6,
           "duration": 3.5,
           "animation": {
             "opacity": {
@@ -376,7 +375,7 @@
           "x": "center",
           "y": "center",
           "zIndex": 20,
-          "startTime": 0.5,
+          "startAt": 0.5,
           "duration": 3.7,
           "animation": {
             "opacity": {
@@ -411,7 +410,7 @@
           "width": 230,
           "x": "center",
           "y": "(main_h-overlay_h)/2-190",
-          "startTime": 0,
+          "startAt": 0,
           "duration": 4.7,
           "animation": {
             "opacity": {
@@ -450,7 +449,7 @@
           },
           "x": "center",
           "y": "(h-text_h)/2+80",
-          "startTime": 0.4,
+          "startAt": 0.4,
           "duration": 4.2,
           "animation": {
             "opacity": {
@@ -477,7 +476,7 @@
           "lineHeight": 1.25,
           "x": "center",
           "y": "(h-text_h)/2+280",
-          "startTime": 1.1,
+          "startAt": 1.1,
           "duration": 3.3,
           "animation": {
             "opacity": {
@@ -501,7 +500,7 @@
           "fontColor": "#818cf8",
           "x": "center",
           "y": "(h-text_h)/2+420",
-          "startTime": 2,
+          "startAt": 2,
           "duration": 2.4,
           "animation": {
             "opacity": {

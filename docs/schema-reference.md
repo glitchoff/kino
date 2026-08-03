@@ -1,15 +1,15 @@
 # JSON Schema Reference
 
-The `KinoComposition` JSON object defines canvas properties, frame rate, optional timeline mode (`"sequential"` or `"absolute"`), global audio tracks, and mandatory `scenes[]`.
+The `KinoComposition` JSON object defines canvas properties, frame rate, global audio tracks, and mandatory `scenes[]`.
 
 ---
 
 ## 🎬 Core Mental Model
 
 > **Composition contains Scenes.**  
-> **Scenes own time and backgrounds.**  
+> **Scenes play sequentially and own time/backgrounds.**  
 > **Elements are layers inside Scenes.**  
-> **Elements never float directly in the Composition.**
+> **Elements start at `startAt` seconds relative to their parent Scene.**
 
 ---
 
@@ -20,36 +20,47 @@ The `KinoComposition` JSON object defines canvas properties, frame rate, optiona
 | `width` | `number` | `1920` | Output video canvas width in pixels. |
 | `height` | `number` | `1080` | Output video canvas height in pixels. |
 | `fps` | `number` | `30` | Frame rate in FPS. |
-| `timeline` | `"sequential" \| "absolute"` | `"sequential"` | Timeline calculation mode for scenes. |
 | `scenes` | `KinoScene[]` | **Required** | Array of scene objects. Must contain at least 1 scene. |
 | `audio` | `AudioTrack \| AudioTrack[]` | `[]` | Background music / audio track configurations. |
 
 ---
 
-## Timeline Modes (`timeline`)
-
-### 1. `sequential` (Default)
-Scenes play back-to-back automatically.
-- Scene 1 start time = `0`
-- Scene 2 start time = `Scene 1.duration`
-- Scene 3 start time = `Scene 1.duration + Scene 2.duration`
-
-### 2. `absolute`
-Scenes specify their own `startTime`.
-- Each scene provides an explicit `startTime: number` (defaults to `0` if omitted).
-- Scenes can overlap or play concurrently.
-
----
-
 ## Scene Configuration (`KinoScene`)
+
+Scenes play sequentially back-to-back automatically.
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `string` | `scene-1`, ... | Optional unique identifier for the scene. |
 | `duration` | `number` | **Required** | Duration of the scene in seconds. |
-| `startTime` | `number` | `0` | Start time offset (Only used in `timeline: "absolute"` mode). |
+| `transition` | `KinoTransition` | undefined | Optional transition into this scene from the previous scene (cannot be set on the first scene). |
 | `background` | `BackgroundInput` | `"#000000"` | Solid color hex string or background config object. |
 | `elements` | `ElementInput[]` | `[]` | Array of visual elements (`text`, `image`, `video`) inside the scene. |
+
+---
+
+## Scene Transitions (`KinoTransition`)
+
+Transitions belong to the **entering** scene (Scene 2 transitions INTO the composition over Scene 1). The first scene in a composition cannot define a transition.
+
+```json
+{
+  "duration": 5,
+  "background": "#312e81",
+  "transition": {
+    "type": "slideLeft",
+    "duration": 0.6
+  }
+}
+```
+
+### Supported Transition Types (`KinoTransitionType`)
+- `fade`
+- `slideLeft`, `slideRight`, `slideUp`, `slideDown`
+- `wipeLeft`, `wipeRight`, `wipeUp`, `wipeDown`
+- `zoomIn`, `zoomOut`
+
+Transitions operate on fully composited scenes (including background, text, images, and animations) and overlap adjacent scenes. Total composition duration equals `sum(scene.duration) - sum(transition.duration)`.
 
 ---
 
@@ -71,7 +82,7 @@ Scenes specify their own `startTime`.
 
 ## Elements (`ElementInput`)
 
-> Note: `startTime` on an element is **relative to its parent scene's start time**.
+> Note: `startAt` on an element is **relative to its parent scene's start time**.
 
 ### 1. `TextElement` (`type: "text"`)
 
@@ -82,7 +93,7 @@ Scenes specify their own `startTime`.
 | `content` | `string` | `""` | Text string to render. |
 | `fontSize` | `number` | `48` | Font size in pixels. |
 | `fontColor` | `string` | `"white"` | Text color. |
-| `fontFile` | `string` | undefined | Custom font file path or `http(s)` URL. Local paths are embedded in the `.kino` artifact; remote font URLs are downloaded into the archive at compile time. |
+| `fontFile` | `string` | `Inter Regular (bundled)` | Custom font file path or `http(s)` URL. When omitted, Kino's bundled **Inter Regular** font is embedded in the `.kino` artifact and used for rendering (ensures consistent output across all platforms). Local paths are copied into the archive; remote font URLs are downloaded at compile time. |
 | `box` | `boolean` | `false` | Enable background box behind text. |
 | `boxColor` | `string` | `"black@0.5"` | Background box color with opacity. |
 | `boxPadding` | `number` | `10` | Border padding around text box. |
@@ -93,7 +104,7 @@ Scenes specify their own `startTime`.
 | `shadow` | `{ color: string; x?: number; y?: number }` | undefined | Text drop shadow color and x/y pixel offsets (defaults to `x: 2, y: 2`). |
 | `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). Position applies to the overall text region. |
 | `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"top-N"` / `"bottom-N"`, expression, or number). |
-| `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
+| `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
 | `zIndex` | `number` | declaration index | Layering order. Lower values render first (background), higher values render on top. Negative values clamp to `0`. When omitted, elements stack in declaration order. Applied composition-globally across all scenes. |
@@ -111,7 +122,7 @@ Scenes specify their own `startTime`.
 | `fit` | `MediaFit` | undefined | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). When unset: native dimensions if `width`/`height` are omitted, force-scale to `width`×`height` if both are set. |
 | `x` | `number \| string` | `"center"` | Horizontal position. |
 | `y` | `number \| string` | `"center"` | Vertical position (`"center"`, expression, or number). |
-| `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
+| `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
 | `zIndex` | `number` | declaration index | Layering order. Lower values render first (background), higher values render on top. Negative values clamp to `0`. When omitted, elements stack in declaration order. Applied composition-globally across all scenes. |
@@ -133,7 +144,7 @@ By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded u
 | `fit` | `MediaFit` | `"contain"` | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). |
 | `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). |
 | `y` | `number \| string` | `"center"` | Vertical position (`"center"`, expression, or number). |
-| `startTime` | `number` | `0` | Delay in seconds relative to scene start time (absolute on the composition timeline once normalized). |
+| `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. This is also the length of source footage consumed. |
 | `trimStart` | `number` | `0` | Seek offset in seconds into the source file for playback (source segment = `trimStart` → `trimStart + duration`). |
 | `loop` | `boolean` | `false` | Loop the source to fill `duration` when the footage is shorter. If `false` and the remaining source (after `trimStart`) is shorter than `duration`, the clip is clipped at the source end. |
@@ -145,7 +156,7 @@ By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded u
 #### Semantics
 
 ```
-scene t=4s                         (startTime)
+scene t=4s                         (startAt)
    ↓ video element appears
 source playback begins at t=12s   (trimStart)
    ↓
@@ -183,7 +194,7 @@ Every `TextElement`, `ImageElement`, and `VideoElement` may define an `animation
 
 ### Behavior
 
-- **Element-local clock.** An animation begins at `scene.startTime + element.startTime + delay`, independent of other channels.
+- **Element-local clock.** An animation begins at `scene.startTime + element.startAt + delay`, independent of other channels.
 - **Hold → Interpolate → Hold.** The value equals `from` before the window, interpolates during `[start, start+duration]`, and holds `to` afterward.
 - **Clip, never rescale.** If `delay + duration` exceeds the element's own lifetime, the animation is clipped at the element boundary; it never rescales the layer or affects other elements.
 - **Static positioning is preserved.** `x`/`y` are translation offsets layered on top of the element's static `x`/`y` layout (static layout is never overridden). `scale` is a center-anchored multiplier — `1` = natural size; `to:0` collapses to zero size.
@@ -197,7 +208,7 @@ Every `TextElement`, `ImageElement`, and `VideoElement` may define an `animation
   "content": "Hello, Kino",
   "x": "center",
   "y": "(h-text_h)/2",
-  "startTime": 0,
+  "startAt": 0,
   "duration": 6,
   "animation": {
     "opacity": { "from": 0, "to": 1, "duration": 1, "easing": "easeOut" },

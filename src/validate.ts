@@ -79,15 +79,6 @@ export function validateComposition(comp: unknown): void {
     }
   }
 
-  if (comp.timeline !== undefined) {
-    if (comp.timeline !== "sequential" && comp.timeline !== "absolute") {
-      issues.push({
-        path: "timeline",
-        message: `Expected "sequential" or "absolute", received ${JSON.stringify(comp.timeline)}`,
-      });
-    }
-  }
-
   if (!Array.isArray(comp.scenes) || comp.scenes.length === 0) {
     issues.push({
       path: "scenes",
@@ -96,6 +87,20 @@ export function validateComposition(comp: unknown): void {
     // Stop early if scenes array is invalid
     throw new KinoValidationError(issues);
   }
+
+  const VALID_TRANSITION_TYPES = [
+    "fade",
+    "slideLeft",
+    "slideRight",
+    "slideUp",
+    "slideDown",
+    "wipeLeft",
+    "wipeRight",
+    "wipeUp",
+    "wipeDown",
+    "zoomIn",
+    "zoomOut",
+  ];
 
   // Validate Scenes
   comp.scenes.forEach((scene: unknown, sIdx: number) => {
@@ -116,12 +121,46 @@ export function validateComposition(comp: unknown): void {
       });
     }
 
-    if (scene.startTime !== undefined) {
-      if (!isFiniteNumber(scene.startTime) || scene.startTime < 0) {
+    // Transition validation
+    if (scene.transition !== undefined) {
+      const transPath = `${scenePath}.transition`;
+      if (sIdx === 0) {
         issues.push({
-          path: `${scenePath}.startTime`,
-          message: `Expected a non-negative number, received ${scene.startTime}`,
+          path: transPath,
+          message: "First scene cannot define a transition",
         });
+      } else if (!isObject(scene.transition)) {
+        issues.push({
+          path: transPath,
+          message: `Expected a transition object, received ${typeof scene.transition}`,
+        });
+      } else {
+        const trans = scene.transition;
+        if (!isNonEmptyString(trans.type) || !VALID_TRANSITION_TYPES.includes(trans.type as string)) {
+          issues.push({
+            path: `${transPath}.type`,
+            message: `Expected one of ${VALID_TRANSITION_TYPES.map((t) => JSON.stringify(t)).join(", ")}, received ${JSON.stringify(trans.type)}`,
+          });
+        }
+
+        if (!isFiniteNumber(trans.duration) || trans.duration <= 0) {
+          issues.push({
+            path: `${transPath}.duration`,
+            message: `Expected a positive number, received ${trans.duration}`,
+          });
+        } else {
+          const scenesArr = comp.scenes as any[];
+          const prevScene = scenesArr[sIdx - 1];
+          const prevDur = isObject(prevScene) && isFiniteNumber(prevScene.duration) ? prevScene.duration : 0;
+          const currDur = isFiniteNumber(scene.duration) ? scene.duration : 0;
+
+          if (trans.duration > prevDur || trans.duration > currDur) {
+            issues.push({
+              path: `${transPath}.duration`,
+              message: `Transition duration (${trans.duration}s) must not exceed adjacent scene durations (prev: ${prevDur}s, curr: ${currDur}s)`,
+            });
+          }
+        }
       }
     }
 
@@ -203,11 +242,13 @@ export function validateComposition(comp: unknown): void {
             return;
           }
 
-          if (elem.startTime !== undefined) {
-            if (!isFiniteNumber(elem.startTime) || elem.startTime < 0) {
+          const startVal = elem.startAt !== undefined ? elem.startAt : elem.startTime;
+          const startPropName = elem.startAt !== undefined ? "startAt" : "startTime";
+          if (startVal !== undefined) {
+            if (!isFiniteNumber(startVal) || startVal < 0) {
               issues.push({
-                path: `${elemPath}.startTime`,
-                message: `Expected a non-negative number, received ${elem.startTime}`,
+                path: `${elemPath}.${startPropName}`,
+                message: `Expected a non-negative number, received ${startVal}`,
               });
             }
           }

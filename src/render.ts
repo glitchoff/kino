@@ -1,11 +1,19 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import AdmZip from "adm-zip";
-import ffmpegStatic from "ffmpeg-static";
 import { normalizeComposition } from "./normalize.js";
+import { mapTransitionType } from "./transitions.js";
+import { animationValueExpression, buildAnimationExpressions } from "./animation.js";
+import { prestageRemoteAssets, KINO_VERSION } from "./remote.js";
+import {
+  getFFmpegBinaryPath,
+  assertDrawtextSupport,
+  detectBestEncoder,
+  detectBestEncoderSync,
+} from "./encoder.js";
 import type {
   KinoComposition,
   RenderOptions,
@@ -15,258 +23,19 @@ import type {
   VideoElement,
   AudioTrack,
   VideoEncoder,
-  Easing,
-  AnimationValue,
   NormalizedComposition,
 } from "./types.js";
 
-const VENDORED_FFMPEG_BIN = resolveVendoredFFmpeg();
-const KINO_VERSION = "0.11.1";
+const DEFAULT_FONT_PATH = resolve(
+  typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "assets/inter-regular.ttf"
+);
 
 interface KinoManifest {
   ffmpegArgs: string[];
   output: string;
   kinoVersion: string;
-}
-
-function resolveVendoredFFmpeg(): string | undefined {
-  if (process.platform !== "linux" || (process.arch !== "x64" && process.arch !== "arm64")) {
-    return undefined;
-  }
-  const currentDir =
-    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
-  const path = join(currentDir, "..", "vendor", "linux", process.arch, "ffmpeg");
-  return existsSync(path) ? path : undefined;
-}
-
-function getFFmpegBinaryPath(customPath?: string): string {
-  if (customPath) return customPath;
-  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
-  if (VENDORED_FFMPEG_BIN) return VENDORED_FFMPEG_BIN;
-  if (ffmpegStatic && typeof ffmpegStatic === "string" && existsSync(ffmpegStatic)) {
-    return ffmpegStatic;
-  }
-  if (ffmpegStatic && typeof ffmpegStatic === "string" && !existsSync(ffmpegStatic)) {
-    const isPnpm = existsSync(join(process.cwd(), "pnpm-workspace.yaml")) || !!process.env.npm_config_user_agent?.includes("pnpm");
-    const isNpm = !!process.env.npm_config_user_agent?.includes("npm") || (!isPnpm && !process.env.npm_config_user_agent?.includes("yarn"));
-    const installHint = isPnpm
-      ? "pnpm approve-builds (then select ffmpeg-static)"
-      : "npm rebuild ffmpeg-static (or yarn rebuild ffmpeg-static)";
-    throw new Error(
-      `[kino] ffmpeg binary not found at ${ffmpegStatic}.\n` +
-        `[kino] The ffmpeg-static package was installed but its postinstall script\n` +
-        `[kino] did not run, so the binary was never downloaded.\n` +
-        `[kino] Fix: run \`${installHint}\`,\n` +
-        `[kino] or set the FFMPEG_PATH environment variable to a working ffmpeg binary path.`
-    );
-  }
-  const systemProbe = spawnSync("ffmpeg", ["-version"]);
-  if (systemProbe.error || systemProbe.status !== 0) {
-    const pmHint = process.env.npm_config_user_agent?.includes("pnpm")
-      ? "pnpm approve-builds (then select ffmpeg-static)"
-      : process.env.npm_config_user_agent?.includes("yarn")
-        ? "yarn rebuild ffmpeg-static"
-        : "npm rebuild ffmpeg-static";
-    throw new Error(
-      `[kino] No ffmpeg binary found in PATH or bundled via ffmpeg-static.\n` +
-        `[kino] Install ffmpeg (e.g. apt install ffmpeg / brew install ffmpeg)\n` +
-        `[kino] or run \`${pmHint}\` to download the bundled binary,\n` +
-        `[kino] or set the FFMPEG_PATH environment variable to a working ffmpeg binary path.`
-    );
-  }
-  return "ffmpeg";
-}
-
-function compositionHasText(composition: KinoComposition): boolean {
-  return (composition.scenes ?? []).some((scene) =>
-    (scene.elements ?? []).some((element) => element.type === "text")
-  );
-}
-
-const ffmpegFiltersCache: Record<string, string | null> = {};
-
-function getFFmpegFilters(ffmpegBin: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const proc = spawn(ffmpegBin, ["-filters"], { stdio: ["ignore", "pipe", "pipe"] });
-    let output = "";
-    proc.stdout?.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    proc.on("error", () => resolve(null));
-    proc.on("close", (code) => resolve(code === 0 ? output : null));
-  });
-}
-
-async function assertDrawtextSupport(ffmpegBin: string, composition: KinoComposition): Promise<void> {
-  if (!compositionHasText(composition)) return;
-  if (ffmpegFiltersCache[ffmpegBin] === undefined) {
-    ffmpegFiltersCache[ffmpegBin] = await getFFmpegFilters(ffmpegBin);
-  }
-  const filters = ffmpegFiltersCache[ffmpegBin];
-  if (filters !== null && !filters.includes("drawtext")) {
-    throw new Error(
-      `ffmpeg binary at ${ffmpegBin} has no drawtext support (missing libharfbuzz). ` +
-        `Pass --ffmpeg-path to a build with drawtext, or fix the bundled Linux binary.`
-    );
-  }
-}
-
-const encoderListCache: Record<string, string[] | null> = {};
-const encoderProbeCache: Record<string, boolean> = {};
-
-function getAvailableEncoders(ffmpegBin: string): Promise<string[] | null> {
-  if (encoderListCache[ffmpegBin] !== undefined) {
-    return Promise.resolve(encoderListCache[ffmpegBin]);
-  }
-  return new Promise((resolve) => {
-    const proc = spawn(ffmpegBin, ["-hide_banner", "-encoders"], { stdio: ["ignore", "pipe", "ignore"] });
-    let output = "";
-    proc.stdout?.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    proc.on("error", () => {
-      encoderListCache[ffmpegBin] = null;
-      resolve(null);
-    });
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        encoderListCache[ffmpegBin] = null;
-        resolve(null);
-        return;
-      }
-      const encoders = new Set<string>();
-      for (const line of output.split("\n")) {
-        const match = line.match(/^\s*\S{6}\s+([a-zA-Z0-9_]+)\b/);
-        if (match && !["Video", "Audio", "Subtitle", "Codecs"].includes(match[1])) {
-          encoders.add(match[1]);
-        }
-      }
-      encoderListCache[ffmpegBin] = [...encoders];
-      resolve(encoderListCache[ffmpegBin]);
-    });
-  });
-}
-
-function probeGpuEncoder(ffmpegBin: string, encoder: string): Promise<boolean> {
-  const key = `${ffmpegBin}:${encoder}`;
-  if (encoderProbeCache[key] !== undefined) {
-    return Promise.resolve(encoderProbeCache[key]);
-  }
-  return new Promise((resolve) => {
-    const proc = spawn(
-      ffmpegBin,
-      [
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-f",
-        "lavfi",
-        "-i",
-        "color=c=black:s=320x240:r=30:d=1",
-        "-frames:v",
-        "1",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:v",
-        encoder,
-        "-f",
-        "null",
-        "-",
-      ],
-      { stdio: ["ignore", "ignore", "pipe"] }
-    );
-    proc.stderr?.on("data", () => {});
-    proc.on("error", () => {
-      encoderProbeCache[key] = false;
-      resolve(false);
-    });
-    proc.on("close", (code) => {
-      encoderProbeCache[key] = code === 0;
-      resolve(code === 0);
-    });
-  });
-}
-
-const GPU_PRIORITY: Record<string, string[]> = {
-  darwin: ["h264_videotoolbox"],
-  win32: ["h264_nvenc", "h264_qsv", "h264_amf"],
-  linux: ["h264_nvenc", "h264_qsv", "h264_vaapi"],
-};
-
-async function detectBestEncoder(ffmpegBin: string): Promise<string> {
-  const available = await getAvailableEncoders(ffmpegBin);
-  const candidates = GPU_PRIORITY[process.platform] ?? [];
-  for (const enc of candidates) {
-    if (available && !available.includes(enc)) continue;
-    if (await probeGpuEncoder(ffmpegBin, enc)) return enc;
-  }
-  return "libx264";
-}
-
-function getAvailableEncodersSync(ffmpegBin: string): string[] | null {
-  if (encoderListCache[ffmpegBin] !== undefined) {
-    return encoderListCache[ffmpegBin];
-  }
-  const res = spawnSync(ffmpegBin, ["-hide_banner", "-encoders"], {
-    encoding: "utf-8",
-    timeout: 30000,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  if (res.error || res.status !== 0) {
-    encoderListCache[ffmpegBin] = null;
-    return null;
-  }
-  const encoders = new Set<string>();
-  for (const line of res.stdout.split("\n")) {
-    const match = line.match(/^\s*\S{6}\s+([a-zA-Z0-9_]+)\b/);
-    if (match && !["Video", "Audio", "Subtitle", "Codecs"].includes(match[1])) {
-      encoders.add(match[1]);
-    }
-  }
-  encoderListCache[ffmpegBin] = [...encoders];
-  return encoderListCache[ffmpegBin];
-}
-
-function probeGpuEncoderSync(ffmpegBin: string, encoder: string): boolean {
-  const key = `${ffmpegBin}:${encoder}`;
-  if (encoderProbeCache[key] !== undefined) {
-    return encoderProbeCache[key];
-  }
-  const res = spawnSync(
-    ffmpegBin,
-    [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-f",
-      "lavfi",
-      "-i",
-      "color=c=black:s=320x240:r=30:d=1",
-      "-frames:v",
-      "1",
-      "-pix_fmt",
-      "yuv420p",
-      "-c:v",
-      encoder,
-      "-f",
-      "null",
-      "-",
-    ],
-    { timeout: 30000, stdio: ["ignore", "ignore", "pipe"] }
-  );
-  const ok = res.status === 0 && !res.error;
-  encoderProbeCache[key] = ok;
-  return ok;
-}
-
-function detectBestEncoderSync(ffmpegBin: string): string {
-  const available = getAvailableEncodersSync(ffmpegBin);
-  const candidates = GPU_PRIORITY[process.platform] ?? [];
-  for (const enc of candidates) {
-    if (available && !available.includes(enc)) continue;
-    if (probeGpuEncoderSync(ffmpegBin, enc)) return enc;
-  }
-  return "libx264";
 }
 
 function normalizeColor(color?: string): string {
@@ -339,48 +108,10 @@ function escapeExpr(expr: string): string {
   return expr.replace(/,/g, "\\,");
 }
 
-function easingExpression(easing: Easing | undefined, p: string): string {
-  switch (easing ?? "linear") {
-    case "easeIn":
-      return `((${p})*(${p})*(${p}))`;
-    case "easeOut":
-      return `(1-(1-(${p}))*(1-(${p}))*(1-(${p})))`;
-    case "easeInOut":
-      return `(3*(${p})*(${p})-2*(${p})*(${p})*(${p}))`;
-    default:
-      return `(${p})`;
-  }
-}
-
-function animationValueExpression(
-  anim: AnimationValue,
-  absoluteStart: number,
-  timeVar: string
-): string {
-  const start = absoluteStart + (anim.delay ?? 0);
-  const p = `min(max((${timeVar} - ${start})/${anim.duration}, 0), 1)`;
-  const curve = easingExpression(anim.easing, p);
-  return `(${anim.from} + (${anim.to} - ${anim.from})*(${curve}))`;
-}
-
-function buildAnimationExpressions(
-  elem: TextElement | ImageElement | VideoElement,
-  timeVar: string
-): { opacity?: string; tx?: string; ty?: string; scale?: string } {
-  const anim = elem.animation;
-  if (!anim) return {};
-  const absoluteStart = elem.startTime ?? 0;
-  const out: { opacity?: string; tx?: string; ty?: string; scale?: string } = {};
-  if (anim.opacity) out.opacity = animationValueExpression(anim.opacity, absoluteStart, timeVar);
-  if (anim.x) out.tx = animationValueExpression(anim.x, absoluteStart, timeVar);
-  if (anim.y) out.ty = animationValueExpression(anim.y, absoluteStart, timeVar);
-  if (anim.scale) out.scale = animationValueExpression(anim.scale, absoluteStart, timeVar);
-  return out;
-}
-
 interface MediaLayerLike {
   x?: number | string;
   y?: number | string;
+  startAt?: number;
   startTime?: number;
   duration?: number;
 }
@@ -404,6 +135,7 @@ function applyMediaOverlay(
 ): string {
   const outPad = `[v_layer_${elemIdx}]`;
   const inPad = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
+  const startVal = elem.startAt ?? 0;
 
   if (hasAnimation) {
     let transPad = startPad;
@@ -438,9 +170,9 @@ function applyMediaOverlay(
     }
 
     let overlayFilter = `overlay=x='${escapeExpr(ox)}':y='${escapeExpr(oy)}':eval=frame`;
-    const hasTiming = elem.startTime !== undefined || elem.duration !== undefined;
+    const hasTiming = elem.startAt !== undefined || elem.duration !== undefined;
     if (hasTiming) {
-      const s = elem.startTime ?? 0;
+      const s = startVal;
       const e = elem.duration !== undefined ? s + elem.duration : duration;
       overlayFilter += `:enable='between(t\\,${s}\\,${e})'`;
     }
@@ -450,9 +182,9 @@ function applyMediaOverlay(
     const xExpr = formatPosition(elem.x, "(main_w-overlay_w)/2");
     const yExpr = formatPosition(elem.y, "(main_h-overlay_h)/2");
     let overlayFilter = `overlay=x=${xExpr}:y=${yExpr}`;
-    const hasTiming = elem.startTime !== undefined || elem.duration !== undefined;
+    const hasTiming = elem.startAt !== undefined || elem.duration !== undefined;
     if (hasTiming) {
-      const s = elem.startTime ?? 0;
+      const s = startVal;
       const e = elem.duration !== undefined ? s + elem.duration : duration;
       overlayFilter += `:enable='between(t\\,${s}\\,${e})'`;
     }
@@ -484,94 +216,6 @@ function addFFmpegInput(
   inputs.push("-i", src);
 }
 
-const REMOTE_DOWNLOADER_SCRIPT = [
-  'const fs=require("fs");',
-  'const path=require("path");',
-  'const outDir=process.argv[1];',
-  'const urls=JSON.parse(process.argv[2]);',
-  `const UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Kino/${KINO_VERSION}";`,
-  'const EXT={"image/jpeg":".jpg","image/jpg":".jpg","image/png":".png","image/gif":".gif","image/webp":".webp","audio/mpeg":".mp3","audio/mp3":".mp3","audio/wav":".wav","audio/x-wav":".wav","audio/aac":".aac","audio/ogg":".ogg","audio/mp4":".m4a","video/mp4":".mp4","video/quicktime":".mov","video/webm":".webm"};',
-  "(async()=>{",
-  "  const results={};",
-  "  await Promise.all(urls.map(async(u,i)=>{",
-  "    try{",
-  '      const res=await fetch(u,{headers:{"User-Agent":UA},redirect:"follow"});',
-  '      if(!res.ok)throw new Error("HTTP "+res.status);',
-  "      const buf=Buffer.from(await res.arrayBuffer());",
-  '      const ct=(res.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();',
-  '      const ext=EXT[ct]||".bin";',
-  '      const name="remote-"+(i+1)+ext;',
-  "      fs.writeFileSync(path.join(outDir,name),buf);",
-  "      results[u]={ext:ext};",
-  "    }catch(e){results[u]={error:String((e&&e.message)||e)};}",
-  "  }));",
-  "  process.stdout.write(JSON.stringify(results));",
-  "  process.exit(0);",
-  "})();",
-].join("\n");
-
-function prestageRemoteAssets(
-  stagingDir: string,
-  norm: NormalizedComposition
-): Map<string, string> {
-  const isRemote = (src: string): boolean =>
-    src.startsWith("http://") || src.startsWith("https://");
-  const urls = new Set<string>();
-  for (const scene of norm.scenes) {
-    if (scene.background.type === "image" || scene.background.type === "video") {
-      if (isRemote(scene.background.src)) urls.add(scene.background.src);
-    }
-  }
-  for (const elem of norm.elements) {
-    if (elem.type === "image") {
-      if (isRemote(elem.src)) urls.add(elem.src);
-    } else if (elem.type === "video") {
-      if (isRemote(elem.src)) urls.add(elem.src);
-    } else if (elem.fontFile) {
-      if (isRemote(elem.fontFile)) urls.add(elem.fontFile);
-    }
-  }
-  for (const track of norm.audio) {
-    if (isRemote(track.src)) urls.add(track.src);
-  }
-
-  const unique = [...urls];
-  const map = new Map<string, string>();
-  if (unique.length === 0) return map;
-
-  const res = spawnSync(
-    process.execPath,
-    ["-e", REMOTE_DOWNLOADER_SCRIPT, stagingDir, JSON.stringify(unique)],
-    { encoding: "utf-8", timeout: 300000, maxBuffer: 16 * 1024 * 1024 }
-  );
-
-  if (res.error) {
-    throw new Error(`Failed to download remote assets: ${res.error.message}`);
-  }
-  if (res.status !== 0) {
-    throw new Error(
-      `Failed to download remote assets: ${(res.stderr || "").trim() || `exit code ${res.status}`}`
-    );
-  }
-
-  let results: Record<string, { ext?: string; error?: string }>;
-  try {
-    results = JSON.parse(res.stdout);
-  } catch {
-    throw new Error("Failed to download remote assets: unexpected downloader output");
-  }
-
-  unique.forEach((url, i) => {
-    const r = results[url];
-    if (!r || r.error) {
-      throw new Error(`Failed to download remote asset '${url}': ${r?.error || "unknown error"}`);
-    }
-    map.set(url, `remote-${i + 1}${r.ext || ".bin"}`);
-  });
-
-  return map;
-}
-
 export function compile(composition: KinoComposition, options?: Partial<RenderOptions>): CompileResult {
   const norm = normalizeComposition(composition);
   const { width, height, duration, fps } = norm;
@@ -582,6 +226,12 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   let assetCounter = 0;
 
   const remoteAssets = prestageRemoteAssets(stagingDir, norm);
+
+  let defaultFontRef: string | undefined;
+  if (existsSync(DEFAULT_FONT_PATH)) {
+    defaultFontRef = "inter-regular.ttf";
+    copyFileSync(DEFAULT_FONT_PATH, join(stagingDir, defaultFontRef));
+  }
 
   const stageAsset = (src: string): string => {
     if (src.startsWith("http://") || src.startsWith("https://")) {
@@ -640,194 +290,213 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
       sceneBgPads.push(bgPad);
     }
 
+    // 2. Fully Composite Each Scene (Background + Elements)
+    const useTextFiles = !options?.unsafeInlineText;
+    const videoElemAudioPads: string[] = [];
+    const sceneCompPads: string[] = [];
+
+    let globalElemIdx = 0;
+    for (let sIdx = 0; sIdx < norm.scenes.length; sIdx++) {
+      const scene = norm.scenes[sIdx];
+      const sceneDur = scene.duration;
+      let lastScenePad = sceneBgPads[sIdx];
+
+      // Sort elements inside scene by zIndex (stable sort)
+      const sceneElems = (scene.elements || [])
+        .map((elem, index) => ({ elem, index }))
+        .sort((a, b) => {
+          const za = a.elem.zIndex === undefined ? a.index : Math.max(0, a.elem.zIndex);
+          const zb = b.elem.zIndex === undefined ? b.index : Math.max(0, b.elem.zIndex);
+          return za - zb;
+        })
+        .map(({ elem }) => elem);
+
+      for (const elem of sceneElems) {
+        const elemIdx = ++globalElemIdx;
+        const isImage = elem.type === "image";
+        const isVideo = elem.type === "video";
+
+        if (isImage || isVideo) {
+          const media = elem as ImageElement | VideoElement;
+          const currInputIdx = inputIndex++;
+
+          if (isVideo) {
+            const vid = elem as VideoElement;
+            addFFmpegInput(inputs, stageAsset(vid.src), {
+              seek: vid.trimStart,
+              streamLoop: vid.loop,
+            });
+          } else {
+            addFFmpegInput(inputs, stageAsset(media.src));
+          }
+
+          const scaleFilter = buildMediaScaleFilter(media);
+          const ax = buildAnimationExpressions(media, "t");
+          const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
+
+          let startPad: string;
+          if (isVideo) {
+            const vid = elem as VideoElement;
+            const elemStart = vid.startAt ?? 0;
+            const elemDur = vid.duration ?? Math.max(0, sceneDur - elemStart);
+            const fitPad = `[vid_fit_${elemIdx}]`;
+            filterComplex.push(
+              `[${currInputIdx}:v]${scaleFilter},trim=duration=${elemDur},setpts=PTS-STARTPTS+${elemStart}/TB,fps=${fps},setsar=1,format=yuv420p${fitPad}`
+            );
+            startPad = fitPad;
+
+            // Audio track from video source (opt-in via volume > 0) using normalized absolute start time
+            if (vid.volume !== undefined && vid.volume > 0) {
+              const aPad = `[vid_a_${elemIdx}]`;
+              const afs: string[] = [`atrim=duration=${elemDur}`, `asetpts=PTS-STARTPTS`];
+              if (vid.volume !== 1.0) {
+                afs.push(`volume=${vid.volume}`);
+              }
+              const aStart = vid.startTime ?? (scene.startTime + elemStart);
+              if (aStart > 0) {
+                const delayMs = Math.round(aStart * 1000);
+                afs.push(`adelay=${delayMs}|${delayMs}`);
+              }
+              filterComplex.push(`[${currInputIdx}:a]${afs.join(",")}${aPad}`);
+              videoElemAudioPads.push(aPad);
+            }
+          } else {
+            const basePad = `[img_base_${elemIdx}]`;
+            filterComplex.push(`[${currInputIdx}:v]${scaleFilter}${basePad}`);
+            startPad = basePad;
+          }
+
+          lastScenePad = applyMediaOverlay(
+            filterComplex,
+            elemIdx,
+            startPad,
+            media,
+            ax,
+            hasAnimation,
+            sceneDur,
+            lastScenePad
+          );
+        } else {
+          const item = elem as TextElement;
+          const content = item.content || "";
+          const fontSize = item.fontSize ?? 48;
+          const fontColor = item.fontColor ?? "white";
+
+          let textRef: string;
+          if (useTextFiles) {
+            const name = `text-${elemIdx}.txt`;
+            writeFileSync(join(stagingDir, name), content, "utf-8");
+            textRef = `textfile='${escapeFFmpegStr(name)}'`;
+          } else {
+            textRef = `text='${escapeFFmpegStr(content)}'`;
+          }
+
+          const ax = buildAnimationExpressions(item, "t");
+          const hasAnimProps = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
+
+          const staticX = formatTextPosition(item.x, "(w-text_w)/2");
+          const staticY = formatTextPosition(item.y, "(h-text_h)/2");
+
+          let filter: string;
+          if (hasAnimProps) {
+            let fsExpr = String(fontSize);
+            let xExpr = staticX;
+            let yExpr = staticY;
+            if (ax.scale) {
+              const scaleExpr = `max(0.01,(${ax.scale}))`;
+              fsExpr = `${fontSize}*(${scaleExpr})`;
+              xExpr += ` - (text_w*(1-(1/${scaleExpr})))/2`;
+              yExpr += ` - (text_h*(1-(1/${scaleExpr})))/2`;
+            }
+            if (ax.tx) xExpr = `(${staticX}) + (${ax.tx})`;
+            if (ax.ty) yExpr = `(${staticY}) + (${ax.ty})`;
+
+            filter = `drawtext=${textRef}:fontsize='${escapeExpr(fsExpr)}':fontcolor=${fontColor}:x='${escapeExpr(xExpr)}':y='${escapeExpr(yExpr)}'`;
+            if (ax.opacity) {
+              filter += `:alpha='${escapeExpr(ax.opacity)}'`;
+            }
+          } else {
+            filter = `drawtext=${textRef}:fontsize=${fontSize}:fontcolor=${fontColor}:x=${staticX}:y=${staticY}`;
+          }
+
+          if (item.textAlign) {
+            filter += `:text_align=${item.textAlign}`;
+          }
+
+          if (item.lineHeight !== undefined) {
+            const lineSpacing = Math.round(fontSize * (item.lineHeight - 1));
+            filter += `:line_spacing=${lineSpacing}`;
+          }
+
+          if (item.stroke) {
+            const borderColor = normalizeColor(item.stroke.color);
+            filter += `:bordercolor=${borderColor}:borderw=${item.stroke.width}`;
+          }
+
+          if (item.shadow) {
+            const shadowColor = normalizeColor(item.shadow.color);
+            const sx = item.shadow.x ?? 2;
+            const sy = item.shadow.y ?? 2;
+            filter += `:shadowcolor=${shadowColor}:shadowx=${sx}:shadowy=${sy}`;
+          }
+
+          if (item.box) {
+            const boxColor = item.boxColor || "black@0.5";
+            const boxPadding = item.boxPadding ?? 10;
+            filter += `:box=1:boxcolor=${boxColor}:boxborderw=${boxPadding}`;
+          }
+
+          if (item.fontFile) {
+            const fontRef = stageAsset(item.fontFile);
+            filter += `:fontfile='${escapeFFmpegStr(fontRef)}'`;
+          } else if (defaultFontRef) {
+            filter += `:fontfile='${defaultFontRef}'`;
+          }
+
+          const startVal = item.startAt ?? 0;
+          const endVal = item.duration !== undefined ? startVal + item.duration : sceneDur;
+          filter += `:enable='between(t\\,${startVal}\\,${endVal})'`;
+
+          const inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
+          const textOutPad = `[v_layer_${elemIdx}]`;
+          filterComplex.push(`${inPad}${filter}${textOutPad}`);
+          lastScenePad = textOutPad;
+        }
+      }
+
+      sceneCompPads.push(lastScenePad);
+    }
+
+    // 3. Scene Transitions Pipeline (xfade)
     let lastVideoPad = "";
+    const hasTransitions = norm.scenes.some((s, idx) => idx > 0 && s.transition);
 
     if (norm.scenes.length === 1) {
-      lastVideoPad = sceneBgPads[0];
-    } else if (norm.timeline === "absolute") {
-      const baseColorIdx = inputIndex++;
-      const baseSource = `color=c=black:s=${width}x${height}:r=${fps}:d=${duration}`;
-      inputs.push("-f", "lavfi", "-i", baseSource);
-      let currBasePad = `[${baseColorIdx}:v]`;
-
-      for (let i = 0; i < norm.scenes.length; i++) {
-        const scene = norm.scenes[i];
-        const outPad = `[bg_abs_${i}]`;
-        const start = scene.startTime;
-        const end = start + scene.duration;
-        filterComplex.push(
-          `${currBasePad}${sceneBgPads[i]}overlay=x=0:y=0:enable='between(t\\,${start}\\,${end})'${outPad}`
-        );
-        currBasePad = outPad;
-      }
-      lastVideoPad = currBasePad;
-    } else {
-      // Sequential timeline (default)
-      const concatInputs = sceneBgPads.join("");
+      lastVideoPad = sceneCompPads[0];
+    } else if (!hasTransitions) {
+      const concatInputs = sceneCompPads.map((p) => (p.startsWith("[") ? p : `[${p}]`)).join("");
       const outPad = "[bg_concat]";
       filterComplex.push(`${concatInputs}concat=n=${norm.scenes.length}:v=1:a=0${outPad}`);
       lastVideoPad = outPad;
-    }
+    } else {
+      let currentTransPad = sceneCompPads[0].startsWith("[") ? sceneCompPads[0] : `[${sceneCompPads[0]}]`;
+      for (let i = 1; i < norm.scenes.length; i++) {
+        const scene = norm.scenes[i];
+        const nextScenePad = sceneCompPads[i].startsWith("[") ? sceneCompPads[i] : `[${sceneCompPads[i]}]`;
+        const outPad = `[v_trans_${i}]`;
+        const offset = scene.startTime;
 
-    // 2. Composite Elements as Layers (already z-order sorted by normalizeComposition)
-    const useTextFiles = !options?.unsafeInlineText;
-
-    // Audio pads collected from video elements (opt-in via volume > 0)
-    const videoElemAudioPads: string[] = [];
-
-    for (const [elemIdx, elem] of norm.elements.entries()) {
-      const isImage = elem.type === "image";
-      const isVideo = elem.type === "video";
-      const isText = !isImage && !isVideo;
-
-      if (isImage || isVideo) {
-        const media = elem as ImageElement | VideoElement;
-        const currInputIdx = inputIndex++;
-        const outPad = `[v_layer_${elemIdx}]`;
-
-        if (isVideo) {
-          const vid = elem as VideoElement;
-          addFFmpegInput(inputs, stageAsset(vid.src), {
-            seek: vid.trimStart,
-            streamLoop: vid.loop,
-          });
+        if (scene.transition) {
+          const xfadeType = mapTransitionType(scene.transition.type);
+          const dur = scene.transition.duration;
+          filterComplex.push(`${currentTransPad}${nextScenePad}xfade=transition=${xfadeType}:duration=${dur}:offset=${offset}${outPad}`);
         } else {
-          addFFmpegInput(inputs, stageAsset(media.src));
+          const minFrameDur = (1 / fps).toFixed(4);
+          filterComplex.push(`${currentTransPad}${nextScenePad}xfade=transition=fade:duration=${minFrameDur}:offset=${offset}${outPad}`);
         }
-
-        const scaleFilter = buildMediaScaleFilter(media);
-        const ax = buildAnimationExpressions(media, "t");
-        const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
-
-        let startPad: string;
-        if (isVideo) {
-          const vid = elem as VideoElement;
-          const elemStart = vid.startTime ?? 0;
-          const elemDur = vid.duration ?? Math.max(0, duration - elemStart);
-          // Fit + duration clip + timestamp reset + shift to composition timeline, then force a sane pixel format for overlay.
-          const fitPad = `[vid_fit_${elemIdx}]`;
-          filterComplex.push(
-            `[${currInputIdx}:v]${scaleFilter},trim=duration=${elemDur},setpts=PTS-STARTPTS+${elemStart}/TB,fps=${fps},setsar=1,format=yuv420p${fitPad}`
-          );
-          startPad = fitPad;
-
-          // Optional audio track from the video source (opt-in via volume > 0)
-          if (vid.volume !== undefined && vid.volume > 0) {
-            const aPad = `[vid_a_${elemIdx}]`;
-            const afs: string[] = [`atrim=duration=${elemDur}`, `asetpts=PTS-STARTPTS`];
-            if (vid.volume !== 1.0) {
-              afs.push(`volume=${vid.volume}`);
-            }
-            const aStart = vid.startTime ?? 0;
-            if (aStart > 0) {
-              const delayMs = Math.round(aStart * 1000);
-              afs.push(`adelay=${delayMs}|${delayMs}`);
-            }
-            filterComplex.push(`[${currInputIdx}:a]${afs.join(",")}${aPad}`);
-            videoElemAudioPads.push(aPad);
-          }
-        } else {
-          const basePad = `[img_base_${elemIdx}]`;
-          filterComplex.push(`[${currInputIdx}:v]${scaleFilter}${basePad}`);
-          startPad = basePad;
-        }
-
-        lastVideoPad = applyMediaOverlay(
-          filterComplex,
-          elemIdx,
-          startPad,
-          media,
-          ax,
-          hasAnimation,
-          duration,
-          lastVideoPad
-        );
-      } else {
-        const item = elem as TextElement;
-        const content = item.content || "";
-        const fontSize = item.fontSize ?? 48;
-        const fontColor = item.fontColor ?? "white";
-
-        let textRef: string;
-        if (useTextFiles) {
-          const name = `text-${elemIdx + 1}.txt`;
-          writeFileSync(join(stagingDir, name), content, "utf-8");
-          textRef = `textfile='${escapeFFmpegStr(name)}'`;
-        } else {
-          textRef = `text='${escapeFFmpegStr(content)}'`;
-        }
-
-        const ax = buildAnimationExpressions(item, "t");
-        const hasAnimProps = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
-
-        const staticX = formatTextPosition(item.x, "(w-text_w)/2");
-        const staticY = formatTextPosition(item.y, "(h-text_h)/2");
-
-        let filter: string;
-        if (hasAnimProps) {
-          let fsExpr = String(fontSize);
-          let xExpr = staticX;
-          let yExpr = staticY;
-          if (ax.scale) {
-            const scaleExpr = `max(0.01,(${ax.scale}))`;
-            fsExpr = `${fontSize}*(${scaleExpr})`;
-            xExpr += ` - (text_w*(1-(1/${scaleExpr})))/2`;
-            yExpr += ` - (text_h*(1-(1/${scaleExpr})))/2`;
-          }
-          if (ax.tx) xExpr = `(${staticX}) + (${ax.tx})`;
-          if (ax.ty) yExpr = `(${staticY}) + (${ax.ty})`;
-
-          filter = `drawtext=${textRef}:fontsize='${escapeExpr(fsExpr)}':fontcolor=${fontColor}:x='${escapeExpr(xExpr)}':y='${escapeExpr(yExpr)}'`;
-          if (ax.opacity) {
-            filter += `:alpha='${escapeExpr(ax.opacity)}'`;
-          }
-        } else {
-          filter = `drawtext=${textRef}:fontsize=${fontSize}:fontcolor=${fontColor}:x=${staticX}:y=${staticY}`;
-        }
-
-        if (item.textAlign) {
-          filter += `:text_align=${item.textAlign}`;
-        }
-
-        if (item.lineHeight !== undefined) {
-          const lineSpacing = Math.round(fontSize * (item.lineHeight - 1));
-          filter += `:line_spacing=${lineSpacing}`;
-        }
-
-        if (item.stroke) {
-          const borderColor = normalizeColor(item.stroke.color);
-          filter += `:bordercolor=${borderColor}:borderw=${item.stroke.width}`;
-        }
-
-        if (item.shadow) {
-          const shadowColor = normalizeColor(item.shadow.color);
-          const sx = item.shadow.x ?? 2;
-          const sy = item.shadow.y ?? 2;
-          filter += `:shadowcolor=${shadowColor}:shadowx=${sx}:shadowy=${sy}`;
-        }
-
-        if (item.box) {
-          const boxColor = item.boxColor || "black@0.5";
-          const boxPadding = item.boxPadding ?? 10;
-          filter += `:box=1:boxcolor=${boxColor}:boxborderw=${boxPadding}`;
-        }
-
-        if (item.fontFile) {
-          const fontRef = stageAsset(item.fontFile);
-          filter += `:fontfile='${escapeFFmpegStr(fontRef)}'`;
-        }
-
-        if (item.startTime !== undefined || item.duration !== undefined) {
-          const start = item.startTime ?? 0;
-          const end = item.duration !== undefined ? start + item.duration : duration;
-          filter += `:enable='between(t\\,${start}\\,${end})'`;
-        }
-
-        const inPad = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
-        const textOutPad = `[v_layer_${elemIdx}]`;
-        filterComplex.push(`${inPad}${filter}${textOutPad}`);
-        lastVideoPad = textOutPad;
+        currentTransPad = outPad;
       }
+      lastVideoPad = currentTransPad;
     }
 
     // 4. Process Audio Tracks
@@ -871,7 +540,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
         afs.push(`adelay=${delayMs}|${delayMs}`);
       }
 
-       if (afs.length > 0) {
+      if (afs.length > 0) {
         filterComplex.push(`[${aIdx}:a]${afs.join(",")}${outPad}`);
         audioFilterPads.push(outPad);
       } else {
@@ -947,8 +616,6 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
     args.push("-t", String(duration), ...encoderFlags, output);
 
-    // The portable args stored in the artifact use a relative output placeholder;
-    // the caller (render) substitutes the real destination when spawning.
     const portableArgs = [...args.slice(0, -1), basename(output)];
 
     const manifest: KinoManifest = {
@@ -1062,7 +729,7 @@ export async function render(
   } else {
     const composition = compositionOrKinoPath;
     await assertDrawtextSupport(ffmpegBin, composition);
-    if (compositionHasText(composition) && options.unsafeInlineText) {
+    if (options.unsafeInlineText) {
       console.warn(
         "[kino] Warning: unsafeInlineText disables textfile delivery; text with apostrophes may render blank on some platforms."
       );

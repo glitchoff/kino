@@ -8,10 +8,10 @@ A high-performance TypeScript library, CLI, and local web studio for compiling J
 
 - **Mandatory `scenes[]` Primitive**: Modular, scene-driven timeline architecture with relative element positioning.
 - **Layering (`zIndex`)**: Optional `zIndex` controls draw order across a composition. When omitted, elements stack in declaration order; when set, lower values render first (background) and higher values render on top. Stable, declaration-order-respecting, composition-global.
+- **Scene Transitions**: 11 built-in transition types (`fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `wipeLeft`, `wipeRight`, `wipeUp`, `wipeDown`, `zoomIn`, `zoomOut`) that overlap adjacent scenes using FFmpeg `xfade` filters. Transitions belong to the entering scene; the first scene in a composition cannot define one. Total composition duration equals `sum(scene.duration) - sum(transition.duration)`.
 - **Per-Element Animations**: `opacity`, `x`, `y`, and `scale` animations with `from`/`to`/`duration`/`delay`/easing curves (`"linear"`, `"easeIn"`, `"easeOut"`, `"easeInOut"`). Animations use an element-local clock, hold `from`→interpolate→hold `to`, and clip (never rescale the layer) past the element's own duration.
-- **Text Layout & Styling**: Automatic word wrapping via `maxWidth` (preserves hard newlines and oversized tokens), multi-line alignment (`textAlign`: `"left"` | `"center"` | `"right"`), multiplier-based line spacing (`lineHeight`), text outline (`stroke`: `{ color, width }`), and drop shadow (`shadow`: `{ color, x, y }`).
+- **Text Layout & Styling**: Automatic word wrapping via `maxWidth` (preserves hard newlines and oversized tokens), multi-line alignment (`textAlign`: `"left"` | `"center"` | `"right"`), multiplier-based line spacing (`lineHeight`), text outline (`stroke`: `{ color, width }`), and drop shadow (`shadow`: `{ color, x, y }`). Includes **bundled Inter font** for consistent cross-platform rendering.
 - **GPU Hardware Acceleration**: Native support for NVIDIA (`h264_nvenc`, `hevc_nvenc`), Intel (`h264_qsv`), AMD (`h264_amf`), and Apple VideoToolbox. `encoder: "auto"` (the default) probes the host machine and picks the best available GPU encoder before rendering, with automatic CPU (`libx264`) fallback when the GPU path fails.
-- **Sequential & Absolute Timelines**: Automatic end-to-end scene sequencing or explicit absolute start time layer stacking.
 - **Audio & SFX Mixing**: Multi-track background music with fade-in/fade-out and element-level sound effect triggers.
 - **Kino Studio**: Local web editor (powered by Hono) with live FFmpeg command preview and GPU encoder controls.
 - **Binary Fallback**: Bundles `ffmpeg-static` for instant zero-config execution.
@@ -56,7 +56,7 @@ await render(
             fontColor: "white",
             x: "center",
             y: "center",
-            startTime: 0,
+            startAt: 0,
             duration: 3
           }
         ]
@@ -84,6 +84,12 @@ npx kino examples/official.json --dry-run
 
 # Opt out of textfile text delivery (DANGEROUS: apostrophes may render blank)
 npx kino examples/basic.json --unsafe-inline-text
+
+# Render all 11 scene transitions in one video
+npx kino examples/all-transitions.json -o all-transitions.mp4
+
+# Render a pre-compiled .kino artifact (fully offline, no recompilation)
+npx kino path/to/composition.kino -o output.mp4
 ```
 
 ### Kino Studio (Visual Web Editor)

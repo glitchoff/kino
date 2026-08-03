@@ -29,11 +29,30 @@ export type BackgroundConfig =
 
 export type BackgroundInput = string | BackgroundConfig;
 
+export type KinoTransitionType =
+  | "fade"
+  | "slideLeft"
+  | "slideRight"
+  | "slideUp"
+  | "slideDown"
+  | "wipeLeft"
+  | "wipeRight"
+  | "wipeUp"
+  | "wipeDown"
+  | "zoomIn"
+  | "zoomOut";
+
+export interface KinoTransition {
+  type: KinoTransitionType;
+  duration: number;
+}
+
 export interface BaseElement {
   id?: string;
   x?: number | string;
   y?: number | string;
-  startTime?: number;
+  startAt?: number;
+  startTime?: number; // Internal normalized absolute composition start time
   duration?: number;
   sfx?: string | AudioTrack;
   zIndex?: number;
@@ -127,16 +146,15 @@ export interface AudioTrack {
 export interface KinoScene {
   id?: string;
   duration: number;
-  startTime?: number;
   background?: BackgroundInput;
   elements?: ElementInput[];
+  transition?: KinoTransition;
 }
 
 export interface KinoComposition {
   width?: number;
   height?: number;
   fps?: number;
-  timeline?: "sequential" | "absolute";
   scenes: KinoScene[];
   audio?: AudioTrack | AudioTrack[];
 }
@@ -147,6 +165,7 @@ export interface NormalizedScene {
   duration: number;
   background: BackgroundConfig;
   elements: ElementInput[];
+  transition?: KinoTransition;
 }
 
 export interface NormalizedComposition {
@@ -154,7 +173,6 @@ export interface NormalizedComposition {
   height: number;
   duration: number;
   fps: number;
-  timeline: "sequential" | "absolute";
   background: BackgroundConfig;
   elements: ElementInput[];
   scenes: NormalizedScene[];

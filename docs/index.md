@@ -35,7 +35,7 @@ await render(
             fontColor: "white",
             x: "center",
             y: "center",
-            startTime: 0,
+            startAt: 0,
             duration: 3
           }
         ]

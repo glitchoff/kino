@@ -1,0 +1,210 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "scenes": [
+    {
+      "id": "scene-01-start",
+      "duration": 3,
+      "background": "#0f172a",
+      "elements": [
+        {
+          "type": "text",
+          "content": "Kino Scene Transitions Showcase",
+          "fontSize": 64,
+          "fontColor": "#ffffff",
+          "x": "center",
+          "y": "(h-text_h)/2-50",
+          "startAt": 0,
+          "duration": 3
+        },
+        {
+          "type": "text",
+          "content": "Testing all 11 transitions in 1 video",
+          "fontSize": 36,
+          "fontColor": "#38bdf8",
+          "x": "center",
+          "y": "(h-text_h)/2+50",
+          "startAt": 0.5,
+          "duration": 2.5
+        }
+      ]
+    },
+    {
+      "id": "scene-02-fade",
+      "duration": 3,
+      "background": "#1e1b4b",
+      "transition": { "type": "fade", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "1. Fade Transition",
+          "fontSize": 60,
+          "fontColor": "#a5b4fc",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-03-slideLeft",
+      "duration": 3,
+      "background": "#831843",
+      "transition": { "type": "slideLeft", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "2. Slide Left",
+          "fontSize": 60,
+          "fontColor": "#fbcfe8",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-04-slideRight",
+      "duration": 3,
+      "background": "#14532d",
+      "transition": { "type": "slideRight", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "3. Slide Right",
+          "fontSize": 60,
+          "fontColor": "#bbf7d0",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-05-slideUp",
+      "duration": 3,
+      "background": "#701a75",
+      "transition": { "type": "slideUp", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "4. Slide Up",
+          "fontSize": 60,
+          "fontColor": "#f5d0fe",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-06-slideDown",
+      "duration": 3,
+      "background": "#1e3a8a",
+      "transition": { "type": "slideDown", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "5. Slide Down",
+          "fontSize": 60,
+          "fontColor": "#bfdbfe",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-07-wipeLeft",
+      "duration": 3,
+      "background": "#7c2d12",
+      "transition": { "type": "wipeLeft", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "6. Wipe Left",
+          "fontSize": 60,
+          "fontColor": "#fed7aa",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-08-wipeRight",
+      "duration": 3,
+      "background": "#064e3b",
+      "transition": { "type": "wipeRight", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "7. Wipe Right",
+          "fontSize": 60,
+          "fontColor": "#a7f3d0",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-09-wipeUp",
+      "duration": 3,
+      "background": "#4c1d95",
+      "transition": { "type": "wipeUp", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "8. Wipe Up",
+          "fontSize": 60,
+          "fontColor": "#ddd6fe",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-10-wipeDown",
+      "duration": 3,
+      "background": "#365314",
+      "transition": { "type": "wipeDown", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "9. Wipe Down",
+          "fontSize": 60,
+          "fontColor": "#d9f99d",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-11-zoomIn",
+      "duration": 3,
+      "background": "#881337",
+      "transition": { "type": "zoomIn", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "10. Zoom In",
+          "fontSize": 60,
+          "fontColor": "#fecdd3",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    },
+    {
+      "id": "scene-12-zoomOut",
+      "duration": 3,
+      "background": "#0f766e",
+      "transition": { "type": "zoomOut", "duration": 0.8 },
+      "elements": [
+        {
+          "type": "text",
+          "content": "11. Zoom Out",
+          "fontSize": 60,
+          "fontColor": "#99f6e4",
+          "x": "center",
+          "y": "center"
+        }
+      ]
+    }
+  ]
+}

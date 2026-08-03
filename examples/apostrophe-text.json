@@ -22,7 +22,7 @@
           "boxPadding": 24,
           "x": "center",
           "y": "(h-text_h)/2-120",
-          "startTime": 0.3,
+          "startAt": 0.3,
           "duration": 3
         },
         {
@@ -32,7 +32,7 @@
           "fontColor": "#94a3bc",
           "x": "center",
           "y": "(h-text_h)/2+60",
-          "startTime": 0.3,
+          "startAt": 0.3,
           "duration": 3
         },
         {
@@ -42,7 +42,7 @@
           "fontColor": "#38bdf8",
           "x": "center",
           "y": "(h-text_h)/2+160",
-          "startTime": 0.3,
+          "startAt": 0.3,
           "duration": 3
         }
       ]

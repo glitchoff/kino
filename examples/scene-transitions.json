@@ -1,0 +1,66 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "scenes": [
+    {
+      "id": "intro",
+      "duration": 5,
+      "background": "#0f172a",
+      "elements": [
+        {
+          "type": "text",
+          "content": "Kino Scene Transitions",
+          "fontSize": 72,
+          "fontColor": "#38bdf8",
+          "x": "center",
+          "y": "center",
+          "startAt": 0,
+          "duration": 5
+        }
+      ]
+    },
+    {
+      "id": "scene-slide",
+      "duration": 5,
+      "background": "#312e81",
+      "transition": {
+        "type": "slideLeft",
+        "duration": 1
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "Slide Left Transition",
+          "fontSize": 64,
+          "fontColor": "#a5b4fc",
+          "x": "center",
+          "y": "center",
+          "startAt": 0.5,
+          "duration": 4
+        }
+      ]
+    },
+    {
+      "id": "scene-wipe",
+      "duration": 5,
+      "background": "#064e3b",
+      "transition": {
+        "type": "wipeRight",
+        "duration": 1.2
+      },
+      "elements": [
+        {
+          "type": "text",
+          "content": "Wipe Right Transition",
+          "fontSize": 64,
+          "fontColor": "#6ee7b7",
+          "x": "center",
+          "y": "center",
+          "startAt": 0,
+          "duration": 5
+        }
+      ]
+    }
+  ]
+}

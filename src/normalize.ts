@@ -80,6 +80,8 @@ export function normalizeElement(elem: any): ElementInput {
     return { type: "text", content: "" };
   }
 
+  const startAt = elem.startAt ?? elem.startTime;
+
   if (elem.type === "image") {
     const img: ImageElement = {
       type: "image",
@@ -89,6 +91,7 @@ export function normalizeElement(elem: any): ElementInput {
       width: elem.width,
       height: elem.height,
       fit: elem.fit,
+      startAt,
       startTime: elem.startTime,
       duration: elem.duration,
       sfx: elem.sfx,
@@ -111,6 +114,7 @@ export function normalizeElement(elem: any): ElementInput {
       trimStart: elem.trimStart,
       loop: elem.loop,
       volume: elem.volume,
+      startAt,
       startTime: elem.startTime,
       duration: elem.duration,
       sfx: elem.sfx,
@@ -150,6 +154,7 @@ export function normalizeElement(elem: any): ElementInput {
     shadow: elem.shadow,
     x: elem.x,
     y: elem.y,
+    startAt,
     startTime: elem.startTime,
     duration: elem.duration,
     sfx: elem.sfx,
@@ -171,72 +176,47 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
   const width = comp.width || 1920;
   const height = comp.height || 1080;
   const fps = comp.fps || 30;
-  const timeline = comp.timeline || "sequential";
 
   const audioTracks: AudioTrack[] = normalizeAudio(comp.audio);
   const normalizedScenes: NormalizedScene[] = [];
   const flattenedElements: ElementInput[] = [];
 
-  let duration = 0;
+  let currentOffset = 0;
+  for (let i = 0; i < comp.scenes.length; i++) {
+    const scene = comp.scenes[i];
+    const sceneDur = scene.duration;
+    const transDuration = i > 0 && scene.transition ? scene.transition.duration : 0;
 
-  if (timeline === "absolute") {
-    for (let i = 0; i < comp.scenes.length; i++) {
-      const scene = comp.scenes[i];
-      const sceneStart = scene.startTime ?? 0;
-      const sceneDur = scene.duration || 5;
-      if (sceneStart + sceneDur > duration) {
-        duration = sceneStart + sceneDur;
-      }
-
-      const normBg = normalizeBackground(scene.background);
-      const normElems = (scene.elements || []).map(normalizeElement);
-
-      normalizedScenes.push({
-        id: scene.id || `scene-${i + 1}`,
-        startTime: sceneStart,
-        duration: sceneDur,
-        background: normBg,
-        elements: normElems,
-      });
-
-      for (const rawElem of normElems) {
-        const elem = { ...rawElem };
-        const relStart = elem.startTime ?? 0;
-        elem.startTime = sceneStart + relStart;
-        elem.duration = elem.duration ?? Math.max(0, sceneDur - relStart);
-        flattenedElements.push(elem);
-      }
+    if (i > 0) {
+      currentOffset -= transDuration;
     }
-  } else {
-    // Sequential timeline (default)
-    let currentOffset = 0;
-    for (let i = 0; i < comp.scenes.length; i++) {
-      const scene = comp.scenes[i];
-      const sceneDur = scene.duration || 5;
-      const sceneStart = currentOffset;
-      currentOffset += sceneDur;
+    const sceneStart = currentOffset;
+    currentOffset += sceneDur;
 
-      const normBg = normalizeBackground(scene.background);
-      const normElems = (scene.elements || []).map(normalizeElement);
+    const normBg = normalizeBackground(scene.background);
+    const normElems: ElementInput[] = [];
 
-      normalizedScenes.push({
-        id: scene.id || `scene-${i + 1}`,
-        startTime: sceneStart,
-        duration: sceneDur,
-        background: normBg,
-        elements: normElems,
-      });
-
-      for (const rawElem of normElems) {
-        const elem = { ...rawElem };
-        const relStart = elem.startTime ?? 0;
-        elem.startTime = sceneStart + relStart;
-        elem.duration = elem.duration ?? Math.max(0, sceneDur - relStart);
-        flattenedElements.push(elem);
-      }
+    for (const rawElem of scene.elements || []) {
+      const elem = normalizeElement(rawElem);
+      const relStart = elem.startAt ?? elem.startTime ?? 0;
+      elem.startAt = relStart;
+      elem.startTime = sceneStart + relStart;
+      elem.duration = elem.duration ?? Math.max(0, sceneDur - relStart);
+      normElems.push(elem);
+      flattenedElements.push(elem);
     }
-    duration = currentOffset;
+
+    normalizedScenes.push({
+      id: scene.id || `scene-${i + 1}`,
+      startTime: sceneStart,
+      duration: sceneDur,
+      background: normBg,
+      elements: normElems,
+      transition: scene.transition,
+    });
   }
+
+  const duration = currentOffset;
 
   // Stable z-order sort: zIndex wins when set, otherwise declaration order.
   // Negative values clamp to 0.
@@ -271,7 +251,6 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
     height,
     duration,
     fps,
-    timeline,
     background: normalizedScenes[0].background,
     elements: sortedElements,
     scenes: normalizedScenes,
