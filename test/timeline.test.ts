@@ -89,6 +89,42 @@ describe("Kino Timeline Simplification + Scene Transitions", () => {
       };
       expect(() => validateComposition(comp)).toThrow(KinoValidationError);
     });
+
+    test("validates offsetX is a finite number", () => {
+      const comp: any = {
+        scenes: [
+          {
+            duration: 5,
+            elements: [
+              {
+                type: "text",
+                content: "Hello",
+                offsetX: "invalid",
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => validateComposition(comp)).toThrow(KinoValidationError);
+    });
+
+    test("validates offsetY is a finite number", () => {
+      const comp: any = {
+        scenes: [
+          {
+            duration: 5,
+            elements: [
+              {
+                type: "text",
+                content: "Hello",
+                offsetY: Infinity,
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => validateComposition(comp)).toThrow(KinoValidationError);
+    });
   });
 
   describe("Normalization & Timing Calculation", () => {
@@ -184,6 +220,30 @@ describe("Kino Timeline Simplification + Scene Transitions", () => {
       // SFX track absolute start time should be 5s
       expect(norm.audio[0].startTime).toBe(5);
     });
+
+    test("normalizes offsetX/offsetY properties on elements", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Offset",
+                x: "center",
+                y: "center",
+                offsetX: -50,
+                offsetY: 100,
+              },
+            ],
+          },
+        ],
+      };
+      const norm = normalizeComposition(comp);
+      const elem = norm.scenes[0].elements[0];
+      expect(elem.offsetX).toBe(-50);
+      expect(elem.offsetY).toBe(100);
+    });
   });
 
   describe("FFmpeg Compiler & Filtergraph Generation", () => {
@@ -244,6 +304,73 @@ describe("Kino Timeline Simplification + Scene Transitions", () => {
       expect(result.filtergraph).toContain("xfade=transition=wipeup");
       expect(result.filtergraph).toContain("xfade=transition=wipedown");
       expect(result.filtergraph).toContain("xfade=transition=zoomin");
+    });
+
+    test("applies offsetX/offsetY to text element positioning in drawtext filter", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Hello",
+                x: "center",
+                y: "center",
+                offsetX: -90,
+                offsetY: 120,
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("(w-text_w)/2)+(-90");
+      expect(result.filtergraph).toContain("(h-text_h)/2)+(120)");
+    });
+
+    test("applies offsetX/offsetY to media element positioning in overlay filter", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "image",
+                src: "test.png",
+                x: "center",
+                y: "center",
+                offsetX: 50,
+                offsetY: -30,
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("(main_w-overlay_w)/2)+(50)");
+      expect(result.filtergraph).toContain("(main_h-overlay_h)/2)+(-30)");
+    });
+
+    test("works without offsetX/offsetY (backward compatible)", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                type: "text",
+                content: "Centered",
+                x: "center",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("(w-text_w)/2");
+      expect(result.filtergraph).toContain("(h-text_h)/2");
     });
   });
 });

@@ -271,6 +271,43 @@ export function validateComposition(comp: unknown): void {
             }
           }
 
+          // Validate position properties
+          if (elem.x !== undefined) {
+            if (typeof elem.x !== "number" && typeof elem.x !== "string") {
+              issues.push({
+                path: `${elemPath}.x`,
+                message: `Expected a number or string, received ${typeof elem.x}`,
+              });
+            }
+          }
+
+          if (elem.y !== undefined) {
+            if (typeof elem.y !== "number" && typeof elem.y !== "string") {
+              issues.push({
+                path: `${elemPath}.y`,
+                message: `Expected a number or string, received ${typeof elem.y}`,
+              });
+            }
+          }
+
+          if (elem.offsetX !== undefined) {
+            if (!isFiniteNumber(elem.offsetX)) {
+              issues.push({
+                path: `${elemPath}.offsetX`,
+                message: `Expected a finite number, received ${elem.offsetX}`,
+              });
+            }
+          }
+
+          if (elem.offsetY !== undefined) {
+            if (!isFiniteNumber(elem.offsetY)) {
+              issues.push({
+                path: `${elemPath}.offsetY`,
+                message: `Expected a finite number, received ${elem.offsetY}`,
+              });
+            }
+          }
+
           const elemType = elem.type ?? "text";
 
           if (elemType === "image") {

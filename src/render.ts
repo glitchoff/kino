@@ -83,6 +83,14 @@ function formatPosition(val: number | string | undefined, defaultExpr: string): 
   return val;
 }
 
+function formatBasePosition(val: number | string | undefined, offset: number | undefined, defaultExpr: string): string {
+  const base = formatPosition(val, defaultExpr);
+  if (offset === undefined || offset === 0) {
+    return base;
+  }
+  return `(${base})+(${offset})`;
+}
+
 function formatTextPosition(val: number | string | undefined, defaultExpr: string): string {
   if (val === undefined || val === "center") {
     return defaultExpr;
@@ -104,6 +112,18 @@ function formatTextPosition(val: number | string | undefined, defaultExpr: strin
   return val;
 }
 
+function formatTextBasePosition(
+  val: number | string | undefined,
+  offset: number | undefined,
+  defaultExpr: string
+): string {
+  const base = formatTextPosition(val, defaultExpr);
+  if (offset === undefined || offset === 0) {
+    return base;
+  }
+  return `(${base})+(${offset})`;
+}
+
 function escapeExpr(expr: string): string {
   return expr.replace(/,/g, "\\,");
 }
@@ -111,6 +131,8 @@ function escapeExpr(expr: string): string {
 interface MediaLayerLike {
   x?: number | string;
   y?: number | string;
+  offsetX?: number;
+  offsetY?: number;
   startAt?: number;
   startTime?: number;
   duration?: number;
@@ -156,8 +178,8 @@ function applyMediaOverlay(
       transPad = np;
     }
 
-    const staticX = formatPosition(elem.x, "(main_w-overlay_w)/2");
-    const staticY = formatPosition(elem.y, "(main_h-overlay_h)/2");
+    const staticX = formatBasePosition(elem.x, elem.offsetX, "(main_w-overlay_w)/2");
+    const staticY = formatBasePosition(elem.y, elem.offsetY, "(main_h-overlay_h)/2");
 
     let ox = staticX;
     let oy = staticY;
@@ -179,8 +201,8 @@ function applyMediaOverlay(
     filterComplex.push(`${inPad}${transPad}${overlayFilter}${outPad}`);
     return outPad;
   } else {
-    const xExpr = formatPosition(elem.x, "(main_w-overlay_w)/2");
-    const yExpr = formatPosition(elem.y, "(main_h-overlay_h)/2");
+    const xExpr = formatBasePosition(elem.x, elem.offsetX, "(main_w-overlay_w)/2");
+    const yExpr = formatBasePosition(elem.y, elem.offsetY, "(main_h-overlay_h)/2");
     let overlayFilter = `overlay=x=${xExpr}:y=${yExpr}`;
     const hasTiming = elem.startAt !== undefined || elem.duration !== undefined;
     if (hasTiming) {
@@ -394,8 +416,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           const ax = buildAnimationExpressions(item, "t");
           const hasAnimProps = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
 
-          const staticX = formatTextPosition(item.x, "(w-text_w)/2");
-          const staticY = formatTextPosition(item.y, "(h-text_h)/2");
+          const staticX = formatTextBasePosition(item.x, item.offsetX, "(w-text_w)/2");
+          const staticY = formatTextBasePosition(item.y, item.offsetY, "(h-text_h)/2");
 
           let filter: string;
           if (hasAnimProps) {

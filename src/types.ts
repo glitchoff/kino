@@ -51,6 +51,8 @@ export interface BaseElement {
   id?: string;
   x?: number | string;
   y?: number | string;
+  offsetX?: number;
+  offsetY?: number;
   startAt?: number;
   startTime?: number; // Internal normalized absolute composition start time
   duration?: number;

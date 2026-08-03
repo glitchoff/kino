@@ -84,6 +84,34 @@ Transitions operate on fully composited scenes (including background, text, imag
 
 > Note: `startAt` on an element is **relative to its parent scene's start time**.
 
+### Positioning Model
+
+Kino uses a simple three-layer positioning model:
+
+> **Anchors position. Offsets adjust. Animations move.**
+
+| Property | Purpose |
+| :--- | :--- |
+| `x`, `y` | Anchor position: `"center"`, `"start"`, `"end"`, an FFmpeg expression, or a number. |
+| `offsetX`, `offsetY` | Pixel offset applied on top of the anchor. |
+| `animation.x`, `animation.y` | Animated translation on top of the static position. |
+
+**Example:**
+
+```json
+{
+  "x": "center",
+  "y": "center",
+  "offsetX": -90,
+  "offsetY": 120,
+  "animation": {
+    "y": { "from": 40, "to": 0, "duration": 0.6 }
+  }
+}
+```
+
+This positions the element at `center + (-90, 120)` and then animates its Y by an additional 40→0 pixels on top of that.
+
 ### 1. `TextElement` (`type: "text"`)
 
 | Property | Type | Default | Description |
@@ -102,8 +130,10 @@ Transitions operate on fully composited scenes (including background, text, imag
 | `lineHeight` | `number` | `1` | Multiplier for line height spacing (`1` = normal, `1.5` = 50% extra line spacing). |
 | `stroke` | `{ color: string; width: number }` | undefined | Text outline stroke color and border width. |
 | `shadow` | `{ color: string; x?: number; y?: number }` | undefined | Text drop shadow color and x/y pixel offsets (defaults to `x: 2, y: 2`). |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). Position applies to the overall text region. |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"top-N"` / `"bottom-N"`, expression, or number). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"start"`, `"end"`, expression, or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"top-N"` / `"bottom-N"`, `"start"`, `"end"`, expression, or number). |
+| `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
+| `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
@@ -120,13 +150,11 @@ Transitions operate on fully composited scenes (including background, text, imag
 | `width` | `number` | original | Target width in pixels. |
 | `height` | `number` | original | Target height in pixels. |
 | `fit` | `MediaFit` | undefined | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). When unset: native dimensions if `width`/`height` are omitted, force-scale to `width`×`height` if both are set. |
-| `x` | `number \| string` | `"center"` | Horizontal position. |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, expression, or number). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"start"`, `"end"`, expression, or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"start"`, `"end"`, expression, or number). |
+| `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
+| `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
-| `duration` | `number` | Scene duration | Visible duration in seconds. |
-| `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
-| `zIndex` | `number` | declaration index | Layering order. Lower values render first (background), higher values render on top. Negative values clamp to `0`. When omitted, elements stack in declaration order. Applied composition-globally across all scenes. |
-| `animation` | `ElementAnimation` | undefined | Per-element animations (opacity / x / y / scale). See **Animation Reference**. |
 
 ### 3. `VideoElement` (`type: "video"`)
 
@@ -142,8 +170,10 @@ By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded u
 | `width` | `number` | original | Target width in pixels. |
 | `height` | `number` | original | Target height in pixels. |
 | `fit` | `MediaFit` | `"contain"` | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, expression, or number). |
+| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"start"`, `"end"`, expression, or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"start"`, `"end"`, expression, or number). |
+| `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
+| `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. This is also the length of source footage consumed. |
 | `trimStart` | `number` | `0` | Seek offset in seconds into the source file for playback (source segment = `trimStart` → `trimStart + duration`). |
