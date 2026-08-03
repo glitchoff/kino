@@ -22,6 +22,7 @@ The `KinoComposition` JSON object defines canvas properties, frame rate, global 
 | `fps` | `number` | `30` | Frame rate in FPS. |
 | `scenes` | `KinoScene[]` | **Required** | Array of scene objects. Must contain at least 1 scene. |
 | `audio` | `AudioTrack \| AudioTrack[]` | `[]` | Background music / audio track configurations. |
+| `templates` | `KinoTemplate[]` | `[]` | Reusable named property bags for elements. See **Templates**. |
 
 ---
 
@@ -226,6 +227,81 @@ source segment = 12s → 18s        (trimStart → trimStart + duration)
 | `"cover"` | Scale to fully cover the box, preserving aspect ratio; crop overflow. |
 | `"fill"` | Force-scale to the exact `width` × `height`, ignoring aspect ratio. |
 | `"none"` | No `fit`-driven scaling. When both `width` and `height` are set, the media is still scaled to that exact box (`scale=w:h`); otherwise native dimensions are kept. |
+
+---
+
+## Templates (`KinoTemplate`)
+
+Templates are reusable property bags that reduce repetition across elements. They are resolved at compile time and **completely disappear** before rendering — FFmpeg never sees them.
+
+### Defining Templates
+
+Templates live at the composition level. Each template declares an `id`, a `type` (matching the element type it's for), and a `props` object containing any element properties:
+
+```json
+{
+  "templates": [
+    {
+      "id": "hero-text",
+      "type": "text",
+      "props": {
+        "fontSize": 120,
+        "fontColor": "#ffffff",
+        "x": "center",
+        "animation": {
+          "opacity": { "from": 0, "to": 1, "duration": 0.5 }
+        }
+      }
+    },
+    {
+      "id": "subtitle",
+      "type": "text",
+      "props": {
+        "fontSize": 42,
+        "fontColor": "#aaaaaa",
+        "x": "center"
+      }
+    }
+  ]
+}
+```
+
+### Using Templates
+
+Reference a template by `id` on an element. The element must also specify `type` explicitly. Element properties override template properties:
+
+```json
+{
+  "type": "text",
+  "template": "hero-text",
+  "content": "KINO",
+  "y": "center-100"
+}
+```
+
+```json
+{
+  "type": "text",
+  "template": "subtitle",
+  "content": "VIDEO, EXPRESSED AS DATA.",
+  "y": "center+100"
+}
+```
+
+### Merge Rules
+
+- **Deep merge, instance wins.** Template props are the base; element props override per key.
+- **Animation channels are deep-merged.** If the template defines `animation.opacity` and the element defines `animation.opacity`, the element's opacity values win but other channels (e.g., `scale`) from the template are preserved.
+- **One template per element.** No stacking or inheritance.
+- **No template-to-template references.** Templates are flat property bags only.
+- **Templates are stripped during normalization.** The resolved element is indistinguishable from one defined without a template.
+
+### Constraints
+
+- Template `id` values must be unique within a composition.
+- Referenced template `id` values must exist in `templates`.
+- Elements using a template must specify `type` explicitly.
+- Template `type` must be `"text"`, `"image"`, or `"video"`.
 
 ---
 

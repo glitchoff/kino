@@ -11,7 +11,64 @@ import type {
   NormalizedComposition,
   NormalizedScene,
   KinoScene,
+  KinoTemplate,
+  TemplateProps,
 } from "./types.js";
+
+function resolveTemplate(
+  templateId: string,
+  templates: Map<string, KinoTemplate>
+): KinoTemplate {
+  const tmpl = templates.get(templateId);
+  if (!tmpl) {
+    throw new Error(`Unknown template reference: "${templateId}"`);
+  }
+  return tmpl;
+}
+
+function deepMerge<T extends Record<string, unknown>>(
+  base: T,
+  override: Partial<T>
+): T {
+  const result = { ...base } as T;
+  for (const key of Object.keys(override) as (keyof T)[]) {
+    const val = override[key];
+    if (
+      val !== undefined &&
+      typeof val === "object" &&
+      !Array.isArray(val) &&
+      val !== null &&
+      typeof base[key] === "object" &&
+      base[key] !== null &&
+      !Array.isArray(base[key])
+    ) {
+      result[key] = { ...(base[key] as Record<string, unknown>), ...val } as T[keyof T];
+    } else {
+      result[key] = val as T[keyof T];
+    }
+  }
+  return result;
+}
+
+function applyTemplate(
+  elem: any,
+  templates: Map<string, KinoTemplate>
+): any {
+  const templateId = elem.template;
+  if (!templateId) return elem;
+
+  const tmpl = resolveTemplate(templateId, templates);
+
+  if (elem.type && elem.type !== tmpl.type) {
+    throw new Error(
+      `Template "${templateId}" is type "${tmpl.type}" but element type is "${elem.type}"`
+    );
+  }
+
+  const merged = deepMerge(tmpl.props as Record<string, unknown>, elem as Record<string, unknown>);
+  delete (merged as Record<string, unknown>).template;
+  return merged;
+}
 
 export function normalizeBackground(bg?: BackgroundInput): BackgroundConfig {
   if (!bg) {
@@ -177,8 +234,6 @@ export function normalizeAudio(audio?: AudioTrack | AudioTrack[]): AudioTrack[] 
 }
 
 export function normalizeComposition(comp: KinoComposition): NormalizedComposition {
-  validateComposition(comp);
-
   const width = comp.width || 1920;
   const height = comp.height || 1080;
   const fps = comp.fps || 30;
@@ -187,9 +242,34 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
   const normalizedScenes: NormalizedScene[] = [];
   const flattenedElements: ElementInput[] = [];
 
-  let currentOffset = 0;
+  const templates = new Map<string, KinoTemplate>();
+  for (const tmpl of comp.templates || []) {
+    templates.set(tmpl.id, tmpl);
+  }
+
+  const resolvedScenes: KinoScene[] = [];
   for (let i = 0; i < comp.scenes.length; i++) {
     const scene = comp.scenes[i];
+    const resolvedElems: ElementInput[] = [];
+    for (const rawElem of scene.elements || []) {
+      const resolved = applyTemplate(rawElem, templates);
+      resolvedElems.push(resolved as ElementInput);
+    }
+    resolvedScenes.push({ ...scene, elements: resolvedElems });
+  }
+
+  const resolvedComp: KinoComposition = {
+    width: comp.width,
+    height: comp.height,
+    fps: comp.fps,
+    scenes: resolvedScenes,
+    audio: comp.audio,
+  };
+  validateComposition(resolvedComp);
+
+  let currentOffset = 0;
+  for (let i = 0; i < resolvedScenes.length; i++) {
+    const scene = resolvedScenes[i];
     const sceneDur = scene.duration;
     const transDuration = i > 0 && scene.transition ? scene.transition.duration : 0;
 

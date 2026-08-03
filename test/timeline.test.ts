@@ -3,7 +3,7 @@ import { describe, test, expect } from "vitest";
 import { validateComposition, KinoValidationError } from "../src/validate.js";
 import { normalizeComposition } from "../src/normalize.js";
 import { compile } from "../src/render.js";
-import type { KinoComposition } from "../src/types.js";
+import type { KinoComposition, TextElement, ImageElement, VideoElement } from "../src/types.js";
 
 describe("Kino Timeline Simplification + Scene Transitions", () => {
   describe("Validation", () => {
@@ -666,5 +666,282 @@ describe("Kino Timeline Simplification + Scene Transitions", () => {
       expect(() => validateComposition(comp)).toThrow(KinoValidationError);
     });
   });
+
+  describe("Templates", () => {
+    test("resolves template props and merges with element props", () => {
+      const comp: KinoComposition = {
+        templates: [
+          {
+            id: "hero",
+            type: "text",
+            props: {
+              fontSize: 120,
+              fontColor: "#ffffff",
+              x: "center",
+            },
+          },
+        ],
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "hero",
+                type: "text",
+                content: "KINO",
+                offsetY: -50,
+              },
+            ],
+          },
+        ],
+      };
+      const norm = normalizeComposition(comp);
+      const elem = norm.scenes[0].elements[0] as TextElement;
+      expect(elem.fontSize).toBe(120);
+      expect(elem.fontColor).toBe("#ffffff");
+      expect(elem.x).toBe("center");
+      expect(elem.offsetY).toBe(-50);
+      expect(elem.content).toBe("KINO");
+    });
+
+    test("element props override template props", () => {
+      const comp: KinoComposition = {
+        templates: [
+          {
+            id: "hero",
+            type: "text",
+            props: {
+              fontSize: 120,
+              fontColor: "#ffffff",
+            },
+          },
+        ],
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "hero",
+                type: "text",
+                content: "KINO",
+                fontColor: "#ff0000",
+              },
+            ],
+          },
+        ],
+      };
+      const norm = normalizeComposition(comp);
+      const elem = norm.scenes[0].elements[0] as TextElement;
+      expect(elem.fontColor).toBe("#ff0000");
+      expect(elem.fontSize).toBe(120);
+    });
+
+    test("deep merges animation channels from template", () => {
+      const comp: KinoComposition = {
+        templates: [
+          {
+            id: "hero",
+            type: "text",
+            props: {
+              fontSize: 120,
+              x: "center",
+              animation: {
+                opacity: { from: 0, to: 1, duration: 0.5 },
+                scale: { from: 0.8, to: 1, duration: 0.6 },
+              },
+            },
+          },
+        ],
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "hero",
+                type: "text",
+                content: "KINO",
+                 animation: { opacity: { from: 0, to: 1, duration: 1 } },
+                },
+              ],
+            },
+          ],
+      };
+      const norm = normalizeComposition(comp);
+      const elem = norm.scenes[0].elements[0] as TextElement;
+      expect(elem.animation?.opacity?.duration).toBe(1);
+      expect(elem.animation?.scale?.from).toBe(0.8);
+    });
+
+    test("strips template field from resolved element", () => {
+      const comp: KinoComposition = {
+        templates: [
+          {
+            id: "hero",
+            type: "text",
+            props: {
+              fontSize: 120,
+              x: "center",
+            },
+          },
+        ],
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "hero",
+                type: "text",
+                content: "KINO",
+              },
+            ],
+          },
+        ],
+      };
+      const norm = normalizeComposition(comp);
+      const elem = norm.scenes[0].elements[0];
+      expect((elem as any).template).toBeUndefined();
+    });
+
+    test("throws on unknown template reference", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "nonexistent",
+                type: "text",
+                content: "KINO",
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => normalizeComposition(comp)).toThrow(
+        'Unknown template reference: "nonexistent"'
+      );
+    });
+
+    test("throws when template type mismatches element type", () => {
+      const comp: KinoComposition = {
+        templates: [
+          {
+            id: "hero",
+            type: "text",
+            props: {
+              fontSize: 120,
+            },
+          },
+        ],
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "hero",
+                type: "image",
+                src: "test.png",
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => normalizeComposition(comp)).toThrow(
+        'Template "hero" is type "text" but element type is "image"'
+      );
+    });
+
+    test("throws when element using template omits type", () => {
+      const comp: any = {
+        templates: [
+          {
+            id: "hero",
+            type: "text",
+            props: {
+              fontSize: 120,
+            },
+          },
+        ],
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "hero",
+                content: "KINO",
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => validateComposition(comp)).toThrow(KinoValidationError);
+    });
+
+    test("rejects duplicate template ids", () => {
+      const comp: any = {
+        templates: [
+          { id: "hero", type: "text", props: { fontSize: 120 } },
+          { id: "hero", type: "text", props: { fontSize: 48 } },
+        ],
+        scenes: [{ duration: 3 }],
+      };
+      expect(() => validateComposition(comp)).toThrow(KinoValidationError);
+    });
+
+    test("rejects reference to undefined template id", () => {
+      const comp: any = {
+        templates: [{ id: "hero", type: "text", props: { fontSize: 120 } }],
+        scenes: [
+          {
+            duration: 3,
+            elements: [
+              {
+                template: "missing",
+                type: "text",
+                content: "KINO",
+              },
+            ],
+          },
+        ],
+      };
+      expect(() => validateComposition(comp)).toThrow(KinoValidationError);
+    });
+
+    test("compiles composition with templates to filtergraph", () => {
+      const comp: KinoComposition = {
+        templates: [
+          {
+            id: "hero",
+            type: "text",
+            props: {
+              fontSize: 120,
+              fontColor: "#ffffff",
+              x: "center",
+            },
+          },
+        ],
+        scenes: [
+          {
+            duration: 3,
+            background: "#0f172a",
+            elements: [
+              {
+                template: "hero",
+                type: "text",
+                content: "KINO",
+                y: "center",
+              },
+            ],
+          },
+        ],
+      };
+      const result = compile(comp, { output: "test-out.mp4" });
+      expect(result.filtergraph).toContain("fontsize=120");
+      expect(result.filtergraph).toContain("fontcolor=#ffffff");
+      expect(result.filtergraph).toContain("x=(w-text_w)/2");
+    });
+  });
 });
+
+
 

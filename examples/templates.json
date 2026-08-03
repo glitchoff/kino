@@ -1,0 +1,61 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "templates": [
+    {
+      "id": "hero-text",
+      "type": "text",
+      "props": {
+        "fontSize": 120,
+        "fontColor": "#ffffff",
+        "x": "center",
+        "animation": {
+          "opacity": { "from": 0, "to": 1, "duration": 0.5 }
+        }
+      }
+    },
+    {
+      "id": "subtitle",
+      "type": "text",
+      "props": {
+        "fontSize": 42,
+        "fontColor": "#aaaaaa",
+        "x": "center"
+      }
+    }
+  ],
+  "scenes": [
+    {
+      "duration": 4,
+      "background": "#0f172a",
+      "elements": [
+        {
+          "template": "hero-text",
+          "type": "text",
+          "content": "KINO",
+          "y": "center-60"
+        },
+        {
+          "template": "subtitle",
+          "type": "text",
+          "content": "Video, Expressed as Data",
+          "y": "center+80"
+        }
+      ]
+    },
+    {
+      "duration": 4,
+      "background": "#1e1b4b",
+      "elements": [
+        {
+          "template": "hero-text",
+          "type": "text",
+          "content": "ACT II",
+          "fontColor": "#34d399",
+          "y": "center"
+        }
+      ]
+    }
+  ]
+}

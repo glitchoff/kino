@@ -102,6 +102,63 @@ export function validateComposition(comp: unknown): void {
     "zoomOut",
   ];
 
+  // Validate templates
+  const templateIds = new Set<string>();
+  if (comp.templates !== undefined) {
+    if (!Array.isArray(comp.templates)) {
+      issues.push({
+        path: "templates",
+        message: "Expected an array of templates",
+      });
+    } else {
+      comp.templates.forEach((tmpl: unknown, tIdx: number) => {
+        const tmplPath = `templates[${tIdx}]`;
+
+        if (!isObject(tmpl)) {
+          issues.push({
+            path: tmplPath,
+            message: `Expected a template object, received ${typeof tmpl}`,
+          });
+          return;
+        }
+
+        if (!isNonEmptyString(tmpl.id)) {
+          issues.push({
+            path: `${tmplPath}.id`,
+            message: "Expected a non-empty string template id",
+          });
+        } else if (templateIds.has(tmpl.id)) {
+          issues.push({
+            path: `${tmplPath}.id`,
+            message: `Duplicate template id "${tmpl.id}"`,
+          });
+        } else {
+          templateIds.add(tmpl.id);
+        }
+
+        const validTypes = ["text", "image", "video"];
+        if (tmpl.type !== undefined) {
+          if (typeof tmpl.type !== "string" || !validTypes.includes(tmpl.type)) {
+            issues.push({
+              path: `${tmplPath}.type`,
+              message: `Expected one of ${validTypes.map((t) => JSON.stringify(t)).join(", ")}, received ${JSON.stringify(tmpl.type)}`,
+            });
+          }
+        }
+
+        if (isObject(tmpl.props)) {
+          const props = tmpl.props as Record<string, unknown>;
+          if (props.animation !== undefined && !isObject(props.animation)) {
+            issues.push({
+              path: `${tmplPath}.props.animation`,
+              message: "Expected an animation object",
+            });
+          }
+        }
+      });
+    }
+  }
+
   // Validate Scenes
   comp.scenes.forEach((scene: unknown, sIdx: number) => {
     const scenePath = `scenes[${sIdx}]`;
@@ -534,17 +591,39 @@ export function validateComposition(comp: unknown): void {
                     path: `${elemPath}.shadow.y`,
                     message: `Expected a finite number, received ${elem.shadow.y}`,
                   });
-                }
-              }
-            }
-          } else {
-            issues.push({
-              path: `${elemPath}.type`,
-              message: `Expected "text", "image", or "video", received ${JSON.stringify(elem.type)}`,
-            });
-          }
+                   }
+                 }
+               }
+             } else {
+               issues.push({
+                 path: `${elemPath}.type`,
+                 message: `Expected "text", "image", or "video", received ${JSON.stringify(elem.type)}`,
+               });
+             }
 
-          // Validate Animations
+             // Validate template reference
+           if (elem.template !== undefined) {
+             if (!isNonEmptyString(elem.template)) {
+               issues.push({
+                 path: `${elemPath}.template`,
+                 message: "Expected a non-empty template id string",
+               });
+             } else if (!templateIds.has(elem.template)) {
+               issues.push({
+                 path: `${elemPath}.template`,
+                 message: `Template "${elem.template}" is not defined in composition.templates`,
+               });
+             }
+
+             if (elem.type === undefined) {
+               issues.push({
+                 path: `${elemPath}.type`,
+                 message: "Element using a template must specify its type",
+               });
+             }
+           }
+
+           // Validate Animations
           if (elem.animation !== undefined) {
             const animPath = `${elemPath}.animation`;
             if (!isObject(elem.animation)) {

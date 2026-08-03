@@ -145,6 +145,41 @@ export interface AudioTrack {
   fadeOut?: number;
 }
 
+export interface TemplateProps {
+  fontSize?: number;
+  fontColor?: string;
+  fontFile?: string;
+  box?: boolean;
+  boxColor?: string;
+  boxPadding?: number;
+  maxWidth?: number;
+  textAlign?: "left" | "center" | "right";
+  lineHeight?: number;
+  stroke?: { color: string; width: number };
+  shadow?: { color: string; x?: number; y?: number };
+  x?: number | string;
+  y?: number | string;
+  offsetX?: number;
+  offsetY?: number;
+  animation?: ElementAnimation;
+  width?: number;
+  height?: number;
+  fit?: MediaFit;
+  trimStart?: number;
+  loop?: boolean;
+  volume?: number;
+  sfx?: string | AudioTrack;
+  zIndex?: number;
+  startAt?: number;
+  duration?: number;
+}
+
+export interface KinoTemplate {
+  id: string;
+  type: "text" | "image" | "video";
+  props: TemplateProps;
+}
+
 export interface KinoScene {
   id?: string;
   duration: number;
@@ -159,6 +194,7 @@ export interface KinoComposition {
   fps?: number;
   scenes: KinoScene[];
   audio?: AudioTrack | AudioTrack[];
+  templates?: KinoTemplate[];
 }
 
 export interface NormalizedScene {
