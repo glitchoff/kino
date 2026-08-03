@@ -77,10 +77,12 @@ Scenes specify their own `startTime`.
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `id` | `string` | undefined | Optional identifier for the element. |
 | `type` | `"text"` | `"text"` | Element type discriminator. |
 | `content` | `string` | `""` | Text string to render. |
 | `fontSize` | `number` | `48` | Font size in pixels. |
 | `fontColor` | `string` | `"white"` | Text color. |
+| `fontFile` | `string` | undefined | Custom font file path or `http(s)` URL. Local paths are embedded in the `.kino` artifact; remote font URLs are downloaded into the archive at compile time. |
 | `box` | `boolean` | `false` | Enable background box behind text. |
 | `boxColor` | `string` | `"black@0.5"` | Background box color with opacity. |
 | `boxPadding` | `number` | `10` | Border padding around text box. |
@@ -90,7 +92,7 @@ Scenes specify their own `startTime`.
 | `stroke` | `{ color: string; width: number }` | undefined | Text outline stroke color and border width. |
 | `shadow` | `{ color: string; x?: number; y?: number }` | undefined | Text drop shadow color and x/y pixel offsets (defaults to `x: 2, y: 2`). |
 | `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). Position applies to the overall text region. |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"bottom-20"`, expression, or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"top-N"` / `"bottom-N"`, expression, or number). |
 | `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
@@ -101,12 +103,14 @@ Scenes specify their own `startTime`.
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `id` | `string` | undefined | Optional identifier for the element. |
 | `type` | `"image"` | required | Element type discriminator. |
 | `src` | `string` | required | File path or `http(s)` URL to image file. Remote URLs are downloaded into the `.kino` artifact at compile time. |
 | `width` | `number` | original | Target width in pixels. |
 | `height` | `number` | original | Target height in pixels. |
+| `fit` | `MediaFit` | undefined | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). When unset: native dimensions if `width`/`height` are omitted, force-scale to `width`×`height` if both are set. |
 | `x` | `number \| string` | `"center"` | Horizontal position. |
-| `y` | `number \| string` | `"center"` | Vertical position. |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, expression, or number). |
 | `startTime` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
@@ -121,13 +125,14 @@ By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded u
 
 | Property | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `id` | `string` | undefined | Optional identifier for the element. |
 | `type` | `"video"` | required | Element type discriminator. |
 | `src` | `string` | required | File path or `http(s)` URL to a video file. Remote URLs are downloaded into the `.kino` artifact at compile time. |
 | `width` | `number` | original | Target width in pixels. |
 | `height` | `number` | original | Target height in pixels. |
 | `fit` | `MediaFit` | `"contain"` | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). |
 | `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, expression, or number). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"bottom-20"`, expression, or number). |
+| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, expression, or number). |
 | `startTime` | `number` | `0` | Delay in seconds relative to scene start time (absolute on the composition timeline once normalized). |
 | `duration` | `number` | Scene duration | Visible duration in seconds. This is also the length of source footage consumed. |
 | `trimStart` | `number` | `0` | Seek offset in seconds into the source file for playback (source segment = `trimStart` → `trimStart + duration`). |
@@ -158,7 +163,7 @@ source segment = 12s → 18s        (trimStart → trimStart + duration)
 | `"contain"` (default for video) | Scale to fit entirely inside the box, preserving aspect ratio; pad the remainder with transparency (`0x00000000`). |
 | `"cover"` | Scale to fully cover the box, preserving aspect ratio; crop overflow. |
 | `"fill"` | Force-scale to the exact `width` × `height`, ignoring aspect ratio. |
-| `"none"` | No scaling; use native dimensions. |
+| `"none"` | No `fit`-driven scaling. When both `width` and `height` are set, the media is still scaled to that exact box (`scale=w:h`); otherwise native dimensions are kept. |
 
 ---
 

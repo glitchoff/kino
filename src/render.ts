@@ -21,7 +21,7 @@ import type {
 } from "./types.js";
 
 const VENDORED_FFMPEG_BIN = resolveVendoredFFmpeg();
-const KINO_VERSION = "0.5.0";
+const KINO_VERSION = "0.11.1";
 
 interface KinoManifest {
   ffmpegArgs: string[];
@@ -478,7 +478,7 @@ function addFFmpegInput(
   if (src.startsWith("http://") || src.startsWith("https://")) {
     inputs.push(
       "-user_agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Kino/0.2.0"
+      `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Kino/${KINO_VERSION}`
     );
   }
   inputs.push("-i", src);
@@ -489,7 +489,7 @@ const REMOTE_DOWNLOADER_SCRIPT = [
   'const path=require("path");',
   'const outDir=process.argv[1];',
   'const urls=JSON.parse(process.argv[2]);',
-  'const UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Kino/0.5.0";',
+  `const UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Kino/${KINO_VERSION}";`,
   'const EXT={"image/jpeg":".jpg","image/jpg":".jpg","image/png":".png","image/gif":".gif","image/webp":".webp","audio/mpeg":".mp3","audio/mp3":".mp3","audio/wav":".wav","audio/x-wav":".wav","audio/aac":".aac","audio/ogg":".ogg","audio/mp4":".m4a","video/mp4":".mp4","video/quicktime":".mov","video/webm":".webm"};',
   "(async()=>{",
   "  const results={};",
