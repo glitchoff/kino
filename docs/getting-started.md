@@ -18,22 +18,33 @@ npm install @glitchoff/kino
 
 ### Optional HTML Element Setup
 
-Puppeteer and Chromium are only needed when a composition contains an `html` element. Standard Kino compositions do not need a browser. Puppeteer's install script downloads a compatible Chromium build during package installation. With pnpm, approve that script if prompted:
+Puppeteer and Chromium are only needed when a composition contains an `html` element. Standard Kino compositions do not need a browser, and **no browser is downloaded at install time** — installing the package never downloads Chromium. Instead, Kino downloads Chrome lazily, the first time a composition with an `html` element is compiled:
 
-```bash
-pnpm approve-builds
-```
+- **Automatic (default):** compile a composition that contains an `html` element. Kino detects that no browser is available, downloads Chrome into the shared cache (`~/.cache/puppeteer`) once, and continues.
+- **Explicit (pre-install ahead of time):**
 
-Select `puppeteer` and approve it. If browser downloads are unavailable, install Chrome or Chromium separately and provide its executable path:
+  ```bash
+  npx kino setup
+  # or, explicitly
+  npx kino setup browser
+  ```
+
+  Re-running `setup` is a no-op once Chrome is installed.
+
+If you already have Chrome or Chromium installed, skip the download entirely and point Kino at it with `--browser-path`. When `--browser-path` is provided, Kino uses that executable directly and **never downloads a browser**:
 
 ```bash
 npx kino examples/html-showcase.json -o html-showcase.mp4 \
-  --browser-path "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+  --browser-path "C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
 
-The browser is needed only while compiling HTML into the `.kino` artifact. Once compiled, the artifact contains the rasterized PNG and can render without Puppeteer or Chromium.
+The browser is needed only while compiling HTML into the `.kino` artifact. Once compiled, the artifact contains the rasterized PNG and can render without a browser.
 
-> **Note:** Kino includes built-in binary fallback (`ffmpeg-static`), so manual installation of an FFmpeg binary is optional!
+> **Note:** Kino includes a built-in FFmpeg binary fallback on every platform, so manual installation of an FFmpeg binary is optional. Windows and macOS use `ffmpeg-static`; Linux ships a pinned drawtext-enabled build (ffmpeg-static's Linux binary predates the FFmpeg 6.1 `libharfbuzz` requirement, so text would otherwise fail silently). Both are installed automatically at package install. To install or verify them manually:
+
+> ```bash
+> npx kino setup ffmpeg
+> ```
 
 > **Note:** Text elements use **Inter Regular** by default (bundled in the package). For custom fonts, set `fontFile` on the element.
 

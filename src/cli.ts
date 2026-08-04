@@ -1,13 +1,52 @@
 #!/usr/bin/env node
 
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, compile } from "./render.js";
 import { startStudio } from "../studio/server.js";
 import type { KinoComposition } from "./types.js";
 
+async function setupBrowser(): Promise<void> {
+  const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const script = resolve(moduleDir, "../scripts/install-browser.mjs");
+  console.log("[kino] Setting up Chrome for HTML elements...");
+  const result = spawnSync(process.execPath, [script], { stdio: "inherit", timeout: 600000 });
+  if (result.status !== 0) {
+    console.error("[kino] Browser setup failed. See the errors above.");
+    process.exit(1);
+  }
+  console.log("[kino] HTML elements are ready to render.");
+}
+
+async function setupFFmpeg(): Promise<void> {
+  const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const script = resolve(moduleDir, "../scripts/install-ffmpeg.mjs");
+  console.log("[kino] Setting up ffmpeg...");
+  const result = spawnSync(process.execPath, [script], { stdio: "inherit", timeout: 900000 });
+  if (result.status !== 0) {
+    console.error("[kino] ffmpeg setup failed. See the errors above.");
+    process.exit(1);
+  }
+  console.log("[kino] ffmpeg is ready.");
+}
+
 async function main() {
   const args = process.argv.slice(2);
+
+  if (args[0] === "setup") {
+    const target = args[1] ?? "browser";
+    if (target === "browser") {
+      await setupBrowser();
+    } else if (target === "ffmpeg") {
+      await setupFFmpeg();
+    } else {
+      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg]`);
+      process.exit(1);
+    }
+    return;
+  }
 
   if (args.includes("studio")) {
     let port = 3333;
@@ -27,9 +66,12 @@ async function main() {
     npx kino <file> [options]
     npx kino render <file> [options]
     npx kino studio [--port <number>]
+    npx kino setup [browser|ffmpeg]
 
   Commands:
     studio                 Launch Kino Studio web editor & preview server
+    setup [browser]        Download Chrome for HTML elements (no-op if already installed; also happens automatically on first HTML render)
+    setup ffmpeg           Install/verify the bundled ffmpeg (downloads the drawtext-enabled Linux build; verifies ffmpeg-static elsewhere)
     render <file>          Render composition to video file
 
   File formats:
@@ -41,7 +83,7 @@ async function main() {
     -e, --encoder <name>   Video encoder (libx264, h264_nvenc, hevc_nvenc, h264_qsv, h264_amf, h264_videotoolbox, auto)
     --preset <name>        Encoder preset (auto-detected when unset; e.g. NVENC p1-p7, x264 veryfast/slow, AMF speed/balanced/quality)
     --ffmpeg-path <path>   Use a specific ffmpeg binary instead of the bundled one
-    --browser-path <path>  Use a specific Chromium/Chrome executable for HTML elements
+    --browser-path <path>  Use a specific Chromium/Chrome executable for HTML elements (disables automatic browser download)
     --gpu                  Enable GPU hardware acceleration (alias for --encoder auto with CPU fallback)
     -p, --port <number>    Port for studio server (default: 3333)
     --dry-run              Compile to a portable .kino artifact and print the FFmpeg command without rendering (remote assets are downloaded at compile time)

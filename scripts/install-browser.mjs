@@ -1,16 +1,72 @@
-import { execFileSync } from "node:child_process";
+#!/usr/bin/env node
+// Installs Chrome (via @puppeteer/browsers) into the shared puppeteer cache
+// (~/.cache/puppeteer). Idempotent: no-op when the current stable build is
+// already present. Called by `npx kino setup` and lazily by HTML rendering.
+//
+// Modes:
+//   (no args)     user-facing setup; prints progress + result to stdout
+//   --print-path  prints ONLY the resolved Chrome executable path to stdout
+//                 (no other output) so scripts can capture it programmatically
+
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import {
+  Browser,
+  computeExecutablePath,
+  detectBrowserPlatform,
+  install,
+  resolveBuildId,
+} from "@puppeteer/browsers";
 
-const cli = resolve("node_modules/puppeteer/lib/esm/puppeteer/node/cli.js");
-if (!existsSync(cli)) process.exit(0);
+const CACHE_DIR = join(homedir(), ".cache", "puppeteer");
+const printPath = process.argv.includes("--print-path");
 
-try {
-  execFileSync(process.execPath, [cli, "browsers", "install", "chrome@stable"], {
-    stdio: "inherit",
-    timeout: 300000,
-  });
-} catch (error) {
-  console.warn("[kino] Chromium download failed. Install Chrome manually or use --browser-path.");
-  console.warn("[kino] HTML elements will require a browser executable at render time.");
+function log(message) {
+  if (!printPath) console.log(message);
 }
+
+async function main() {
+  const platform = detectBrowserPlatform();
+  if (!platform) {
+    throw new Error("Unsupported platform for Chrome download.");
+  }
+
+  log("[kino] Locating Chrome for HTML rendering...");
+  const buildId = await resolveBuildId(Browser.CHROME, platform, "stable");
+
+  let executablePath;
+  try {
+    executablePath = computeExecutablePath({
+      browser: Browser.CHROME,
+      buildId,
+      cacheDir: CACHE_DIR,
+    });
+    if (!existsSync(executablePath)) executablePath = undefined;
+  } catch {
+    executablePath = undefined;
+  }
+
+  if (!executablePath) {
+    log("[kino] Chrome not found in browser cache. Downloading (one-time)...");
+    const installed = await install({
+      browser: Browser.CHROME,
+      buildId,
+      cacheDir: CACHE_DIR,
+      downloadProgressCallback: "default",
+    });
+    executablePath = installed.executablePath;
+    log(`[kino] Chrome installed to ${executablePath}`);
+  } else {
+    log(`[kino] Chrome already installed at ${executablePath}`);
+  }
+
+  if (printPath) {
+    process.stdout.write(executablePath);
+  }
+}
+
+main().catch((error) => {
+  console.error(`[kino] Browser setup failed: ${error.message}`);
+  process.exit(1);
+});

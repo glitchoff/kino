@@ -68,13 +68,13 @@ async function render(
 - `output: string` — Output video file path (e.g., `./out.mp4`).
 - `encoder?: VideoEncoder` — Target video encoder (`"libx264"`, `"h264_nvenc"`, `"hevc_nvenc"`, `"h264_qsv"`, `"h264_amf"`, `"h264_videotoolbox"`, or `"auto"`). Defaults to `"auto"`. With `"auto"`, Kino probes the host's ffmpeg binary and hardware (NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux) and picks the first GPU encoder that actually works, falling back to `"libx264"` if none does.
 - `preset?: string` — Encoder speed/quality preset. Presets are validated per encoder: NVENC accepts `p1`–`p7` (defaults to `"p2"` when unset or when given an x264-only name like `"veryfast"`), AMF maps to `"speed"`/`"balanced"`/`"quality"` (default `"speed"`), QSV and `libx264` accept x264-style presets (`"veryfast"`, `"ultrafast"`, `"medium"`, `"slow"`, …; default `"veryfast"`), VideoToolbox ignores it.
-- `ffmpegPath?: string` — Custom path to `ffmpeg` binary. Defaults to system `ffmpeg` or bundled `ffmpeg-static`.
+- `ffmpegPath?: string` — Custom path to `ffmpeg` binary. Defaults to system `ffmpeg`, the bundled drawtext-enabled Linux build, or bundled `ffmpeg-static`. Run `npx kino setup ffmpeg` to install or verify the bundled binary manually.
 - `verbose?: boolean` — Set to `true` to log FFmpeg command and stream output.
 - `kinoPath?: string` — Where `compile()` writes the `.kino` artifact. Defaults to `<output>.kino`.
 - `unsafeInlineText?: boolean` — **Dangerous.** When set, text is passed to drawtext inline via the `text=` option instead of a `textfile`, bypassing the `.kino` text mechanism. Text containing apostrophes (or other special characters) may render blank on some platforms with no error. Only use if you cannot write temp files. `render()` prints a warning when enabled.
 - `browserPath?: string` — Custom Chrome/Chromium executable path for `HtmlElement` compilation. If omitted, Puppeteer uses its bundled browser or automatically installs Chrome when needed.
 
-Puppeteer is an optional capability in practice: it is only invoked when the composition contains an `HtmlElement`. Its package install script downloads Chromium. Package managers that block install scripts, such as pnpm without approval, require `pnpm approve-builds` followed by approval of `puppeteer`.
+Puppeteer (via `puppeteer-core`) is an optional capability in practice: it is only invoked when the composition contains an `HtmlElement`, and **no browser is downloaded at install time**. The first time such a composition is compiled, Kino downloads Chrome into the shared cache (`~/.cache/puppeteer`) automatically; run `npx kino setup` (or `npx kino setup browser`) to pre-install it ahead of time. Passing `browserPath` uses the given executable directly and disables the automatic download.
 
 After compilation, an `HtmlElement` is an image asset inside the `.kino` archive. Its `startAt` and `duration` are evaluated by FFmpeg during rendering, so the archived artifact remains portable and offline. Position and scale animations work on the generated image layer; opacity animation is currently not supported reliably for HTML layers.
 

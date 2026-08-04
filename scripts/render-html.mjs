@@ -2,18 +2,19 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
-import puppeteer from "puppeteer";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import puppeteer from "puppeteer-core";
+import { Browser, getInstalledBrowsers } from "@puppeteer/browsers";
 
 const inputs = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const outputDir = process.argv[3];
 const browserPath = process.argv[4] || undefined;
 
-let browser;
-try {
-  browser = await puppeteer.launch({ headless: true, executablePath: browserPath });
-} catch (firstError) {
-  if (browserPath) throw firstError;
-  const systemBrowsers = process.platform === "win32"
+const cacheDir = join(homedir(), ".cache", "puppeteer");
+
+function findSystemBrowser() {
+  const candidates = process.platform === "win32"
     ? [
         process.env.LOCALAPPDATA && `${process.env.LOCALAPPDATA}/Google/Chrome/Application/chrome.exe`,
         process.env.PROGRAMFILES && `${process.env.PROGRAMFILES}/Google/Chrome/Application/chrome.exe`,
@@ -21,19 +22,62 @@ try {
         process.env.LOCALAPPDATA && `${process.env.LOCALAPPDATA}/Microsoft/Edge/Application/msedge.exe`,
       ]
     : [];
-  const systemBrowser = systemBrowsers.find((candidate) => candidate && existsSync(candidate));
-  if (systemBrowser) {
-    browser = await puppeteer.launch({ headless: true, executablePath: systemBrowser });
-  }
-  if (browser) {
-    // Continue with the detected system browser.
-  } else {
-  const puppeteerCli = fileURLToPath(new URL("../node_modules/puppeteer/lib/esm/puppeteer/node/cli.js", import.meta.url));
-  const installedPath = execFileSync(process.execPath, [puppeteerCli, "browsers", "install", "chrome@latest", "--format", "{{path}}"], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], timeout: 300000 }).trim().split(/\r?\n/).pop();
-  if (!installedPath) throw firstError;
-  browser = await puppeteer.launch({ headless: true, executablePath: installedPath });
-  }
+  return candidates.find((candidate) => candidate && existsSync(candidate)) || undefined;
 }
+
+async function resolveExecutablePath() {
+  // 1. Explicit --browser-path: always used as-is, never downloaded.
+  if (browserPath) return browserPath;
+
+  // 2. Shared puppeteer cache (offline): reuse the newest installed Chrome.
+  try {
+    const installed = await getInstalledBrowsers({ cacheDir });
+    const chrome = installed
+      .filter((b) => b.browser === Browser.CHROME)
+      .sort((a, b) => b.buildId.localeCompare(a.buildId, undefined, { numeric: true }))[0];
+    if (chrome && existsSync(chrome.executablePath)) return chrome.executablePath;
+  } catch {
+    // fall through to system browser detection
+  }
+
+  // 3. System Chrome/Edge.
+  const systemBrowser = findSystemBrowser();
+  if (systemBrowser) return systemBrowser;
+
+  // 4. Lazy one-time download (same installer as `npx kino setup`).
+  const setupScript = fileURLToPath(new URL("./install-browser.mjs", import.meta.url));
+  const installedPath = execFileSync(process.execPath, [setupScript, "--print-path"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+    timeout: 600000,
+  })
+    .trim()
+    .split(/\r?\n/)
+    .pop();
+  if (!installedPath || !existsSync(installedPath)) {
+    throw new Error("Chrome setup finished without a usable executable path.");
+  }
+  return installedPath;
+}
+
+let executablePath;
+try {
+  executablePath = await resolveExecutablePath();
+} catch (err) {
+  throw new Error(
+    `No browser executable available for HTML elements. Run \`npx kino setup\` to download Chrome, or pass --browser-path. (${err.message})`
+  );
+}
+
+let browser;
+try {
+  browser = await puppeteer.launch({ headless: true, executablePath });
+} catch (err) {
+  throw new Error(
+    `Failed to launch browser at ${executablePath}. Run \`npx kino setup\` or pass a valid --browser-path. (${err.message})`
+  );
+}
+
 try {
   const results = [];
   const batchSize = 4;
