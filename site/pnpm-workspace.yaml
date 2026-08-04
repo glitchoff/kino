@@ -1,0 +1,4 @@
+# Isolated workspace: site/ installs only its own deps, independent of the
+# root kino package. pnpm resolves the nearest pnpm-workspace.yaml upward,
+# so this excludes us from the root workspace.
+packages: ["."]

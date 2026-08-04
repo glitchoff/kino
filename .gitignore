@@ -296,5 +296,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Cloudflare site/ (Docs/landing Worker) artifacts
+**/.wrangler/
+.dev.vars
+wrangler.local.toml
 out.kino
 *.kino

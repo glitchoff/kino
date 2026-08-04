@@ -62,6 +62,26 @@ npx kino setup                     # pre-download Chrome for html elements
 - [API Reference](./docs/api-reference.md)
 - [Kino Studio Guide](./docs/studio.md)
 
+## Docs site
+
+The documentation is also published as a static landing page, served from a separate Cloudflare Worker deployed from the `site/` folder (isolated from this package's build and npm publish).
+
+```bash
+cd site
+pnpm install     # one-time setup (isolated workspace)
+pnpm dev         # local preview at http://localhost:5173
+pnpm build       # produce ./site/dist
+pnpm deploy      # publish to the kino-site Worker (requires `wrangler`)
+```
+
+To wire it up for the first time in Cloudflare: create a Worker (`kino-site`) in the dashboard, then **Settings → Builds → Connect** your GitHub repo and set:
+
+- **Root directory:** `site`
+- **Build command:** `pnpm build`
+- **Deploy command:** leave default (`npx wrangler deploy`)
+
+The Worker name here must match the `name` field in `site/wrangler.jsonc`, and `site/` ships under its own `pnpm-lock.yaml` so it never pulls the library's dependencies.
+
 ## License
 
 MIT
