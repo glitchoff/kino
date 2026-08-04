@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Navbar } from "./components/Navbar";
 import { EditorPanel } from "./components/EditorPanel";
+import { Dock } from "./components/Dock";
 import { RenderControls } from "./components/RenderControls";
 import { VideoPreview } from "./components/VideoPreview";
 import { useStudioStore } from "./store/useStudioStore";
@@ -38,6 +39,7 @@ export const App: React.FC = () => {
           <VideoPreview />
         </section>
       </main>
+      <Dock />
     </div>
   );
 };

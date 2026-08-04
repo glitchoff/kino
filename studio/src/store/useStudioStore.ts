@@ -41,7 +41,7 @@ interface StudioState {
   composition: KinoComposition | null;
   syntaxError: string | null;
   validationIssues: ValidationIssue[];
-  activeTab: "code" | "validation";
+  activeTab: "code" | "validation" | "video";
   encoder: string;
   preset: string;
   isRendering: boolean;
@@ -54,7 +54,7 @@ interface StudioState {
 
   // Actions
   setJsonText: (text: string) => void;
-  setActiveTab: (tab: "code" | "validation") => void;
+  setActiveTab: (tab: "code" | "validation" | "video") => void;
   setEncoder: (encoder: string) => void;
   setPreset: (preset: string) => void;
   loadExample: (key: string) => void;

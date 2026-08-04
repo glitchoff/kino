@@ -1,8 +1,10 @@
 import React from "react";
-import { Code2, ShieldAlert, AlignLeft } from "lucide-react";
+import { Code2, ShieldAlert, AlignLeft, Video } from "lucide-react";
 import { useStudioStore } from "../store/useStudioStore";
 import { MonacoEditorComponent } from "./MonacoEditor";
 import { ValidationTab } from "./ValidationTab";
+import { VideoPreview } from "./VideoPreview";
+import { RenderControls } from "./RenderControls";
 
 export const EditorPanel: React.FC = () => {
   const {
@@ -48,23 +50,34 @@ export const EditorPanel: React.FC = () => {
               {issueCount}
             </span>
           </button>
+          <button
+            className={`panel-tab ${activeTab === "video" ? "active" : ""}`}
+            onClick={() => setActiveTab("video")}
+          >
+            <Video className="tab-icon" />
+            <span>Video</span>
+          </button>
         </div>
         <div className="panel-header-right">
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={formatJson}
-            title="Pretty-print the JSON (Ctrl/Cmd+Shift+F)"
-          >
-            <AlignLeft className="btn-sm-icon" /> Format
-          </button>
-          <span
-            className={statusClass}
-            style={{ cursor: "pointer" }}
-            onClick={() => setActiveTab("validation")}
-            title="Click to view validation issues"
-          >
-            {statusText}
-          </span>
+          {activeTab !== "video" && (
+            <>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={formatJson}
+                title="Pretty-print the JSON (Ctrl/Cmd+Shift+F)"
+              >
+                <AlignLeft className="btn-sm-icon" /> Format
+              </button>
+              <span
+                className={statusClass}
+                style={{ cursor: "pointer" }}
+                onClick={() => setActiveTab("validation")}
+                title="Click to view validation issues"
+              >
+                {statusText}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -72,9 +85,14 @@ export const EditorPanel: React.FC = () => {
         <div className="tab-view active">
           <MonacoEditorComponent />
         </div>
-      ) : (
+      ) : activeTab === "validation" ? (
         <div className="tab-view active">
           <ValidationTab />
+        </div>
+      ) : (
+        <div className="tab-view active video-tab-view">
+          <RenderControls />
+          <VideoPreview />
         </div>
       )}
     </section>

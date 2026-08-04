@@ -31,7 +31,7 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "studio": "tsx watch studio/server.ts",
+    "studio": "vite build studio && tsx watch studio/server.ts",
     "studio:dev": "vite studio",
     "studio:build": "vite build studio",
     "postinstall": "node scripts/install-ffmpeg.mjs && node scripts/install-browser.mjs"
