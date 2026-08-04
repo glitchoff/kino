@@ -47,6 +47,8 @@ The browser is needed only while compiling HTML into the `.kino` artifact. Once 
 > ```
 
 > **Note:** Text elements use **Inter Regular** by default (bundled in the package). For custom fonts, set `fontFile` on the element.
+>
+> > **Linux / Docker / container environments:** If `npm install` fails with `EXDEV: cross-device link` during the FFmpeg postinstall step, `/tmp` (tmpfs) and the project directory are on different filesystems. Workaround: `TMPDIR=/path/to/project/.tmp npm install` (ensure the TMPDIR path is on the same filesystem as the project). The bundled FFmpeg binary will be extracted to `node_modules/@glitchoff/kino/vendor/linux/<arch>/ffmpeg`.
 
 ---
 

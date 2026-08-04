@@ -23,13 +23,13 @@
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
+  copyFileSync,
   createReadStream,
   createWriteStream,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
-  renameSync,
   rmSync,
   statSync,
 } from "node:fs";
@@ -191,7 +191,8 @@ async function installLinux() {
       fail("no ffmpeg binary found inside the archive");
     }
     rmSync(outBin, { force: true });
-    renameSync(binary, outBin);
+    copyFileSync(binary, outBin);
+    rmSync(binary, { force: true });
     chmodSync(outBin, 0o755);
 
     if (!verifyDrawtext(outBin)) {
