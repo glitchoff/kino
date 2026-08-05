@@ -675,11 +675,16 @@ export function validateComposition(comp: unknown): void {
                     }
 
                     if (channelVal.easing !== undefined) {
-                      const validEasings = ["linear", "easeIn", "easeOut", "easeInOut"];
+                      const validEasings = [
+                        "linear", "easeIn", "easeOut", "easeInOut",
+                        "easeInSine", "easeOutSine", "easeInOutSine",
+                        "easeInExpo", "easeOutExpo", "easeInOutExpo",
+                        "easeInCirc", "easeOutCirc", "easeInOutCirc",
+                      ];
                       if (typeof channelVal.easing !== "string" || !validEasings.includes(channelVal.easing)) {
                         issues.push({
                           path: `${chPath}.easing`,
-                          message: `Expected "linear", "easeIn", "easeOut", or "easeInOut", received ${JSON.stringify(channelVal.easing)}`,
+                          message: `Expected one of: ${validEasings.join(", ")}, received ${JSON.stringify(channelVal.easing)}`,
                         });
                       }
                     }

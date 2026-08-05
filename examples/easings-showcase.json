@@ -1,0 +1,398 @@
+{
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "scenes": [
+    {
+      "id": "easing-race",
+      "duration": 7,
+      "background": "#0f172a",
+      "elements": [
+        {
+          "type": "text",
+          "content": "EASING CURVES — 940 PIXELS, 13 WAYS",
+          "fontSize": 36,
+          "fontColor": "#e2e8f0",
+          "x": "center",
+          "y": 44,
+          "startAt": 0,
+          "duration": 7,
+          "animation": {
+            "opacity": { "from": 0, "to": 1, "duration": 0.8, "easing": "easeInOutSine" },
+            "scale": { "from": 1.2, "to": 1, "duration": 1, "easing": "easeInOutSine" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "linear",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 120,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-gray.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 112,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "linear" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeIn",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 162,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-blue.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 154,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeIn" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeOut",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 204,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-blue.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 196,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeOut" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeInOut",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 246,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-blue.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 238,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeInOut" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeInSine",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 288,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-green.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 280,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeInSine" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeOutSine",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 330,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-green.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 322,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeOutSine" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeInOutSine",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 372,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-green.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 364,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeInOutSine" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeInExpo",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 414,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-amber.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 406,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeInExpo" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeOutExpo",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 456,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-amber.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 448,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeOutExpo" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeInOutExpo",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 498,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-amber.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 490,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeInOutExpo" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeInCirc",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 540,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-pink.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 532,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeInCirc" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeOutCirc",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 582,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-pink.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 574,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeOutCirc" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeInOutCirc",
+          "fontSize": 20,
+          "fontColor": "#94a3b8",
+          "x": 40,
+          "y": 624,
+          "startAt": 0.4,
+          "duration": 6
+        },
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-pink.png",
+          "width": 28,
+          "height": 28,
+          "x": 210,
+          "y": 616,
+          "startAt": 0.4,
+          "duration": 6,
+          "animation": {
+            "x": { "from": 0, "to": 940, "duration": 3, "easing": "easeInOutCirc" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "entrance-showcase",
+      "duration": 9,
+      "transition": { "type": "fade", "duration": 0.8 },
+      "background": {
+        "type": "gradient",
+        "from": "#1e293b",
+        "to": "#0f172a"
+      },
+      "elements": [
+        {
+          "type": "image",
+          "src": "./examples/assets/dot-white.png",
+          "width": 96,
+          "height": 96,
+          "x": "center",
+          "y": "center",
+          "offsetY": -190,
+          "startAt": 0.3,
+          "duration": 8,
+          "animation": {
+            "opacity": { "from": 0, "to": 1, "duration": 0.4, "easing": "easeOut" },
+            "scale": { "from": 0, "to": 1, "duration": 1.2, "delay": 0.1, "easing": "easeOutCirc" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "Easing = Motion Character",
+          "fontSize": 64,
+          "fontColor": "#f1f5f9",
+          "x": "center",
+          "y": "center",
+          "offsetY": -40,
+          "startAt": 0.4,
+          "duration": 8,
+          "animation": {
+            "opacity": { "from": 0, "to": 1, "duration": 0.8, "easing": "easeOut" },
+            "y": { "from": -140, "to": 0, "duration": 2.2, "delay": 0.2, "easing": "easeOutExpo" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "Penner curves compiled straight into FFmpeg expressions",
+          "fontSize": 30,
+          "fontColor": "#94a3b8",
+          "x": "center",
+          "y": "center",
+          "offsetY": 70,
+          "startAt": 1.4,
+          "duration": 7,
+          "animation": {
+            "opacity": { "from": 0, "to": 1, "duration": 0.6, "easing": "easeOut" },
+            "x": { "from": 180, "to": 0, "duration": 1.4, "delay": 0.3, "easing": "easeOutSine" }
+          }
+        },
+        {
+          "type": "text",
+          "content": "easeOutExpo  ·  easeOutCirc  ·  easeOutSine",
+          "fontSize": 22,
+          "fontColor": "#64748b",
+          "x": "center",
+          "y": "center",
+          "offsetY": 150,
+          "startAt": 2.4,
+          "duration": 6,
+          "animation": {
+            "opacity": { "from": 0, "to": 1, "duration": 1, "easing": "easeInOutSine" }
+          }
+        }
+      ]
+    }
+  ]
+}

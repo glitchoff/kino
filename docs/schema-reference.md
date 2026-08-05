@@ -333,9 +333,29 @@ Every `TextElement`, `ImageElement`, and `VideoElement` may define an `animation
 | `to` | `number` | **required** | Ending value. |
 | `duration` | `number` | **required** | Duration of the transition in seconds. |
 | `delay` | `number` | `0` | Delay in seconds before the animation begins (per channel). |
-| `easing` | `Easing` | `"linear"` | Timing curve: `"linear"`, `"easeIn"`, `"easeOut"`, or `"easeInOut"`. |
+  | `easing` | `Easing` | `"linear"` | Timing curve. See **Easing Reference** below. |
+  
+### Easing Reference (`Easing`)
 
-`Easing` curves: `linear` = `p`, `easeIn` = `p³`, `easeOut` = `1-(1-p)³`, `easeInOut` = `3p²-2p³`.
+Kino supports 13 easing curves grouped into families:
+
+| Family | `easing` value | Curve formula | Description |
+| :--- | :--- | :--- | :--- |
+| **Linear** | `linear` | `p` | Constant rate of change. |
+| **Cubic** | `easeIn` | `p³` | Slow start, accelerating. |
+| | `easeOut` | `1-(1-p)³` | Fast start, decelerating. |
+| | `easeInOut` | `3p²-2p³` | Slow start and end, fast middle. |
+| **Sine** | `easeInSine` | `1-cos(p·π/2)` | Sinusoidal ease-in. |
+| | `easeOutSine` | `sin(p·π/2)` | Sinusoidal ease-out. |
+| | `easeInOutSine` | `(1-cos(p·π))/2` | Sinusoidal ease-in-out. |
+| **Expo** | `easeInExpo` | `2^(10p-10)` | Exponential ease-in. |
+| | `easeOutExpo` | `1-2^(-10p)` | Exponential ease-out. |
+| | `easeInOutExpo` | (piecewise) | Exponential ease-in-out. |
+| **Circ** | `easeInCirc` | `1-√(1-p²)` | Circular arc ease-in. |
+| | `easeOutCirc` | `√(1-(p-1)²)` | Circular arc ease-out. |
+| | `easeInOutCirc` | (piecewise) | Circular arc ease-in-out. |
+
+The formulas above use `p` as the normalized progress (0→1) within the animation window.
 
 ### Behavior
 

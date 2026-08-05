@@ -125,7 +125,20 @@ export interface VideoElement extends BaseElement {
 
 export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement;
 
-export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut";
+export type Easing =
+  | "linear"
+  | "easeIn"
+  | "easeOut"
+  | "easeInOut"
+  | "easeInSine"
+  | "easeOutSine"
+  | "easeInOutSine"
+  | "easeInExpo"
+  | "easeOutExpo"
+  | "easeInOutExpo"
+  | "easeInCirc"
+  | "easeOutCirc"
+  | "easeInOutCirc";
 
 export interface AnimationValue {
   from: number;
