@@ -5,7 +5,7 @@ import type {
   ImageElement,
   TextElement,
   VideoElement,
-} from "./types.js";
+} from "../types/index.js";
 
 export function easingExpression(easing: Easing | undefined, p: string): string {
   switch (easing ?? "linear") {

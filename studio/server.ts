@@ -5,7 +5,7 @@ import { resolve, join, dirname } from "node:path";
 import { mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { render, normalizeComposition, KinoValidationError } from "../src/index.js";
-import type { KinoComposition } from "../src/types.js";
+import type { KinoComposition } from "../src/types/index.js";
 
 const app = new Hono();
 

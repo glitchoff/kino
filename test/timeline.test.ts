@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, test, expect } from "vitest";
-import { validateComposition, KinoValidationError } from "../src/validate.js";
-import { normalizeComposition } from "../src/normalize.js";
-import { compile } from "../src/render.js";
-import type { KinoComposition, TextElement, ImageElement, VideoElement } from "../src/types.js";
+import { validateComposition, KinoValidationError } from "../src/validate/index.js";
+import { normalizeComposition } from "../src/normalize/index.js";
+import { compile } from "../src/pipeline/index.js";
+import type { KinoComposition, TextElement, ImageElement, VideoElement } from "../src/types/index.js";
 
 describe("Kino Timeline Simplification + Scene Transitions", () => {
   describe("Validation", () => {

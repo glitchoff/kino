@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ffmpegStatic from "ffmpeg-static";
-import type { KinoComposition } from "./types.js";
+import type { KinoComposition } from "../types/index.js";
 
 const VENDORED_FFMPEG_BIN = resolveVendoredFFmpeg();
 
@@ -13,7 +13,7 @@ function resolveVendoredFFmpeg(): string | undefined {
   }
   const currentDir =
     typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
-  const path = join(currentDir, "..", "vendor", "linux", process.arch, "ffmpeg");
+  const path = join(currentDir, "..", "..", "vendor", "linux", process.arch, "ffmpeg");
   return existsSync(path) ? path : undefined;
 }
 
@@ -66,9 +66,7 @@ function getFFmpegFilters(ffmpegBin: string): Promise<string | null> {
   return new Promise((resolve) => {
     const proc = spawn(ffmpegBin, ["-filters"], { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
-    proc.stdout?.on("data", (chunk) => {
-      output += chunk.toString();
-    });
+    proc.stdout?.on("data", (chunk) => { output += chunk.toString(); });
     proc.on("error", () => resolve(null));
     proc.on("close", (code) => resolve(code === 0 ? output : null));
   });
@@ -98,19 +96,10 @@ export function getAvailableEncoders(ffmpegBin: string): Promise<string[] | null
   return new Promise((resolve) => {
     const proc = spawn(ffmpegBin, ["-hide_banner", "-encoders"], { stdio: ["ignore", "pipe", "ignore"] });
     let output = "";
-    proc.stdout?.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    proc.on("error", () => {
-      encoderListCache[ffmpegBin] = null;
-      resolve(null);
-    });
+    proc.stdout?.on("data", (chunk) => { output += chunk.toString(); });
+    proc.on("error", () => { encoderListCache[ffmpegBin] = null; resolve(null); });
     proc.on("close", (code) => {
-      if (code !== 0) {
-        encoderListCache[ffmpegBin] = null;
-        resolve(null);
-        return;
-      }
+      if (code !== 0) { encoderListCache[ffmpegBin] = null; resolve(null); return; }
       const encoders = new Set<string>();
       for (const line of output.split("\n")) {
         const match = line.match(/^\s*\S{6}\s+([a-zA-Z0-9_]+)\b/);
@@ -126,41 +115,16 @@ export function getAvailableEncoders(ffmpegBin: string): Promise<string[] | null
 
 export function probeGpuEncoder(ffmpegBin: string, encoder: string): Promise<boolean> {
   const key = `${ffmpegBin}:${encoder}`;
-  if (encoderProbeCache[key] !== undefined) {
-    return Promise.resolve(encoderProbeCache[key]);
-  }
+  if (encoderProbeCache[key] !== undefined) return Promise.resolve(encoderProbeCache[key]);
   return new Promise((resolve) => {
-    const proc = spawn(
-      ffmpegBin,
-      [
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-f",
-        "lavfi",
-        "-i",
-        "color=c=black:s=320x240:r=30:d=1",
-        "-frames:v",
-        "1",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:v",
-        encoder,
-        "-f",
-        "null",
-        "-",
-      ],
-      { stdio: ["ignore", "ignore", "pipe"] }
-    );
+    const proc = spawn(ffmpegBin, [
+      "-hide_banner", "-loglevel", "error",
+      "-f", "lavfi", "-i", "color=c=black:s=320x240:r=30:d=1",
+      "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", encoder, "-f", "null", "-",
+    ], { stdio: ["ignore", "ignore", "pipe"] });
     proc.stderr?.on("data", () => {});
-    proc.on("error", () => {
-      encoderProbeCache[key] = false;
-      resolve(false);
-    });
-    proc.on("close", (code) => {
-      encoderProbeCache[key] = code === 0;
-      resolve(code === 0);
-    });
+    proc.on("error", () => { encoderProbeCache[key] = false; resolve(false); });
+    proc.on("close", (code) => { encoderProbeCache[key] = code === 0; resolve(code === 0); });
   });
 }
 
@@ -181,18 +145,11 @@ export async function detectBestEncoder(ffmpegBin: string): Promise<string> {
 }
 
 export function getAvailableEncodersSync(ffmpegBin: string): string[] | null {
-  if (encoderListCache[ffmpegBin] !== undefined) {
-    return encoderListCache[ffmpegBin];
-  }
+  if (encoderListCache[ffmpegBin] !== undefined) return encoderListCache[ffmpegBin];
   const res = spawnSync(ffmpegBin, ["-hide_banner", "-encoders"], {
-    encoding: "utf-8",
-    timeout: 30000,
-    stdio: ["ignore", "pipe", "ignore"],
+    encoding: "utf-8", timeout: 30000, stdio: ["ignore", "pipe", "ignore"],
   });
-  if (res.error || res.status !== 0) {
-    encoderListCache[ffmpegBin] = null;
-    return null;
-  }
+  if (res.error || res.status !== 0) { encoderListCache[ffmpegBin] = null; return null; }
   const encoders = new Set<string>();
   for (const line of res.stdout.split("\n")) {
     const match = line.match(/^\s*\S{6}\s+([a-zA-Z0-9_]+)\b/);
@@ -206,31 +163,12 @@ export function getAvailableEncodersSync(ffmpegBin: string): string[] | null {
 
 export function probeGpuEncoderSync(ffmpegBin: string, encoder: string): boolean {
   const key = `${ffmpegBin}:${encoder}`;
-  if (encoderProbeCache[key] !== undefined) {
-    return encoderProbeCache[key];
-  }
-  const res = spawnSync(
-    ffmpegBin,
-    [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-f",
-      "lavfi",
-      "-i",
-      "color=c=black:s=320x240:r=30:d=1",
-      "-frames:v",
-      "1",
-      "-pix_fmt",
-      "yuv420p",
-      "-c:v",
-      encoder,
-      "-f",
-      "null",
-      "-",
-    ],
-    { timeout: 30000, stdio: ["ignore", "ignore", "pipe"] }
-  );
+  if (encoderProbeCache[key] !== undefined) return encoderProbeCache[key];
+  const res = spawnSync(ffmpegBin, [
+    "-hide_banner", "-loglevel", "error",
+    "-f", "lavfi", "-i", "color=c=black:s=320x240:r=30:d=1",
+    "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", encoder, "-f", "null", "-",
+  ], { timeout: 30000, stdio: ["ignore", "ignore", "pipe"] });
   const ok = res.status === 0 && !res.error;
   encoderProbeCache[key] = ok;
   return ok;

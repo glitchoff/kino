@@ -1,11 +1,11 @@
-export { render, compile } from "./render.js";
+export { render, compile } from "./pipeline/index.js";
 export {
   normalizeComposition,
   normalizeBackground,
   normalizeElement,
-} from "./normalize.js";
-export { validateComposition, KinoValidationError } from "./validate.js";
-export type { ValidationIssue } from "./validate.js";
+} from "./normalize/index.js";
+export { validateComposition, KinoValidationError } from "./validate/index.js";
+export type { ValidationIssue } from "./validate/index.js";
 export type {
   KinoComposition,
   NormalizedComposition,
@@ -25,4 +25,4 @@ export type {
   ElementAnimation,
   MediaFit,
   ObjectFit,
-} from "./types.js";
+} from "./types/index.js";

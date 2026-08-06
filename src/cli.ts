@@ -4,9 +4,9 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { render, compile } from "./render.js";
+import { render, compile } from "./pipeline/index.js";
 import { startStudio } from "../studio/server.js";
-import type { KinoComposition } from "./types.js";
+import type { KinoComposition } from "./types/index.js";
 
 async function setupBrowser(): Promise<void> {
   const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
@@ -146,8 +146,6 @@ async function main() {
   }
 
   try {
-    let composition: KinoComposition;
-
     if (isKinoFile) {
       console.log(`[kino] Rendering pre-compiled artifact ${inputPath} -> ${outputPath}...`);
       const result = await render(fullPath, {
@@ -164,7 +162,7 @@ async function main() {
     }
 
     const fileContent = readFileSync(fullPath, "utf-8");
-    composition = JSON.parse(fileContent) as KinoComposition;
+    const composition = JSON.parse(fileContent) as KinoComposition;
 
     if (isUnsafeInlineText) {
       console.warn(
@@ -173,7 +171,7 @@ async function main() {
     }
 
     if (isDryRun) {
-       const { args: ffmpegArgs, kinoFilePath } = compile(composition, {
+      const { args: ffmpegArgs, kinoFilePath } = compile(composition, {
         output: outputPath,
         encoder,
         preset,

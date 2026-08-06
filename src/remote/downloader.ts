@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import type { NormalizedComposition } from "./types.js";
+import type { NormalizedComposition } from "../types/index.js";
 
 export const KINO_VERSION = "0.11.1";
 

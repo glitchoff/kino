@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { ValidationIssue } from "../utils/monacoDiagnostics";
-import type { KinoComposition } from "../../../src/types";
+import type { KinoComposition } from "../../../src/types/index.js";
 
 const DEFAULT_COMPOSITION: KinoComposition = {
   width: 1080,
