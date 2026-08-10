@@ -1,10 +1,10 @@
-import type { ImageElement, VideoElement } from "../../types/index.js";
-import { buildAnimationExpressions } from "../../animation/index.js";
+import type { ImageElement, VideoElement, NormalizedImageElement, NormalizedVideoElement } from "../../types/index.js";
 import { formatBasePosition, escapeExpr } from "../position.js";
+import { parseDuration, parsePixels } from "../../normalize/unit-parser.js";
 
-export function buildMediaScaleFilter(elem: ImageElement | VideoElement): string {
-  const w = elem.width ?? -1;
-  const h = elem.height ?? -1;
+export function buildMediaScaleFilter(elem: ImageElement | VideoElement | NormalizedImageElement | NormalizedVideoElement | any): string {
+  const w = parsePixels(elem.width) ?? -1;
+  const h = parsePixels(elem.height) ?? -1;
   const fit = elem.fit;
 
   if (w > 0 && h > 0) {
@@ -18,17 +18,17 @@ export function buildMediaScaleFilter(elem: ImageElement | VideoElement): string
   return `scale=${w}:${h}`;
 }
 
-interface MediaLayerLike {
+export interface MediaLayerLike {
   x?: number | string;
   y?: number | string;
-  offsetX?: number;
-  offsetY?: number;
-  startAt?: number;
+  offsetX?: number | string;
+  offsetY?: number | string;
+  startAt?: number | string;
   startTime?: number;
-  duration?: number;
+  duration?: number | string;
 }
 
-interface MediaAnimation {
+export interface MediaAnimation {
   opacity?: string;
   tx?: string;
   ty?: string;
@@ -47,7 +47,8 @@ export function applyMediaOverlay(
 ): string {
   const outPad = `[v_layer_${elemIdx}]`;
   const inPad = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
-  const startVal = elem.startAt ?? 0;
+  const startVal = parseDuration(elem.startAt) ?? 0;
+  const itemDur = parseDuration(elem.duration);
 
   if (hasAnimation) {
     let transPad = startPad;
@@ -85,7 +86,7 @@ export function applyMediaOverlay(
     const hasTiming = elem.startAt !== undefined || elem.duration !== undefined;
     if (hasTiming) {
       const s = startVal;
-      const e = elem.duration !== undefined ? s + elem.duration : duration;
+      const e = itemDur !== undefined ? s + itemDur : duration;
       overlayFilter += `:enable='between(t\\,${s}\\,${e})'`;
     }
     filterComplex.push(`${inPad}${transPad}${overlayFilter}${outPad}`);
@@ -97,7 +98,7 @@ export function applyMediaOverlay(
     const hasTiming = elem.startAt !== undefined || elem.duration !== undefined;
     if (hasTiming) {
       const s = startVal;
-      const e = elem.duration !== undefined ? s + elem.duration : duration;
+      const e = itemDur !== undefined ? s + itemDur : duration;
       overlayFilter += `:enable='between(t\\,${s}\\,${e})'`;
     }
     filterComplex.push(`${inPad}${startPad}${overlayFilter}${outPad}`);

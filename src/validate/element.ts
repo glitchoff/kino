@@ -1,5 +1,12 @@
 import type { ValidationIssue } from "./error.js";
-import { isFiniteNumber, isNonEmptyString, isObject } from "./helpers.js";
+import {
+  isFlexibleFiniteNumber,
+  isFlexibleNonNegativeNumber,
+  isFlexiblePositiveNumber,
+  isNonEmptyString,
+  isObject,
+} from "./helpers.js";
+import { parseDuration, parsePixels, parseVolume } from "../normalize/unit-parser.js";
 
 const VALID_EASINGS = [
   "linear", "easeIn", "easeOut", "easeInOut",
@@ -24,37 +31,41 @@ function validateAnimation(
       continue;
     }
 
-    if (!isFiniteNumber(channelVal.duration) || channelVal.duration <= 0) {
-      issues.push({ path: `${chPath}.duration`, message: `Expected a positive number, received ${channelVal.duration}` });
+    if (!isFlexiblePositiveNumber(channelVal.duration)) {
+      issues.push({ path: `${chPath}.duration`, message: `Expected a positive number or valid duration, received ${channelVal.duration}` });
     }
-    if (channelVal.delay !== undefined && (!isFiniteNumber(channelVal.delay) || channelVal.delay < 0)) {
-      issues.push({ path: `${chPath}.delay`, message: `Expected a non-negative number, received ${channelVal.delay}` });
+    if (channelVal.delay !== undefined && !isFlexibleNonNegativeNumber(channelVal.delay)) {
+      issues.push({ path: `${chPath}.delay`, message: `Expected a non-negative number or valid duration, received ${channelVal.delay}` });
     }
     if (channelVal.easing !== undefined) {
       if (typeof channelVal.easing !== "string" || !VALID_EASINGS.includes(channelVal.easing as any)) {
         issues.push({ path: `${chPath}.easing`, message: `Expected one of: ${VALID_EASINGS.join(", ")}, received ${JSON.stringify(channelVal.easing)}` });
       }
     }
-    if (!isFiniteNumber(channelVal.from)) {
-      issues.push({ path: `${chPath}.from`, message: `Expected a finite number, received ${channelVal.from}` });
+    if (!isFlexibleFiniteNumber(channelVal.from)) {
+      issues.push({ path: `${chPath}.from`, message: `Expected a finite number or unit value, received ${channelVal.from}` });
     }
-    if (!isFiniteNumber(channelVal.to)) {
-      issues.push({ path: `${chPath}.to`, message: `Expected a finite number, received ${channelVal.to}` });
+    if (!isFlexibleFiniteNumber(channelVal.to)) {
+      issues.push({ path: `${chPath}.to`, message: `Expected a finite number or unit value, received ${channelVal.to}` });
     }
     if (ch === "opacity") {
-      if (isFiniteNumber(channelVal.from) && (channelVal.from < 0 || channelVal.from > 1)) {
-        issues.push({ path: `${chPath}.from`, message: `Expected value between 0 and 1, received ${channelVal.from}` });
+      const fromVal = parseVolume(channelVal.from as string | number | undefined);
+      const toVal = parseVolume(channelVal.to as string | number | undefined);
+      if (fromVal !== undefined && (fromVal < 0 || fromVal > 1)) {
+        issues.push({ path: `${chPath}.from`, message: `Expected value between 0 and 1 (or 0%-100%), received ${channelVal.from}` });
       }
-      if (isFiniteNumber(channelVal.to) && (channelVal.to < 0 || channelVal.to > 1)) {
-        issues.push({ path: `${chPath}.to`, message: `Expected value between 0 and 1, received ${channelVal.to}` });
+      if (toVal !== undefined && (toVal < 0 || toVal > 1)) {
+        issues.push({ path: `${chPath}.to`, message: `Expected value between 0 and 1 (or 0%-100%), received ${channelVal.to}` });
       }
     }
     if (ch === "scale") {
-      if (isFiniteNumber(channelVal.from) && channelVal.from < 0) {
-        issues.push({ path: `${chPath}.from`, message: `Expected a non-negative number, received ${channelVal.from}` });
+      const fromVal = parsePixels(channelVal.from as string | number | undefined);
+      const toVal = parsePixels(channelVal.to as string | number | undefined);
+      if (fromVal !== undefined && fromVal < 0) {
+        issues.push({ path: `${chPath}.from`, message: `Expected a non-negative scale, received ${channelVal.from}` });
       }
-      if (isFiniteNumber(channelVal.to) && channelVal.to < 0) {
-        issues.push({ path: `${chPath}.to`, message: `Expected a non-negative number, received ${channelVal.to}` });
+      if (toVal !== undefined && toVal < 0) {
+        issues.push({ path: `${chPath}.to`, message: `Expected a non-negative scale, received ${channelVal.to}` });
       }
     }
   }
@@ -64,8 +75,8 @@ const VALID_FITS = ["contain", "cover", "fill", "none"] as const;
 
 function validateMediaDimensions(elem: Record<string, unknown>, elemPath: string, issues: ValidationIssue[]): void {
   for (const key of ["width", "height"] as const) {
-    if (elem[key] !== undefined && (!isFiniteNumber(elem[key]) || (elem[key] as number) <= 0)) {
-      issues.push({ path: `${elemPath}.${key}`, message: `Expected a positive number, received ${elem[key]}` });
+    if (elem[key] !== undefined && !isFlexiblePositiveNumber(elem[key])) {
+      issues.push({ path: `${elemPath}.${key}`, message: `Expected a positive number or unit dimension, received ${elem[key]}` });
     }
   }
   if (elem.fit !== undefined && (typeof elem.fit !== "string" || !VALID_FITS.includes(elem.fit as any))) {
@@ -77,8 +88,8 @@ function validateTextElement(elem: Record<string, unknown>, elemPath: string, is
   if (elem.content !== undefined && typeof elem.content !== "string") {
     issues.push({ path: `${elemPath}.content`, message: `Expected a string, received ${typeof elem.content}` });
   }
-  if (elem.fontSize !== undefined && (!isFiniteNumber(elem.fontSize) || (elem.fontSize as number) <= 0)) {
-    issues.push({ path: `${elemPath}.fontSize`, message: `Expected a positive number, received ${elem.fontSize}` });
+  if (elem.fontSize !== undefined && !isFlexiblePositiveNumber(elem.fontSize)) {
+    issues.push({ path: `${elemPath}.fontSize`, message: `Expected a positive number or unit size, received ${elem.fontSize}` });
   }
   if (elem.fontColor !== undefined && !isNonEmptyString(elem.fontColor)) {
     issues.push({ path: `${elemPath}.fontColor`, message: "Expected a non-empty fontColor string" });
@@ -86,16 +97,16 @@ function validateTextElement(elem: Record<string, unknown>, elemPath: string, is
   if (elem.fontFile !== undefined && !isNonEmptyString(elem.fontFile)) {
     issues.push({ path: `${elemPath}.fontFile`, message: "Expected a non-empty fontFile path string" });
   }
-  if (elem.maxWidth !== undefined && (!isFiniteNumber(elem.maxWidth) || (elem.maxWidth as number) <= 0)) {
-    issues.push({ path: `${elemPath}.maxWidth`, message: `Expected a positive number, received ${elem.maxWidth}` });
+  if (elem.maxWidth !== undefined && !isFlexiblePositiveNumber(elem.maxWidth)) {
+    issues.push({ path: `${elemPath}.maxWidth`, message: `Expected a positive number or unit dimension, received ${elem.maxWidth}` });
   }
   if (elem.textAlign !== undefined) {
     if (typeof elem.textAlign !== "string" || !["left", "center", "right"].includes(elem.textAlign)) {
       issues.push({ path: `${elemPath}.textAlign`, message: `Expected "left", "center", or "right", received ${JSON.stringify(elem.textAlign)}` });
     }
   }
-  if (elem.lineHeight !== undefined && (!isFiniteNumber(elem.lineHeight) || (elem.lineHeight as number) <= 0)) {
-    issues.push({ path: `${elemPath}.lineHeight`, message: `Expected a positive number, received ${elem.lineHeight}` });
+  if (elem.lineHeight !== undefined && !isFlexiblePositiveNumber(elem.lineHeight)) {
+    issues.push({ path: `${elemPath}.lineHeight`, message: `Expected a positive number or height string, received ${elem.lineHeight}` });
   }
   if (elem.stroke !== undefined) {
     if (!isObject(elem.stroke)) {
@@ -104,8 +115,8 @@ function validateTextElement(elem: Record<string, unknown>, elemPath: string, is
       if (!isNonEmptyString(elem.stroke.color)) {
         issues.push({ path: `${elemPath}.stroke.color`, message: "Expected a non-empty stroke color string" });
       }
-      if (!isFiniteNumber(elem.stroke.width) || (elem.stroke.width as number) < 0) {
-        issues.push({ path: `${elemPath}.stroke.width`, message: `Expected a non-negative number, received ${elem.stroke.width}` });
+      if (elem.stroke.width !== undefined && !isFlexibleNonNegativeNumber(elem.stroke.width)) {
+        issues.push({ path: `${elemPath}.stroke.width`, message: `Expected a non-negative number or unit width, received ${elem.stroke.width}` });
       }
     }
   }
@@ -116,11 +127,11 @@ function validateTextElement(elem: Record<string, unknown>, elemPath: string, is
       if (!isNonEmptyString(elem.shadow.color)) {
         issues.push({ path: `${elemPath}.shadow.color`, message: "Expected a non-empty shadow color string" });
       }
-      if (elem.shadow.x !== undefined && !isFiniteNumber(elem.shadow.x)) {
-        issues.push({ path: `${elemPath}.shadow.x`, message: `Expected a finite number, received ${elem.shadow.x}` });
+      if (elem.shadow.x !== undefined && !isFlexibleFiniteNumber(elem.shadow.x)) {
+        issues.push({ path: `${elemPath}.shadow.x`, message: `Expected a finite number or unit value, received ${elem.shadow.x}` });
       }
-      if (elem.shadow.y !== undefined && !isFiniteNumber(elem.shadow.y)) {
-        issues.push({ path: `${elemPath}.shadow.y`, message: `Expected a finite number, received ${elem.shadow.y}` });
+      if (elem.shadow.y !== undefined && !isFlexibleFiniteNumber(elem.shadow.y)) {
+        issues.push({ path: `${elemPath}.shadow.y`, message: `Expected a finite number or unit value, received ${elem.shadow.y}` });
       }
     }
   }
@@ -131,14 +142,14 @@ function validateVideoElement(elem: Record<string, unknown>, elemPath: string, i
     issues.push({ path: `${elemPath}.src`, message: "Expected a non-empty file path or URL for video element" });
   }
   validateMediaDimensions(elem, elemPath, issues);
-  if (elem.trimStart !== undefined && (!isFiniteNumber(elem.trimStart) || (elem.trimStart as number) < 0)) {
-    issues.push({ path: `${elemPath}.trimStart`, message: `Expected a non-negative number, received ${elem.trimStart}` });
+  if (elem.trimStart !== undefined && !isFlexibleNonNegativeNumber(elem.trimStart)) {
+    issues.push({ path: `${elemPath}.trimStart`, message: `Expected a non-negative number or duration string, received ${elem.trimStart}` });
   }
   if (elem.loop !== undefined && typeof elem.loop !== "boolean") {
     issues.push({ path: `${elemPath}.loop`, message: `Expected a boolean, received ${typeof elem.loop}` });
   }
-  if (elem.volume !== undefined && (!isFiniteNumber(elem.volume) || (elem.volume as number) < 0)) {
-    issues.push({ path: `${elemPath}.volume`, message: `Expected a non-negative number, received ${elem.volume}` });
+  if (elem.volume !== undefined && !isFlexibleNonNegativeNumber(elem.volume)) {
+    issues.push({ path: `${elemPath}.volume`, message: `Expected a non-negative volume value, received ${elem.volume}` });
   }
 }
 
@@ -147,12 +158,12 @@ function validateHtmlElement(elem: Record<string, unknown>, elemPath: string, is
     issues.push({ path: `${elemPath}.html`, message: "Expected a non-empty HTML string" });
   }
   for (const key of ["width", "height"] as const) {
-    if (!isFiniteNumber(elem[key]) || (elem[key] as number) <= 0) {
-      issues.push({ path: `${elemPath}.${key}`, message: `Expected a positive number, received ${elem[key]}` });
+    if (!isFlexiblePositiveNumber(elem[key])) {
+      issues.push({ path: `${elemPath}.${key}`, message: `Expected a positive number or unit dimension, received ${elem[key]}` });
     }
   }
-  if (elem.deviceScaleFactor !== undefined && (!isFiniteNumber(elem.deviceScaleFactor) || (elem.deviceScaleFactor as number) <= 0)) {
-    issues.push({ path: `${elemPath}.deviceScaleFactor`, message: `Expected a positive number, received ${elem.deviceScaleFactor}` });
+  if (elem.deviceScaleFactor !== undefined && !isFlexiblePositiveNumber(elem.deviceScaleFactor)) {
+    issues.push({ path: `${elemPath}.deviceScaleFactor`, message: `Expected a positive number or scale string, received ${elem.deviceScaleFactor}` });
   }
   if (elem.fit !== undefined && !VALID_FITS.includes(elem.fit as any)) {
     issues.push({ path: `${elemPath}.fit`, message: `Expected "contain", "cover", "fill", or "none", received ${JSON.stringify(elem.fit)}` });
@@ -173,13 +184,13 @@ export function validateElement(
   // startAt / startTime
   const startVal = elem.startAt !== undefined ? elem.startAt : elem.startTime;
   const startPropName = elem.startAt !== undefined ? "startAt" : "startTime";
-  if (startVal !== undefined && (!isFiniteNumber(startVal) || (startVal as number) < 0)) {
-    issues.push({ path: `${elemPath}.${startPropName}`, message: `Expected a non-negative number, received ${startVal}` });
+  if (startVal !== undefined && !isFlexibleNonNegativeNumber(startVal)) {
+    issues.push({ path: `${elemPath}.${startPropName}`, message: `Expected a non-negative number or duration string, received ${startVal}` });
   }
-  if (elem.duration !== undefined && (!isFiniteNumber(elem.duration) || (elem.duration as number) <= 0)) {
-    issues.push({ path: `${elemPath}.duration`, message: `Expected a positive number, received ${elem.duration}` });
+  if (elem.duration !== undefined && !isFlexiblePositiveNumber(elem.duration)) {
+    issues.push({ path: `${elemPath}.duration`, message: `Expected a positive number or duration string, received ${elem.duration}` });
   }
-  if (elem.zIndex !== undefined && !isFiniteNumber(elem.zIndex)) {
+  if (elem.zIndex !== undefined && !isFlexibleFiniteNumber(elem.zIndex)) {
     issues.push({ path: `${elemPath}.zIndex`, message: `Expected a finite number, received ${elem.zIndex}` });
   }
 
@@ -190,11 +201,11 @@ export function validateElement(
   if (elem.y !== undefined && typeof elem.y !== "number" && typeof elem.y !== "string") {
     issues.push({ path: `${elemPath}.y`, message: `Expected a number or string, received ${typeof elem.y}` });
   }
-  if (elem.offsetX !== undefined && !isFiniteNumber(elem.offsetX)) {
-    issues.push({ path: `${elemPath}.offsetX`, message: `Expected a finite number, received ${elem.offsetX}` });
+  if (elem.offsetX !== undefined && !isFlexibleFiniteNumber(elem.offsetX)) {
+    issues.push({ path: `${elemPath}.offsetX`, message: `Expected a finite number or unit value, received ${elem.offsetX}` });
   }
-  if (elem.offsetY !== undefined && !isFiniteNumber(elem.offsetY)) {
-    issues.push({ path: `${elemPath}.offsetY`, message: `Expected a finite number, received ${elem.offsetY}` });
+  if (elem.offsetY !== undefined && !isFlexibleFiniteNumber(elem.offsetY)) {
+    issues.push({ path: `${elemPath}.offsetY`, message: `Expected a finite number or unit value, received ${elem.offsetY}` });
   }
   if (typeof elem.x === "string" && elem.offsetX !== undefined && /^(left|center|right|top|bottom)[+-]/.test(elem.x)) {
     issues.push({ path: `${elemPath}.x`, message: `Ambiguous position: shorthand "${elem.x}" combined with explicit offsetX. Use either shorthand or offsetX, not both.` });

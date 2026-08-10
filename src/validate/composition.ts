@@ -1,5 +1,5 @@
 import { KinoValidationError, type ValidationIssue } from "./error.js";
-import { isInteger, isFiniteNumber, isNonEmptyString, isObject } from "./helpers.js";
+import { isFlexiblePositiveNumber, isNonEmptyString, isObject } from "./helpers.js";
 import { validateScenes } from "./scene.js";
 
 function validateTemplates(
@@ -47,14 +47,14 @@ export function validateComposition(comp: unknown): void {
     }]);
   }
 
-  if (comp.width !== undefined && (!isInteger(comp.width) || (comp.width as number) <= 0)) {
-    issues.push({ path: "width", message: `Expected a positive integer, received ${comp.width}` });
+  if (comp.width !== undefined && !isFlexiblePositiveNumber(comp.width)) {
+    issues.push({ path: "width", message: `Expected a positive integer or valid dimension (e.g. 1920, "1920px"), received ${comp.width}` });
   }
-  if (comp.height !== undefined && (!isInteger(comp.height) || (comp.height as number) <= 0)) {
-    issues.push({ path: "height", message: `Expected a positive integer, received ${comp.height}` });
+  if (comp.height !== undefined && !isFlexiblePositiveNumber(comp.height)) {
+    issues.push({ path: "height", message: `Expected a positive integer or valid dimension (e.g. 1080, "1080px"), received ${comp.height}` });
   }
-  if (comp.fps !== undefined && (!isFiniteNumber(comp.fps) || (comp.fps as number) <= 0)) {
-    issues.push({ path: "fps", message: `Expected a positive number, received ${comp.fps}` });
+  if (comp.fps !== undefined && !isFlexiblePositiveNumber(comp.fps)) {
+    issues.push({ path: "fps", message: `Expected a positive number or frame rate (e.g. 30, "30fps"), received ${comp.fps}` });
   }
 
   if (!Array.isArray(comp.scenes) || comp.scenes.length === 0) {

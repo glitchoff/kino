@@ -18,21 +18,21 @@ export type KinoTransitionType =
 
 export interface KinoTransition {
   type: KinoTransitionType;
-  duration: number;
+  duration: number | string;
 }
 
 export interface KinoScene {
   id?: string;
-  duration: number;
+  duration: number | string;
   background?: BackgroundInput;
   elements?: ElementInput[];
   transition?: KinoTransition;
 }
 
 export interface KinoComposition {
-  width?: number;
-  height?: number;
-  fps?: number;
+  width?: number | string;
+  height?: number | string;
+  fps?: number | string;
   scenes: KinoScene[];
   audio?: AudioTrack | AudioTrack[];
   templates?: KinoTemplate[];

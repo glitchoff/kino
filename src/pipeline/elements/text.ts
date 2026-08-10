@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { TextElement } from "../../types/index.js";
+import type { NormalizedTextElement, TextElement } from "../../types/index.js";
 import { buildAnimationExpressions } from "../../animation/index.js";
 import {
   escapeFFmpegStr,
@@ -8,9 +8,10 @@ import {
   formatTextBasePosition,
 } from "../position.js";
 import { normalizeColor } from "../position.js";
+import { parseDuration, parseLineHeight, parsePixels } from "../../normalize/unit-parser.js";
 
 export function buildTextFilter(
-  item: TextElement,
+  item: NormalizedTextElement | TextElement | any,
   elemIdx: number,
   stagingDir: string,
   sceneDur: number,
@@ -19,7 +20,7 @@ export function buildTextFilter(
   stageAsset: (src: string) => string
 ): string {
   const content = item.content || "";
-  const fontSize = item.fontSize ?? 48;
+  const fontSize = parsePixels(item.fontSize) ?? 48;
   const fontColor = item.fontColor ?? "white";
 
   let textRef: string;
@@ -61,17 +62,22 @@ export function buildTextFilter(
 
   if (item.textAlign) filter += `:text_align=${item.textAlign}`;
   if (item.lineHeight !== undefined) {
-    const lineSpacing = Math.round(fontSize * (item.lineHeight - 1));
+    const lh = parseLineHeight(item.lineHeight, fontSize) ?? 1.2;
+    const lineSpacing = Math.round(fontSize * (lh - 1));
     filter += `:line_spacing=${lineSpacing}`;
   }
   if (item.stroke) {
-    filter += `:bordercolor=${normalizeColor(item.stroke.color)}:borderw=${item.stroke.width}`;
+    const strokeWidth = parsePixels(item.stroke.width) ?? 0;
+    filter += `:bordercolor=${normalizeColor(item.stroke.color)}:borderw=${strokeWidth}`;
   }
   if (item.shadow) {
-    filter += `:shadowcolor=${normalizeColor(item.shadow.color)}:shadowx=${item.shadow.x ?? 2}:shadowy=${item.shadow.y ?? 2}`;
+    const shadowX = parsePixels(item.shadow.x) ?? 2;
+    const shadowY = parsePixels(item.shadow.y) ?? 2;
+    filter += `:shadowcolor=${normalizeColor(item.shadow.color)}:shadowx=${shadowX}:shadowy=${shadowY}`;
   }
   if (item.box) {
-    filter += `:box=1:boxcolor=${item.boxColor || "black@0.5"}:boxborderw=${item.boxPadding ?? 10}`;
+    const boxPadding = parsePixels(item.boxPadding) ?? 10;
+    filter += `:box=1:boxcolor=${item.boxColor || "black@0.5"}:boxborderw=${boxPadding}`;
   }
   if (item.fontFile) {
     filter += `:fontfile='${escapeFFmpegStr(stageAsset(item.fontFile))}'`;
@@ -79,8 +85,9 @@ export function buildTextFilter(
     filter += `:fontfile='${defaultFontRef}'`;
   }
 
-  const startVal = item.startAt ?? 0;
-  const endVal = item.duration !== undefined ? startVal + item.duration : sceneDur;
+  const startVal = parseDuration(item.startAt) ?? 0;
+  const itemDur = parseDuration(item.duration);
+  const endVal = itemDur !== undefined ? startVal + itemDur : sceneDur;
   filter += `:enable='between(t\\,${startVal}\\,${endVal})'`;
 
   return filter;

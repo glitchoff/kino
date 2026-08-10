@@ -4,13 +4,15 @@ import type {
   KinoScene,
   KinoTemplate,
   ElementInput,
-  AudioTrack,
   NormalizedComposition,
   NormalizedScene,
+  NormalizedElement,
+  NormalizedAudioTrack,
 } from "../types/index.js";
 import { normalizeBackground } from "./background.js";
 import { normalizeElement } from "./element.js";
 import { normalizeAudio } from "./audio.js";
+import { parseDuration, parseFps, parsePixels, parseVolume } from "./unit-parser.js";
 
 function resolveTemplate(
   templateId: string,
@@ -71,13 +73,13 @@ function applyTemplate(
 }
 
 export function normalizeComposition(comp: KinoComposition): NormalizedComposition {
-  const width = comp.width || 1920;
-  const height = comp.height || 1080;
-  const fps = comp.fps || 30;
+  const width = parsePixels(comp.width, undefined, 1920)!;
+  const height = parsePixels(comp.height, undefined, 1080)!;
+  const fps = parseFps(comp.fps, 30);
 
-  const audioTracks: AudioTrack[] = normalizeAudio(comp.audio);
+  const audioTracks: NormalizedAudioTrack[] = normalizeAudio(comp.audio);
   const normalizedScenes: NormalizedScene[] = [];
-  const flattenedElements: ElementInput[] = [];
+  const flattenedElements: NormalizedElement[] = [];
 
   const templates = new Map<string, KinoTemplate>();
   for (const tmpl of comp.templates || []) {
@@ -107,8 +109,8 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
   let currentOffset = 0;
   for (let i = 0; i < resolvedScenes.length; i++) {
     const scene = resolvedScenes[i];
-    const sceneDur = scene.duration;
-    const transDuration = i > 0 && scene.transition ? scene.transition.duration : 0;
+    const sceneDur = parseDuration(scene.duration) ?? 0;
+    const transDuration = i > 0 && scene.transition ? parseDuration(scene.transition.duration, sceneDur) ?? 0 : 0;
 
     if (i > 0) {
       currentOffset -= transDuration;
@@ -117,10 +119,14 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
     currentOffset += sceneDur;
 
     const normBg = normalizeBackground(scene.background);
-    const normElems: ElementInput[] = [];
+    const normElems: NormalizedElement[] = [];
 
     for (const rawElem of scene.elements || []) {
-      const elem = normalizeElement(rawElem);
+      const elem = normalizeElement(rawElem, {
+        canvasWidth: width,
+        canvasHeight: height,
+        sceneDuration: sceneDur,
+      });
       const relStart = elem.startAt ?? elem.startTime ?? 0;
       elem.startAt = relStart;
       elem.startTime = sceneStart + relStart;
@@ -135,7 +141,12 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
       duration: sceneDur,
       background: normBg,
       elements: normElems,
-      transition: scene.transition,
+      transition: scene.transition
+        ? {
+            ...scene.transition,
+            duration: transDuration,
+          }
+        : undefined,
     });
   }
 
@@ -161,9 +172,16 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
           startTime: elem.startTime || 0,
         });
       } else if (typeof elem.sfx === "object") {
+        const sfxTrack = elem.sfx as any;
         audioTracks.push({
-          ...elem.sfx,
-          startTime: elem.sfx.startTime ?? elem.startTime ?? 0,
+          src: sfxTrack.src || "",
+          startTime: (parseDuration(sfxTrack.startTime) ?? elem.startTime ?? 0),
+          offset: parseDuration(sfxTrack.offset),
+          duration: parseDuration(sfxTrack.duration),
+          volume: parseVolume(sfxTrack.volume),
+          loop: sfxTrack.loop,
+          fadeIn: parseDuration(sfxTrack.fadeIn),
+          fadeOut: parseDuration(sfxTrack.fadeOut),
         });
       }
     }

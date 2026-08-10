@@ -14,10 +14,10 @@ export type Easing =
   | "easeInOutCirc";
 
 export interface AnimationValue {
-  from: number;
-  to: number;
-  duration: number;
-  delay?: number;
+  from: number | string;
+  to: number | string;
+  duration: number | string;
+  delay?: number | string;
   easing?: Easing;
 }
 

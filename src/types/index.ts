@@ -39,7 +39,19 @@ export type {
 } from "./composition.js";
 
 // Normalized
-export type { NormalizedScene, NormalizedComposition } from "./normalized.js";
+export type {
+  NormalizedScene,
+  NormalizedComposition,
+  NormalizedElement,
+  NormalizedTextElement,
+  NormalizedImageElement,
+  NormalizedHtmlElement,
+  NormalizedVideoElement,
+  NormalizedAudioTrack,
+  NormalizedAnimationValue,
+  NormalizedElementAnimation,
+  NormalizedTransition,
+} from "./normalized.js";
 
 // Render
 export type { VideoEncoder, RenderOptions, CompileResult } from "./render.js";

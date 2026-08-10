@@ -1,8 +1,9 @@
-import type { AudioTrack } from "../types/index.js";
+import type { NormalizedAudioTrack } from "../types/index.js";
+import { parseDuration, parseVolume } from "../normalize/unit-parser.js";
 
 export function buildAudioMix(
   filterComplex: string[],
-  audioTracks: AudioTrack[],
+  audioTracks: NormalizedAudioTrack[],
   audioInputIndices: number[],
   videoElemAudioPads: string[],
   totalDuration: number
@@ -15,24 +16,31 @@ export function buildAudioMix(
     const outPad = `[a_track_${i}]`;
     const afs: string[] = [];
 
-    if (track.offset || track.duration) {
-      const trimStart = track.offset ?? 0;
-      const trimEnd = track.duration !== undefined ? trimStart + track.duration : totalDuration;
+    const offset = parseDuration(track.offset) ?? 0;
+    const duration = parseDuration(track.duration);
+    const volume = parseVolume(track.volume);
+    const fadeIn = parseDuration(track.fadeIn);
+    const fadeOut = parseDuration(track.fadeOut);
+    const startTime = parseDuration(track.startTime) ?? 0;
+
+    if (offset || duration) {
+      const trimStart = offset;
+      const trimEnd = duration !== undefined ? trimStart + duration : totalDuration;
       afs.push(`atrim=${trimStart}:${trimEnd}`, `asetpts=PTS-STARTPTS`);
     }
-    if (track.volume !== undefined && track.volume !== 1.0) {
-      afs.push(`volume=${track.volume}`);
+    if (volume !== undefined && volume !== 1.0) {
+      afs.push(`volume=${volume}`);
     }
-    if (track.fadeIn) {
-      afs.push(`afade=t=in:ss=0:d=${track.fadeIn}`);
+    if (fadeIn) {
+      afs.push(`afade=t=in:ss=0:d=${fadeIn}`);
     }
-    if (track.fadeOut) {
-      const clipLen = track.duration ?? totalDuration;
-      const fadeStart = Math.max(0, clipLen - track.fadeOut);
-      afs.push(`afade=t=out:st=${fadeStart}:d=${track.fadeOut}`);
+    if (fadeOut) {
+      const clipLen = duration ?? totalDuration;
+      const fadeStart = Math.max(0, clipLen - fadeOut);
+      afs.push(`afade=t=out:st=${fadeStart}:d=${fadeOut}`);
     }
-    if (track.startTime) {
-      const delayMs = Math.round(track.startTime * 1000);
+    if (startTime) {
+      const delayMs = Math.round(startTime * 1000);
       afs.push(`adelay=${delayMs}|${delayMs}`);
     }
 

@@ -17,9 +17,10 @@ import type {
   KinoComposition,
   RenderOptions,
   CompileResult,
-  ImageElement,
-  VideoElement,
-  HtmlElement,
+  NormalizedHtmlElement,
+  NormalizedImageElement,
+  NormalizedVideoElement,
+  NormalizedTextElement,
 } from "../types/index.js";
 
 const DEFAULT_FONT_PATH = resolve(
@@ -80,8 +81,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const filterComplex: string[] = [];
   let inputIndex = 0;
 
-  const htmlElements = norm.elements.filter((elem): elem is HtmlElement => elem.type === "html");
-  const htmlPaths = renderHtmlBatchSync(htmlElements, stagingDir, options?.browserPath);
+  const htmlElements = norm.elements.filter((elem): elem is NormalizedHtmlElement => elem.type === "html");
+  const htmlPaths = renderHtmlBatchSync(htmlElements as any, stagingDir, options?.browserPath);
   const htmlPathMap = new Map(htmlElements.map((elem, index) => [elem, htmlPaths[index]]));
 
   try {
@@ -130,12 +131,12 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
         if (isImage || isVideo) {
           const media =
             elem.type === "html"
-              ? ({ ...elem, type: "image", src: htmlPathMap.get(elem as HtmlElement)! } as ImageElement)
-              : (elem as ImageElement | VideoElement);
+              ? ({ ...elem, type: "image", src: htmlPathMap.get(elem as NormalizedHtmlElement)! } as NormalizedImageElement)
+              : (elem as NormalizedImageElement | NormalizedVideoElement);
           const currInputIdx = inputIndex++;
 
           if (isVideo) {
-            const vid = elem as VideoElement;
+            const vid = elem as NormalizedVideoElement;
             addFFmpegInput(inputs, stageAsset(vid.src), { seek: vid.trimStart, streamLoop: vid.loop });
           } else {
             addFFmpegInput(inputs, stageAsset(media.src));
@@ -147,7 +148,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
           let startPad: string;
           if (isVideo) {
-            const vid = elem as VideoElement;
+            const vid = elem as NormalizedVideoElement;
             const elemStart = vid.startAt ?? 0;
             const elemDur = vid.duration ?? Math.max(0, sceneDur - elemStart);
             const fitPad = `[vid_fit_${elemIdx}]`;
@@ -181,7 +182,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           );
         } else {
           // Text element
-          const item = elem as import("../types/index.js").TextElement;
+          const item = elem as NormalizedTextElement;
           const filter = buildTextFilter(item, elemIdx, stagingDir, sceneDur, useTextFiles, defaultFontRef, stageAsset);
           const inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
           const textOutPad = `[v_layer_${elemIdx}]`;
@@ -194,7 +195,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     }
 
     // ── Stage 3: Transitions ─────────────────────────────────────────────────
-    const lastVideoPad = buildTransitionPipeline(filterComplex, norm.scenes, sceneCompPads, fps);
+    const lastVideoPad = buildTransitionPipeline(filterComplex, norm.scenes as any, sceneCompPads, fps);
 
     // ── Stage 4: Audio ───────────────────────────────────────────────────────
     const audioTracks = norm.audio;

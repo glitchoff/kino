@@ -1,11 +1,9 @@
 import type {
-  AnimationValue,
   Easing,
-  ElementAnimation,
-  ImageElement,
-  TextElement,
-  VideoElement,
+  NormalizedAnimationValue,
+  NormalizedElement,
 } from "../types/index.js";
+import { parseDuration, parsePixels, parseVolume } from "../normalize/unit-parser.js";
 
 export function easingExpression(easing: Easing | undefined, p: string): string {
   switch (easing ?? "linear") {
@@ -39,23 +37,28 @@ export function easingExpression(easing: Easing | undefined, p: string): string 
 }
 
 export function animationValueExpression(
-  anim: AnimationValue,
+  anim: NormalizedAnimationValue | any,
   startAt: number,
   timeVar: string
 ): string {
-  const start = startAt + (anim.delay ?? 0);
-  const p = `min(max((${timeVar} - ${start})/${anim.duration}, 0), 1)`;
+  const animDelay = parseDuration(anim.delay) ?? 0;
+  const animDur = parseDuration(anim.duration) ?? 1;
+  const from = typeof anim.from === "number" ? anim.from : (parseVolume(anim.from) ?? parsePixels(anim.from) ?? 0);
+  const to = typeof anim.to === "number" ? anim.to : (parseVolume(anim.to) ?? parsePixels(anim.to) ?? 0);
+
+  const start = startAt + animDelay;
+  const p = `min(max((${timeVar} - ${start})/${animDur}, 0), 1)`;
   const curve = easingExpression(anim.easing, p);
-  return `(${anim.from} + (${anim.to} - ${anim.from})*(${curve}))`;
+  return `(${from} + (${to} - ${from})*(${curve}))`;
 }
 
 export function buildAnimationExpressions(
-  elem: TextElement | ImageElement | VideoElement,
+  elem: NormalizedElement | any,
   timeVar: string
 ): { opacity?: string; tx?: string; ty?: string; scale?: string } {
   const anim = elem.animation;
   if (!anim) return {};
-  const startAt = elem.startAt ?? 0;
+  const startAt = parseDuration(elem.startAt) ?? 0;
   const out: { opacity?: string; tx?: string; ty?: string; scale?: string } = {};
   if (anim.opacity) out.opacity = animationValueExpression(anim.opacity, startAt, timeVar);
   if (anim.x) out.tx = animationValueExpression(anim.x, startAt, timeVar);

@@ -5,36 +5,36 @@ export interface BaseElement {
   id?: string;
   x?: number | string;
   y?: number | string;
-  offsetX?: number;
-  offsetY?: number;
-  startAt?: number;
+  offsetX?: number | string;
+  offsetY?: number | string;
+  startAt?: number | string;
   startTime?: number; // Internal normalized absolute composition start time
-  duration?: number;
+  duration?: number | string;
   sfx?: string | AudioTrack;
-  zIndex?: number;
+  zIndex?: number | string;
   animation?: ElementAnimation;
 }
 
 export interface TextElement extends BaseElement {
   type?: "text";
   content: string;
-  fontSize?: number;
+  fontSize?: number | string;
   fontColor?: string;
   fontFile?: string;
   box?: boolean;
   boxColor?: string;
-  boxPadding?: number;
-  maxWidth?: number;
+  boxPadding?: number | string;
+  maxWidth?: number | string;
   textAlign?: "left" | "center" | "right";
-  lineHeight?: number;
+  lineHeight?: number | string;
   stroke?: {
     color: string;
-    width: number;
+    width: number | string;
   };
   shadow?: {
     color: string;
-    x?: number;
-    y?: number;
+    x?: number | string;
+    y?: number | string;
   };
 }
 
@@ -46,8 +46,8 @@ export type ObjectFit = MediaFit;
 export interface ImageElement extends BaseElement {
   type: "image";
   src: string;
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
   fit?: MediaFit;
 }
 
@@ -55,11 +55,11 @@ export interface HtmlElement extends BaseElement {
   type: "html";
   html: string;
   css?: string;
-  width: number;
-  height: number;
+  width: number | string;
+  height: number | string;
   fit?: MediaFit;
   backgroundColor?: string;
-  deviceScaleFactor?: number;
+  deviceScaleFactor?: number | string;
 }
 
 export interface VideoElement extends BaseElement {
@@ -67,14 +67,14 @@ export interface VideoElement extends BaseElement {
   src: string;
 
   // Layout
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
   fit?: MediaFit;
 
   // Source playback
-  trimStart?: number;
+  trimStart?: number | string;
   loop?: boolean;
-  volume?: number;
+  volume?: number | string;
 }
 
 export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement;

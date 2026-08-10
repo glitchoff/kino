@@ -1,5 +1,6 @@
 import type { ValidationIssue } from "./error.js";
-import { isFiniteNumber, isNonEmptyString, isObject } from "./helpers.js";
+import { isFlexiblePositiveNumber, isNonEmptyString, isObject } from "./helpers.js";
+import { parseDuration } from "../normalize/unit-parser.js";
 import { validateElement } from "./element.js";
 
 const VALID_TRANSITION_TYPES = [
@@ -58,8 +59,8 @@ export function validateScenes(
       return;
     }
 
-    if (!isFiniteNumber(scene.duration) || (scene.duration as number) <= 0) {
-      issues.push({ path: `${scenePath}.duration`, message: `Expected a positive number, received ${scene.duration}` });
+    if (!isFlexiblePositiveNumber(scene.duration)) {
+      issues.push({ path: `${scenePath}.duration`, message: `Expected a positive number or valid duration, received ${scene.duration}` });
     }
 
     // Transition
@@ -74,15 +75,16 @@ export function validateScenes(
         if (!isNonEmptyString(trans.type) || !VALID_TRANSITION_TYPES.includes(trans.type as any)) {
           issues.push({ path: `${transPath}.type`, message: `Expected one of ${VALID_TRANSITION_TYPES.map((t) => JSON.stringify(t)).join(", ")}, received ${JSON.stringify(trans.type)}` });
         }
-        if (!isFiniteNumber(trans.duration) || (trans.duration as number) <= 0) {
-          issues.push({ path: `${transPath}.duration`, message: `Expected a positive number, received ${trans.duration}` });
+        if (!isFlexiblePositiveNumber(trans.duration)) {
+          issues.push({ path: `${transPath}.duration`, message: `Expected a positive number or valid duration, received ${trans.duration}` });
         } else {
           const scenesArr = scenes as any[];
           const prevScene = scenesArr[sIdx - 1];
-          const prevDur = isObject(prevScene) && isFiniteNumber(prevScene.duration) ? (prevScene.duration as number) : 0;
-          const currDur = isFiniteNumber(scene.duration) ? (scene.duration as number) : 0;
-          if ((trans.duration as number) > prevDur || (trans.duration as number) > currDur) {
-            issues.push({ path: `${transPath}.duration`, message: `Transition duration (${trans.duration}s) must not exceed adjacent scene durations (prev: ${prevDur}s, curr: ${currDur}s)` });
+          const transDur = parseDuration(trans.duration as any) ?? 0;
+          const prevDur = isObject(prevScene) ? (parseDuration(prevScene.duration as any) ?? 0) : 0;
+          const currDur = parseDuration(scene.duration as any) ?? 0;
+          if (transDur > prevDur || transDur > currDur) {
+            issues.push({ path: `${transPath}.duration`, message: `Transition duration (${transDur}s) must not exceed adjacent scene durations (prev: ${prevDur}s, curr: ${currDur}s)` });
           }
         }
       }

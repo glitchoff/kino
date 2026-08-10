@@ -1,10 +1,10 @@
 export interface AudioTrack {
   src: string;
-  startTime?: number;
-  offset?: number;
-  duration?: number;
-  volume?: number;
+  startTime?: number | string;
+  offset?: number | string;
+  duration?: number | string;
+  volume?: number | string;
   loop?: boolean;
-  fadeIn?: number;
-  fadeOut?: number;
+  fadeIn?: number | string;
+  fadeOut?: number | string;
 }
