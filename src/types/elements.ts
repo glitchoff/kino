@@ -43,12 +43,26 @@ export type MediaFit = "contain" | "cover" | "fill" | "none";
 // Backward compatible alias
 export type ObjectFit = MediaFit;
 
+/** Chroma key (green/blue screen) options for image and video layers. */
+export interface ChromaKeyConfig {
+  /** Key colour to remove. `"green"`, `"#00ff00"`… Defaults to green. */
+  color?: string;
+  /** 0–1 similarity: how close to the key colour counts as background. Default 0.01. */
+  similarity?: number | string;
+  /** 0–1 blend: softens the edge between keyed and kept pixels. Default 0. */
+  blend?: number | string;
+  /** Removes colour bleed from the key colour on the subject. Default false. */
+  despill?: boolean;
+}
+
 export interface ImageElement extends BaseElement {
   type: "image";
   src: string;
   width?: number | string;
   height?: number | string;
   fit?: MediaFit;
+  /** Key out a background colour. `true` keys green with defaults. */
+  chromaKey?: boolean | ChromaKeyConfig;
 }
 
 export interface HtmlElement extends BaseElement {
@@ -75,6 +89,8 @@ export interface VideoElement extends BaseElement {
   trimStart?: number | string;
   loop?: boolean;
   volume?: number | string;
+  /** Key out a background colour (green/blue screen). `true` keys green. */
+  chromaKey?: boolean | ChromaKeyConfig;
 }
 
 export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement;

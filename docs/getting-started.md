@@ -251,6 +251,33 @@ npx kino path/to/scene.json --dry-run
 
 `--dry-run` compiles to a portable `.kino` artifact (downloading any remote `http(s)` assets referenced by the composition into the archive), then prints the FFmpeg command (all relative paths — no live URLs) without rendering. The artifact and its renders are fully offline and reproducible.
 
+### Fast Previews
+
+```bash
+npx kino scene.ts --preview              # 144p, ultrafast
+npx kino scene.ts --preview 480          # readable text
+npx kino scene.ts --preview --dry-run    # just inspect the graph
+```
+
+`--preview` only changes the **output stage** — the final video is downscaled and
+encoded with `ultrafast`. The scene graph is untouched, so a preview that looks
+right will render right. Treat 144p as a *layout* preview: text is not legible.
+
+### Asset Cache
+
+Remote `http(s)` assets are cached on disk, keyed by a hash of the URL, so
+re-renders skip the download. Assets are fetched in parallel, and each unique URL
+is downloaded once even if several elements reference it.
+
+```bash
+npx kino scene.ts --no-asset-cache        # force re-download
+npx kino scene.ts --asset-cache-dir /tmp/kino-assets
+```
+
+The cache defaults to `.kino-cache/` in the working directory (add it to
+`.gitignore`), falling back to `~/.cache/kino/assets` when that is not writable.
+Deleting the directory is always safe.
+
 ### Text Delivery & `--unsafe-inline-text`
 
 Text elements are delivered to drawtext via a portable `.kino` artifact (a self-contained zip with relative paths) containing the compiled FFmpeg command and all text/asset files — so apostrophes, colons, and special characters render reliably, and the artifact can be copied to another machine or OS and rendered as-is. Only if you cannot write temp files, pass `--unsafe-inline-text` — this disables textfile delivery and passes text inline, which **may render text containing apostrophes blank on some platforms** (a warning is printed to stderr):

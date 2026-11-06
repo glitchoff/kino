@@ -1,21 +1,84 @@
 import type { ImageElement, VideoElement, NormalizedImageElement, NormalizedVideoElement } from "../../types/index.js";
-import { formatBasePosition, escapeExpr } from "../position.js";
+import { formatBasePosition, escapeExpr, normalizeColor } from "../position.js";
 import { parseDuration, parsePixels } from "../../normalize/unit-parser.js";
+
+export interface ChromaKeyConfig {
+  /** Key colour to remove. `"green"`, `"#00ff00"`, `"0x00ff00"`… Defaults to green. */
+  color?: string;
+  /** 0–1 similarity: how close to the key colour counts as background. Default 0.01. */
+  similarity?: number | string;
+  /** 0–1 blend: softens the edge between keyed and kept pixels. Default 0. */
+  blend?: number | string;
+  /** Removes colour bleed from the key colour on the subject. Default false. */
+  despill?: boolean;
+}
+
+export interface ChromaKey {
+  color: string;
+  similarity: number;
+  blend: number;
+  despill: boolean;
+}
+
+const DEFAULT_KEY_COLOR = "#00ff00";
+const DEFAULT_SIMILARITY = 0.01;
+const DEFAULT_BLEND = 0.0;
+
+function clamp01(value: number | string | undefined, fallback: number): number {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (n === undefined || Number.isNaN(n)) return fallback;
+  return Math.min(1, Math.max(0, n));
+}
+
+/**
+ * Normalises a `chromaKey` element option into a fully-resolved config.
+ * Returns `undefined` when the element has no key.
+ *
+ * FFmpeg's `chromakey`/`colorkey` only key *exact-ish* colour matches, so the
+ * defaults are intentionally tight (similarity 0.01). Raise `similarity` for
+ * poorly-lit green screens.
+ */
+export function normalizeChromaKey(key: boolean | ChromaKeyConfig | undefined): ChromaKey | undefined {
+  if (!key) return undefined;
+  const config: ChromaKeyConfig = key === true ? {} : key;
+  return {
+    color: config.color ?? DEFAULT_KEY_COLOR,
+    similarity: clamp01(config.similarity, DEFAULT_SIMILARITY),
+    blend: clamp01(config.blend, DEFAULT_BLEND),
+    despill: config.despill ?? false,
+  };
+}
+
+/**
+ * Builds the keying filter string for a chroma-keyed layer.
+ * Requires the input to be in RGBA — the caller's scale filter must have
+ * emitted `format=rgba` (see `buildMediaScaleFilter`).
+ */
+export function buildChromaKeyFilter(key: ChromaKey): string {
+  const color = normalizeColor(key.color);
+  const parts = [`chromakey=color=${color}:similarity=${key.similarity}:blend=${key.blend}`];
+  if (key.despill) parts.push(`despill=type=${/green|0x00ff00/i.test(key.color) ? "green" : "blue"}`);
+  return parts.join(",");
+}
 
 export function buildMediaScaleFilter(elem: ImageElement | VideoElement | NormalizedImageElement | NormalizedVideoElement | any): string {
   const w = parsePixels(elem.width) ?? -1;
   const h = parsePixels(elem.height) ?? -1;
   const fit = elem.fit;
+  // Keyed layers must stay RGBA all the way to the overlay or the alpha is lost.
+  const keyed = !!elem.chromaKey;
 
   if (w > 0 && h > 0) {
     if (fit === "cover") {
-      return `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+      const base = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+      return keyed ? `${base},format=rgba` : base;
     }
     if (fit === "contain") {
       return `scale=${w}:${h}:force_original_aspect_ratio=decrease,format=rgba,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`;
     }
   }
-  return `scale=${w}:${h}`;
+  const base = `scale=${w}:${h}`;
+  return keyed ? `${base},format=rgba` : base;
 }
 
 export interface MediaLayerLike {

@@ -4,6 +4,10 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-06
 
+- **Preview renders, chroma key, asset cache** — `--preview [height]` downscales
+  the output stage only (144p default, ultrafast); `chromaKey` on image/video
+  layers composites in RGBA with optional despill; remote assets cache on disk by
+  URL hash and download in parallel. — `tickets/005`
 - **Scripting-first compositions** — `src/builder/` (composition builder, element
   factories, animation helpers, `defineComposition`, `toComposition`), exported
   from the package root. CLI accepts `.ts` / `.mts` / `.js` / `.mjs`.

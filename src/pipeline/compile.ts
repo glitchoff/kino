@@ -8,11 +8,13 @@ import { packKino } from "../artifact/index.js";
 import { buildAnimationExpressions } from "../animation/index.js";
 import { buildSceneBackground } from "./background.js";
 import { buildTextFilter } from "./elements/text.js";
-import { buildMediaScaleFilter, applyMediaOverlay } from "./elements/media.js";
+import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
+import type { ChromaKey } from "./elements/media.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
 import { buildTransitionPipeline } from "./transitions.js";
 import { buildAudioMix } from "./audio.js";
 import { resolveEncoderSync, buildEncoderFlags } from "./encoder-flags.js";
+import { resolvePreviewHeight } from "../types/render.js";
 import type {
   KinoComposition,
   RenderOptions,
@@ -54,7 +56,10 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const assetNames = new Map<string, string>();
   let assetCounter = 0;
 
-  const remoteAssets = prestageRemoteAssets(stagingDir, norm);
+  const remoteAssets = prestageRemoteAssets(stagingDir, norm, {
+    cache: options?.assetCache,
+    cacheDir: options?.assetCacheDir,
+  });
 
   let defaultFontRef: string | undefined;
   if (existsSync(DEFAULT_FONT_PATH)) {
@@ -64,7 +69,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
   const stageAsset = (src: string): string => {
     if (src.startsWith("http://") || src.startsWith("https://")) {
-      const staged = remoteAssets.get(src);
+      const staged = remoteAssets.map.get(src);
       if (staged) return staged;
       throw new Error(`Remote asset was not staged at compile time: ${src}`);
     }
@@ -145,6 +150,12 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           const scaleFilter = buildMediaScaleFilter(media);
           const ax = buildAnimationExpressions(media, "t");
           const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
+          // Keyed layers are RGBA from the scale filter onward; never re-format to yuv420p.
+          const keyed = (media as { chromaKey?: unknown }).chromaKey !== undefined;
+          const keyFilter = keyed
+            ? `,${buildChromaKeyFilter((media as { chromaKey: ChromaKey }).chromaKey)}`
+            : "";
+          const outFormat = keyed ? "rgba" : "yuv420p";
 
           let startPad: string;
           if (isVideo) {
@@ -153,7 +164,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             const elemDur = vid.duration ?? Math.max(0, sceneDur - elemStart);
             const fitPad = `[vid_fit_${elemIdx}]`;
             filterComplex.push(
-              `[${currInputIdx}:v]${scaleFilter},trim=duration=${elemDur},setpts=PTS-STARTPTS+${elemStart}/TB,fps=${fps},setsar=1,format=yuv420p${fitPad}`
+              `[${currInputIdx}:v]${scaleFilter},trim=duration=${elemDur},setpts=PTS-STARTPTS+${elemStart}/TB,fps=${fps},setsar=1,format=${outFormat}${keyFilter}${fitPad}`
             );
             startPad = fitPad;
 
@@ -172,7 +183,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           } else {
             const basePad = `[img_base_${elemIdx}]`;
             filterComplex.push(
-              `[${currInputIdx}:v]${scaleFilter},fps=${fps},setpts=PTS-STARTPTS,settb=AVTB${basePad}`
+              `[${currInputIdx}:v]${scaleFilter},fps=${fps},setpts=PTS-STARTPTS,settb=AVTB${keyFilter}${basePad}`
             );
             startPad = basePad;
           }
@@ -195,7 +206,19 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     }
 
     // ── Stage 3: Transitions ─────────────────────────────────────────────────
-    const lastVideoPad = buildTransitionPipeline(filterComplex, norm.scenes as any, sceneCompPads, fps);
+    let lastVideoPad = buildTransitionPipeline(filterComplex, norm.scenes as any, sceneCompPads, fps);
+
+    // ── Stage 3b: Preview downscale ──────────────────────────────────────────
+    // Only the output stage changes, so the scene graph (and therefore what a
+    // preview shows) is identical to a full render.
+    const previewHeight = resolvePreviewHeight(options?.preview);
+    if (previewHeight !== undefined) {
+      // `buildTransitionPipeline` returns a bracketed pad (e.g. `[bg_concat]`).
+      const src = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
+      filterComplex.push(`${src}scale=-2:${previewHeight}[vpv]`);
+      // `lastVideoPad` is consumed as `-map <pad>`, which needs bracket syntax.
+      lastVideoPad = "[vpv]";
+    }
 
     // ── Stage 4: Audio ───────────────────────────────────────────────────────
     const audioTracks = norm.audio;
@@ -208,7 +231,10 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
     // ── Stage 5: Assemble final FFmpeg args ───────────────────────────────────
     const encoder = resolveEncoderSync(options);
-    const encoderFlags = buildEncoderFlags(encoder, options?.preset);
+    const encoderFlags =
+      previewHeight !== undefined
+        ? buildEncoderFlags(encoder, options?.preset ?? "ultrafast")
+        : buildEncoderFlags(encoder, options?.preset);
 
     const args: string[] = ["-y", ...inputs];
     let filtergraphStr: string | undefined;

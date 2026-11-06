@@ -84,6 +84,28 @@ composition().scene({ duration: 3 }, (s) =>
 `text()`, `image()`, `video()`, `html()` — options mirror the composition fields,
 with `color` → `fontColor` and `align` → `textAlign`.
 
+#### Chroma key
+
+`image()` and `video()` accept `chromaKey` to key out a background colour
+(green/blue screen). The layer is composited in RGBA, so the keyed pixels become
+transparent instead of black.
+
+```typescript
+s.video("./greenscreen.mp4", {
+  width: 1280,
+  height: 720,
+  fit: "cover",
+  chromaKey: { color: "#00ff00", similarity: 0.15, blend: 0.1, despill: true },
+});
+```
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `color` | `"#00ff00"` | Key colour to remove. `true` keys green with defaults. |
+| `similarity` | `0.01` | How close to the key colour counts as background (0–1). Raise for uneven lighting. |
+| `blend` | `0` | Softens the edge between keyed and kept pixels (0–1). |
+| `despill` | `false` | Removes colour bleed from the key colour on the subject. |
+
 ### Animation helpers
 
 | Helper | Returns |
@@ -178,6 +200,15 @@ async function render(
 - `kinoPath?: string` — Where `compile()` writes the `.kino` artifact. Defaults to `<output>.kino`.
 - `unsafeInlineText?: boolean` — **Dangerous.** When set, text is passed to drawtext inline via the `text=` option instead of a `textfile`, bypassing the `.kino` text mechanism. Text containing apostrophes (or other special characters) may render blank on some platforms with no error. Only use if you cannot write temp files. `render()` prints a warning when enabled.
 - `browserPath?: string` — Custom Chrome/Chromium executable path for `HtmlElement` compilation. If omitted, Puppeteer uses its bundled browser or automatically installs Chrome when needed.
+- `preview?: boolean | number` — Fast preview mode. `true` downscales the output to 144p; a number sets the height in pixels (width follows the source aspect). The encoder also switches to `ultrafast` unless `preset` is given. Only the **output stage** changes, so the scene graph a preview shows is identical to a full render.
+- `assetCache?: boolean` — Cache remote assets on disk, keyed by a SHA-256 of the URL, so re-renders skip the download. Defaults to `true`.
+- `assetCacheDir?: string` — Where the asset cache lives. Defaults to `.kino-cache/` in the working directory, falling back to `~/.cache/kino/assets` if that is not writable.
+
+```typescript
+// ~2x faster iteration while authoring
+await render(video, { output: "./preview.mp4", preview: true });
+await render(video, { output: "./preview.mp4", preview: 480 }); // readable text
+```
 
 Puppeteer (via `puppeteer-core`) is an optional capability in practice: it is only invoked when the composition contains an `HtmlElement`, and **no browser is downloaded at install time**. The first time such a composition is compiled, Kino downloads Chrome into the shared cache (`~/.cache/puppeteer`) automatically; run `npx kino setup` (or `npx kino setup browser`) to pre-install it ahead of time. Passing `browserPath` uses the given executable directly and disables the automatic download.
 

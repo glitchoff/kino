@@ -38,6 +38,7 @@ import type {
   ImageElement,
   HtmlElement,
   VideoElement,
+  ChromaKeyConfig,
 } from "../types/elements.js";
 import type { AnimationValue, Easing, ElementAnimation } from "../types/animation.js";
 import type { KinoTemplate } from "../types/template.js";
@@ -123,6 +124,11 @@ export interface MediaOptions extends ElementOptions {
   width?: number | string;
   height?: number | string;
   fit?: "contain" | "cover" | "fill" | "none";
+  /**
+   * Key out a background colour (green/blue screen). `true` keys pure green with
+   * tight defaults; pass an object to tune `color`, `similarity` and `blend`.
+   */
+  chromaKey?: boolean | ChromaKeyConfig;
 }
 
 export interface VideoOptions extends MediaOptions {
@@ -181,19 +187,20 @@ export function text(content: string, options: TextOptions = {}): TextElement {
 }
 
 export function image(src: string, options: MediaOptions = {}): ImageElement {
-  const { width, height, fit } = options;
+  const { width, height, fit, chromaKey } = options;
   return {
     type: "image",
     src,
     ...(width !== undefined ? { width } : {}),
     ...(height !== undefined ? { height } : {}),
     ...(fit !== undefined ? { fit } : {}),
+    ...(chromaKey !== undefined ? { chromaKey } : {}),
     ...baseFrom(options),
   } as ImageElement;
 }
 
 export function video(src: string, options: VideoOptions = {}): VideoElement {
-  const { width, height, fit, trimStart, loop, volume } = options;
+  const { width, height, fit, trimStart, loop, volume, chromaKey } = options;
   return {
     type: "video",
     src,
@@ -203,6 +210,7 @@ export function video(src: string, options: VideoOptions = {}): VideoElement {
     ...(trimStart !== undefined ? { trimStart } : {}),
     ...(loop !== undefined ? { loop } : {}),
     ...(volume !== undefined ? { volume } : {}),
+    ...(chromaKey !== undefined ? { chromaKey } : {}),
     ...baseFrom(options),
   } as VideoElement;
 }

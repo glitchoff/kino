@@ -1,4 +1,8 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { NormalizedComposition } from "../types/index.js";
 
 export const KINO_VERSION = "0.11.1";
@@ -8,20 +12,48 @@ export const REMOTE_DOWNLOADER_SCRIPT = [
   'const path=require("path");',
   'const outDir=process.argv[1];',
   'const urls=JSON.parse(process.argv[2]);',
+  'const cacheDir=process.argv[3]||"";',
   `const UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Kino/${KINO_VERSION}";`,
   'const EXT={"image/jpeg":".jpg","image/jpg":".jpg","image/png":".png","image/gif":".gif","image/webp":".webp","audio/mpeg":".mp3","audio/mp3":".mp3","audio/wav":".wav","audio/x-wav":".wav","audio/aac":".aac","audio/ogg":".ogg","audio/mp4":".m4a","video/mp4":".mp4","video/quicktime":".mov","video/webm":".webm"};',
   "(async()=>{",
   "  const results={};",
+  "  const hash=(s)=>require('crypto').createHash('sha256').update(s).digest('hex').slice(0,32);",
+  "  const inflight=new Map();",
+  "  // Download each unique URL once, even if several assets reference it.",
   "  await Promise.all(urls.map(async(u,i)=>{",
+  "    const key=hash(u);",
+  "    const metaPath=cacheDir?path.join(cacheDir,key+'.json'):'';",
+  "    const dataPath=cacheDir?path.join(cacheDir,key+'.bin'):'';",
   "    try{",
-  '      const res=await fetch(u,{headers:{"User-Agent":UA},redirect:"follow"});',
-  '      if(!res.ok)throw new Error("HTTP "+res.status);',
-  "      const buf=Buffer.from(await res.arrayBuffer());",
-  '      const ct=(res.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();',
-  '      const ext=EXT[ct]||".bin";',
+  "      if(cacheDir&&fs.existsSync(metaPath)&&fs.existsSync(dataPath)){",
+  "        const meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));",
+  "        const cachedName=\"remote-\"+(i+1)+meta.ext;",
+  "        // A cache hit still has to land in the staging dir for ffmpeg to see it.",
+  "        fs.copyFileSync(dataPath,path.join(outDir,cachedName));",
+  "        results[u]={ext:meta.ext,cached:true,size:fs.statSync(dataPath).size};",
+  "        return;",
+  "      }",
+  "      if(!inflight.has(u)){",
+  "        inflight.set(u,(async()=>{",
+  '          const res=await fetch(u,{headers:{"User-Agent":UA},redirect:"follow"});',
+  '          if(!res.ok)throw new Error("HTTP "+res.status);',
+  "          const buf=Buffer.from(await res.arrayBuffer());",
+  '          const ct=(res.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();',
+  '          const ext=EXT[ct]||".bin";',
+  "          return {buf,ext};",
+  "        })());",
+  "      }",
+  "      const {buf,ext}=await inflight.get(u);",
+  "      if(cacheDir){",
+  "        // Write to a temp name then rename: a killed render never leaves a truncated cache entry.",
+  "        const tmp=dataPath+'.'+process.pid+'.tmp';",
+  "        fs.writeFileSync(tmp,buf);",
+  "        fs.renameSync(tmp,dataPath);",
+  "        fs.writeFileSync(metaPath,JSON.stringify({url:u,ext,size:buf.length,at:Date.now()}));",
+  "      }",
   '      const name="remote-"+(i+1)+ext;',
   "      fs.writeFileSync(path.join(outDir,name),buf);",
-  "      results[u]={ext:ext};",
+  "      results[u]={ext:ext,cached:false,size:buf.length};",
   "    }catch(e){results[u]={error:String((e&&e.message)||e)};}",
   "  }));",
   "  process.stdout.write(JSON.stringify(results));",
@@ -29,10 +61,43 @@ export const REMOTE_DOWNLOADER_SCRIPT = [
   "})();",
 ].join("\n");
 
+export interface RemoteCacheOptions {
+  /** Set to `false` to always re-download. Defaults to `true`. */
+  cache?: boolean;
+  /** Override the cache directory. Defaults to `<project>/.kino-cache` then `~/.cache/kino/assets`. */
+  cacheDir?: string;
+}
+
+/** Default on-disk asset cache location. */
+export function defaultAssetCacheDir(): string {
+  const project = join(process.cwd(), ".kino-cache");
+  try {
+    mkdirSync(project, { recursive: true });
+    return project;
+  } catch {
+    return join(homedir(), ".cache", "kino", "assets");
+  }
+}
+
+/** Stable cache key for a remote URL. */
+export function assetCacheKey(url: string): string {
+  return createHash("sha256").update(url).digest("hex").slice(0, 32);
+}
+
+export interface PrestageResult {
+  /** url -> file name inside the staging directory */
+  map: Map<string, string>;
+  /** URLs served from the local cache */
+  cached: string[];
+  /** URLs downloaded this run */
+  downloaded: string[];
+}
+
 export function prestageRemoteAssets(
   stagingDir: string,
-  norm: NormalizedComposition
-): Map<string, string> {
+  norm: NormalizedComposition,
+  options: RemoteCacheOptions = {}
+): PrestageResult {
   const isRemote = (src: string): boolean =>
     src.startsWith("http://") || src.startsWith("https://");
   const urls = new Set<string>();
@@ -56,11 +121,21 @@ export function prestageRemoteAssets(
 
   const unique = [...urls];
   const map = new Map<string, string>();
-  if (unique.length === 0) return map;
+  const cached: string[] = [];
+  const downloaded: string[] = [];
+  if (unique.length === 0) return { map, cached, downloaded };
+
+  // Assets are downloaded in one parallel pass (the downloader uses
+  // Promise.all), so a slow video does not serialise behind images.
+  let cacheDir = "";
+  if (options.cache !== false) {
+    cacheDir = options.cacheDir ?? defaultAssetCacheDir();
+    mkdirSync(cacheDir, { recursive: true });
+  }
 
   const res = spawnSync(
     process.execPath,
-    ["-e", REMOTE_DOWNLOADER_SCRIPT, stagingDir, JSON.stringify(unique)],
+    ["-e", REMOTE_DOWNLOADER_SCRIPT, stagingDir, JSON.stringify(unique), cacheDir],
     { encoding: "utf-8", timeout: 300000, maxBuffer: 16 * 1024 * 1024 }
   );
 
@@ -73,7 +148,7 @@ export function prestageRemoteAssets(
     );
   }
 
-  let results: Record<string, { ext?: string; error?: string }>;
+  let results: Record<string, { ext?: string; error?: string; cached?: boolean }>;
   try {
     results = JSON.parse(res.stdout);
   } catch {
@@ -86,7 +161,30 @@ export function prestageRemoteAssets(
       throw new Error(`Failed to download remote asset '${url}': ${r?.error || "unknown error"}`);
     }
     map.set(url, `remote-${i + 1}${r.ext || ".bin"}`);
+    if (r.cached) cached.push(url);
+    else downloaded.push(url);
   });
 
-  return map;
+  return { map, cached, downloaded };
+}
+
+/**
+ * Removes cache entries not referenced by `urls`. Called after a successful
+ * render so the cache tracks the current project instead of growing forever.
+ */
+export function pruneAssetCache(cacheDir: string, urls: Iterable<string>): number {
+  const keep = new Set([...urls].map(assetCacheKey));
+  let removed = 0;
+  for (const file of readdirSync(cacheDir)) {
+    const key = file.replace(/\.(json|bin)$/, "");
+    if (!keep.has(key)) {
+      try {
+        unlinkSync(join(cacheDir, file));
+        removed++;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return removed;
 }

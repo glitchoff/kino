@@ -10,6 +10,9 @@ node_modules
 # Bundled ffmpeg binaries downloaded at install time (Linux)
 vendor/
 
+# Remote asset cache (keyed by URL hash)
+.kino-cache/
+
 # Logs
 logs
 *.log

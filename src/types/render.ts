@@ -17,6 +17,29 @@ export interface RenderOptions {
   kinoPath?: string;
   unsafeInlineText?: boolean;
   browserPath?: string;
+  /**
+   * Fast preview mode. When set, the final video is downscaled to this height
+   * (width follows the source aspect ratio) and encoded with `ultrafast`/CRF 30.
+   * `true` means 144p. The scene graph is unchanged — only the output stage
+   * differs, so a preview that looks right will render right.
+   */
+  preview?: boolean | number;
+  /**
+   * Cache remote assets on disk, keyed by URL hash, so re-renders skip the
+   * download. Defaults to `true`; pass `false` to always re-fetch.
+   */
+  assetCache?: boolean;
+  /** Override the asset cache directory (default `.kino-cache/` in the cwd). */
+  assetCacheDir?: string;
+}
+
+/** Preview output height in pixels; `true` maps to 144p. */
+export const PREVIEW_DEFAULT_HEIGHT = 144;
+
+export function resolvePreviewHeight(preview: boolean | number | undefined): number | undefined {
+  if (!preview) return undefined;
+  if (preview === true) return PREVIEW_DEFAULT_HEIGHT;
+  return Math.max(16, Math.round(preview));
 }
 
 export interface CompileResult {

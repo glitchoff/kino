@@ -27,7 +27,7 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 69 tests passing (3 files)
+- `pnpm test` — 85 tests passing (6 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI in ~7s
 - all 11 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
