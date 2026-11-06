@@ -7,9 +7,12 @@ Newest first. One line per item; link the ticket for detail.
 - **Scripting-first compositions** — `src/builder/` (composition builder, element
   factories, animation helpers, `defineComposition`, `toComposition`), exported
   from the package root. CLI accepts `.ts` / `.mts` / `.js` / `.mjs`.
-  `examples/basic.ts` ports the JSON example and renders identically.
   16 builder tests including a JSON-equivalence check. Docs and README rewritten
   around scripting; JSON marked as the legacy/interop format. — `tickets/001`
+- **All examples converted to TypeScript** — `scripts/json-to-ts.mjs` converts
+  legacy JSON into builder-based modules. 11 examples migrated and verified;
+  `templates.json` and `html-showcase.json` dropped (template refs need
+  hand-written `s.add()`). Workflow example list now points at `.ts`. — `tickets/001`
 - **Telegram helper scripts** — `scripts/telegram-send.mjs` (message/file),
   `telegram-poller.mjs` (getUpdates loop), `telegram-file-sender.mjs`
   (document by default, tmpfiles link opt-in, 50 MB fallback),

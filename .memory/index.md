@@ -30,7 +30,7 @@ the legacy/interop format.
 - `pnpm test` — 69 tests passing (3 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI in ~7s
-- `examples/basic.ts` renders successfully via the CLI
+- all 11 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
 
 ## Known issues
 

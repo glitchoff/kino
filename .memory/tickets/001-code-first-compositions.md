@@ -19,11 +19,16 @@ code are interchangeable.
 3. CLI accepts `.ts`, `.mts`, `.js`, `.mjs` alongside `.json` and `.kino`.
    A module may `export default` a composition, a builder, or a function that
    returns either; named `composition` / `scene` exports also work.
-4. `examples/basic.ts` — the JSON example ported to code; renders identically.
-5. Docs: README, `docs/index.md`, `docs/getting-started.md` (new Code
+4. `scripts/json-to-ts.mjs` — converts legacy JSON into builder-based modules.
+   Falls back to `s.add({...})` for template refs and unsupported element types.
+5. `examples/` migrated to TypeScript: 11 files, each verified with `--dry-run`.
+   `templates.json` and `html-showcase.json` dropped — they rely on template
+   references that need hand-written elements.
+6. Docs: README, `docs/index.md`, `docs/getting-started.md` (new Code
    Compositions section), `docs/api-reference.md` (builder reference),
    `docs/schema-reference.md` (reframed as the data shape).
-6. Tests: `test/builder.test.ts` — 16 cases, including a JSON-equivalence check.
+7. Tests: `test/builder.test.ts` — 16 cases, including a JSON-equivalence check.
+   `test/timeline.test.ts` imports the TS example instead of reading JSON.
 
 ## Design notes
 
