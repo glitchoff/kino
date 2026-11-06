@@ -10,6 +10,13 @@ import {
 import { normalizeColor } from "../position.js";
 import { parseDuration, parseLineHeight, parsePixels } from "../../normalize/unit-parser.js";
 
+/** Expands CSS shorthand (`#fff`) while preserving `@alpha` suffixes. */
+function normalizeTextColor(color: string | undefined, fallback: string): string {
+  if (!color) return fallback;
+  const [base, alpha] = color.split("@");
+  return `${normalizeColor(base)}${alpha !== undefined ? `@${alpha}` : ""}`;
+}
+
 export function buildTextFilter(
   item: NormalizedTextElement | TextElement | any,
   elemIdx: number,
@@ -21,7 +28,8 @@ export function buildTextFilter(
 ): string {
   const content = item.content || "";
   const fontSize = parsePixels(item.fontSize) ?? 48;
-  const fontColor = item.fontColor ?? "white";
+  // `#fff` must become `0xffffff`; drawtext rejects CSS shorthand.
+  const fontColor = normalizeTextColor(item.fontColor, "white");
 
   let textRef: string;
   if (useTextFiles) {
@@ -77,7 +85,7 @@ export function buildTextFilter(
   }
   if (item.box) {
     const boxPadding = parsePixels(item.boxPadding) ?? 10;
-    filter += `:box=1:boxcolor=${item.boxColor || "black@0.5"}:boxborderw=${boxPadding}`;
+    filter += `:box=1:boxcolor=${normalizeTextColor(item.boxColor, "black@0.5")}:boxborderw=${boxPadding}`;
   }
   if (item.fontFile) {
     filter += `:fontfile='${escapeFFmpegStr(stageAsset(item.fontFile))}'`;

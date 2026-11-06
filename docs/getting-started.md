@@ -263,6 +263,19 @@ npx kino scene.ts --preview --dry-run    # just inspect the graph
 encoded with `ultrafast`. The scene graph is untouched, so a preview that looks
 right will render right. Treat 144p as a *layout* preview: text is not legible.
 
+### Rendering One Scene
+
+```bash
+npx kino scene.ts --scene intro            # only that scene
+npx kino scene.ts --scene intro --preview  # fastest possible loop
+```
+
+`--scene <id>` compiles just that scene, with its timeline rebased to zero. Use
+it while authoring a long composition — the cost scales with the scene, not the
+whole video. A selected scene drops its transition, since there is no preceding
+scene to transition from. Ids default to `scene-1`, `scene-2`, …; set
+`id: "intro"` on a scene to name it.
+
 ### Asset Cache
 
 Remote `http(s)` assets are cached on disk, keyed by a hash of the URL, so

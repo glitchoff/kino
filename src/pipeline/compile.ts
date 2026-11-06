@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { normalizeComposition } from "../normalize/index.js";
+import { normalizeComposition, selectScene } from "../normalize/index.js";
 import { prestageRemoteAssets, KINO_VERSION, defaultAssetCacheDir } from "../remote/index.js";
 import { isYtdlpSource, ytdlpUrl, fetchWithYtdlp } from "../remote/ytdlp.js";
 import { packKino } from "../artifact/index.js";
@@ -49,7 +49,8 @@ function addFFmpegInput(
 }
 
 export function compile(composition: KinoComposition, options?: Partial<RenderOptions>): CompileResult {
-  const norm = normalizeComposition(composition);
+  let norm = normalizeComposition(composition);
+  if (options?.scene) norm = selectScene(norm, options.scene);
   const { width, height, duration, fps } = norm;
   const output = options?.output || "./out.mp4";
 

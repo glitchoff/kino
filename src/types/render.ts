@@ -36,6 +36,8 @@ export interface RenderOptions {
    * default; Kino never installs yt-dlp.
    */
   ytdlp?: boolean;
+  /** Render only this scene by id; its timeline is rebased to zero. */
+  scene?: string;
   /** Netscape cookie jar forwarded to yt-dlp as `--cookies`. */
   ytdlpCookies?: string;
 }

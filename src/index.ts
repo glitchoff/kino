@@ -1,4 +1,9 @@
 export { render, compile } from "./pipeline/index.js";
+export { renderFromArgv } from "./render-from-argv.js";
+export type { RenderFromArgvOptions } from "./render-from-argv.js";
+export { parseRenderArgs, RENDER_FLAGS } from "./cli-args.js";
+export type { ParsedArgs } from "./cli-args.js";
+export { selectScene } from "./normalize/composition.js";
 export {
   composition,
   defineComposition,
