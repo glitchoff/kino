@@ -1,5 +1,32 @@
 export { render, compile } from "./pipeline/index.js";
 export {
+  composition,
+  defineComposition,
+  toComposition,
+  text,
+  image,
+  video,
+  html,
+  animate,
+  fadeIn,
+  fadeOut,
+  slideIn,
+  popIn,
+  CompositionBuilder,
+  SceneBuilder,
+} from "./builder/index.js";
+export type {
+  CompositionOptions,
+  SceneOptions,
+  ElementOptions,
+  TextOptions,
+  MediaOptions,
+  VideoOptions,
+  HtmlOptions,
+  AnimateOptions,
+  Position,
+} from "./builder/index.js";
+export {
   normalizeComposition,
   normalizeBackground,
   normalizeElement,

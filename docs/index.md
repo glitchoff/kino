@@ -1,47 +1,38 @@
 # Kino Documentation
 
-**Kino** is a TypeScript library and local web studio that compiles JSON scene specifications into FFmpeg commands to render `.mp4` videos.
+**Kino** is a scripting-first video engine: write compositions in TypeScript and compile them to FFmpeg commands that render `.mp4` videos.
 
 ---
 
 ## 📚 Topics
 
-- [Getting Started](./getting-started.md) — Installation, basic usage, and CLI overview.
-- [JSON Schema Reference](./schema-reference.md) — Composition properties, scenes, and element options.
-- [API Reference](./api-reference.md) — `render()`, `compile()`, and `RenderOptions`.
-- [Kino Studio](./studio.md) — Local web studio with JSON editor and render preview player.
+- [Getting Started](./getting-started.md) — Installation, code compositions, and CLI overview.
+- [API Reference](./api-reference.md) — Builder, `render()`, `compile()`, and `RenderOptions`.
+- [Schema Reference](./schema-reference.md) — The underlying `KinoComposition` shape (also the JSON format).
+- [Kino Studio](./studio.md) — Local web studio with editor and render preview player.
+
+> JSON compositions remain fully supported. They describe the same
+> `KinoComposition` object the builder produces, so the two are interchangeable.
 
 ---
 
 ## Quick Example
 
 ```typescript
-import { render } from "@glitchoff/kino";
+import { composition, render } from "@glitchoff/kino";
 
-await render(
-  {
-    width: 1080,
-    height: 1920,
-    fps: 30,
-    scenes: [
-      {
-        duration: 5,
-        background: "#000000",
-        elements: [
-          {
-            type: "text",
-            content: "Hello Kino",
-            fontSize: 72,
-            fontColor: "white",
-            x: "center",
-            y: "center",
-            startAt: 0,
-            duration: 3
-          }
-        ]
-      }
-    ]
-  },
-  { output: "./out.mp4" }
-);
+const video = composition({ width: 1080, height: 1920, fps: 30 })
+  .scene({ duration: 5, background: "#000000" }, (s) =>
+    s.text("Hello Kino", {
+      fontSize: 72,
+      color: "white",
+      x: "center",
+      y: "center",
+      startAt: 0,
+      duration: 3,
+    })
+  )
+  .build();
+
+await render(video, { output: "./out.mp4" });
 ```

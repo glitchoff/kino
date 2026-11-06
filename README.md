@@ -1,11 +1,14 @@
 # Kino
 
-A TypeScript library, CLI, and local web studio for compiling JSON scene compositions into MP4 videos via FFmpeg.
+A scripting-first video engine. Write compositions in TypeScript, render them to MP4 via FFmpeg.
 
-- **Declarative** — describe scenes, elements (text / image / html / video), and audio as JSON.
+- **Scripting-first** — describe scenes, elements (text / image / html / video), and audio in code, with types, loops and computed values.
 - **Rich scenes** — 11 built-in transitions, per-element animations, reusable templates, and z-index layering.
 - **Fast by default** — GPU hardware encoding with automatic CPU fallback.
 - **Portable** — compile to a self-contained `.kino` artifact and render offline anywhere.
+
+> JSON compositions are still accepted everywhere and remain supported, but new
+> work targets the scripting API. See [Code Compositions](./docs/getting-started.md#-code-compositions).
 
 ## Installation
 
@@ -18,40 +21,30 @@ Nothing is downloaded at install time. FFmpeg is bundled with the package (drawt
 ## Usage
 
 ```typescript
-import { render } from "@glitchoff/kino";
+import { composition, fadeIn, render } from "@glitchoff/kino";
 
-await render(
-  {
-    width: 1080,
-    height: 1920,
-    fps: 30,
-    scenes: [
-      {
-        duration: 5,
-        background: "#0f172a",
-        elements: [
-          {
-            type: "text",
-            content: "Hello Kino",
-            fontSize: 72,
-            fontColor: "white",
-            x: "center",
-            y: "center"
-          }
-        ]
-      }
-    ]
-  },
-  { output: "./out.mp4" }
-);
+const video = composition({ width: 1080, height: 1920, fps: 30 })
+  .scene({ duration: 5, background: "#0f172a" }, (s) =>
+    s.text("Hello Kino", {
+      fontSize: 72,
+      color: "white",
+      x: "center",
+      y: "center",
+      animation: { opacity: fadeIn(0.6) },
+    })
+  )
+  .build();
+
+await render(video, { output: "./out.mp4" });
 ```
 
 CLI:
 
 ```bash
-npx kino scene.json -o out.mp4    # render JSON to MP4
-npx kino scene.json --dry-run      # compile to a .kino artifact, print the ffmpeg command
-npx kino studio                    # open the visual editor
+npx kino scene.ts -o out.mp4      # render a code composition
+npx kino scene.json -o out.mp4    # JSON still works
+npx kino scene.ts --dry-run       # compile to a .kino artifact, print the ffmpeg command
+npx kino studio                   # open the visual editor
 npx kino setup                     # pre-download Chrome for html elements
 ```
 

@@ -45,12 +45,15 @@ import ffmpegStatic from "ffmpeg-static";
 
 const { XzReadableStream } = xzDecompress;
 
-const RELEASE_TAG = "autobuild-2026-08-01-13-21";
+// BtbN publishes rolling "latest" assets per FFmpeg branch. We pin the branch
+// (n8.1) rather than a dated autobuild tag, because dated tags get pruned and
+// the download then 404s on clean installs (breaks CI and fresh npm installs).
+const FFMPEG_BRANCH = "n8.1";
 const ASSETS = {
-  x64: "ffmpeg-n7.1.5-12-g1fdbca85aa-linux64-gpl-7.1.tar.xz",
-  arm64: "ffmpeg-n7.1.5-12-g1fdbca85aa-linuxarm64-gpl-7.1.tar.xz",
+  x64: `ffmpeg-${FFMPEG_BRANCH}-latest-linux64-gpl-8.1.tar.xz`,
+  arm64: `ffmpeg-${FFMPEG_BRANCH}-latest-linuxarm64-gpl-8.1.tar.xz`,
 };
-const BASE_URL = `https://github.com/BtbN/FFmpeg-Builds/releases/download/${RELEASE_TAG}`;
+const BASE_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest";
 const DOWNLOAD_TIMEOUT = 15 * 60 * 1000;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));

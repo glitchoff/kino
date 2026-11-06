@@ -1,0 +1,127 @@
+name: Telegram Render
+
+# Manual only — pick a composition, render it, and push the MP4 to Telegram.
+on:
+  workflow_dispatch:
+    inputs:
+      example:
+        description: Composition file to render
+        required: true
+        default: examples/basic.ts
+        type: choice
+        options:
+          - examples/basic.ts
+          - examples/all-transitions.ts
+          - examples/animations.ts
+          - examples/scene-transitions.ts
+          - examples/easings-showcase.ts
+          - examples/apostrophe-text.ts
+          - examples/local-demo.ts
+          - examples/official.ts
+          - examples/showcase.ts
+          - examples/video-element.ts
+          - examples/video-showcase.ts
+      caption:
+        description: Caption for the Telegram message
+        required: false
+        default: ""
+        type: string
+      delivery:
+        description: How to deliver the video
+        required: true
+        default: document
+        type: choice
+        options:
+          - document
+          - link
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-render
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Bundled drawtext-enabled ffmpeg is downloaded by postinstall into vendor/.
+      # Restore it BEFORE install so postinstall finds it and skips the ~80MB download.
+      # Key on the script + arch: a changed URL/asset invalidates the cache on purpose.
+      - name: Cache bundled ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-ffmpeg.mjs') }}
+          restore-keys: |
+            ffmpeg-${{ runner.os }}-${{ runner.arch }}-
+
+      # pnpm store (setup-node above) + the installed tree. Restoring node_modules
+      # makes `pnpm install` a fast no-op when the lockfile is unchanged.
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Verify bundled Linux ffmpeg (drawtext)
+        run: |
+          node scripts/install-ffmpeg.mjs --print-path > /tmp/kino-ffmpeg-path
+          "$(cat /tmp/kino-ffmpeg-path)" -filters | grep -q drawtext
+          echo "FFMPEG_PATH=$(cat /tmp/kino-ffmpeg-path)" >> "$GITHUB_ENV"
+
+      # Only the library + CLI are needed to render; skip the studio Vite build.
+      - name: Build library + CLI
+        run: pnpm exec tsup
+
+      - name: Render composition
+        run: |
+          mkdir -p out
+          node dist/cli.js "${{ inputs.example }}" -o out/render.mp4 --ffmpeg-path "$FFMPEG_PATH"
+          ls -lh out/render.mp4
+
+      - name: Send to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CAPTION: ${{ inputs.caption }}
+          DELIVERY: ${{ inputs.delivery }}
+          EXAMPLE: ${{ inputs.example }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::error::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets are not set"
+            exit 1
+          fi
+          node scripts/telegram-file-sender.mjs out/render.mp4 \
+            --caption "${CAPTION:-Kino render: $EXAMPLE}" \
+            --mode "$DELIVERY"
+
+      - name: Upload render artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render
+          path: out/render.mp4
+          if-no-files-found: warn
+          retention-days: 7

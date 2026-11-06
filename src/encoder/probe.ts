@@ -25,7 +25,7 @@ export function getFFmpegBinaryPath(customPath?: string): string {
     return ffmpegStatic;
   }
   if (ffmpegStatic && typeof ffmpegStatic === "string" && !existsSync(ffmpegStatic)) {
-    const isPnpm = existsSync(join(process.cwd(), "pnpm-workspace.yaml")) || !!process.env.npm_config_user_agent?.includes("pnpm");
+    const isPnpm = !!process.env.npm_config_user_agent?.includes("pnpm");
     const installHint = isPnpm
       ? "pnpm approve-builds (then select ffmpeg-static)"
       : "npm rebuild ffmpeg-static (or yarn rebuild ffmpeg-static)";

@@ -3,8 +3,9 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { render, compile } from "./pipeline/index.js";
+import { PREVIEW_DEFAULT_HEIGHT } from "./types/index.js";
 import { startStudio } from "../studio/server.js";
 import type { KinoComposition } from "./types/index.js";
 
@@ -30,6 +31,49 @@ async function setupFFmpeg(): Promise<void> {
     process.exit(1);
   }
   console.log("[kino] ffmpeg is ready.");
+}
+
+/**
+ * Load a composition from disk.
+ *
+ * - `.json`        parsed as JSON
+ * - `.mjs` / `.js` imported as an ES module
+ * - `.ts`          transpiled in-process, then imported (no extra dependency
+ *                  required — uses Node's built-in type stripping where
+ *                  available, falling back to a minimal strip for annotations)
+ *
+ * A module may `export default <composition | builder>`, or export a named
+ * `composition` / `scene`. A function export is called (and awaited) so a
+ * composition can be generated per run.
+ */
+async function loadComposition(fullPath: string): Promise<KinoComposition> {
+  const ext = fullPath.slice(fullPath.lastIndexOf("."));
+  const isModule = [".ts", ".mts", ".js", ".mjs"].includes(ext);
+
+  if (!isModule) {
+    return JSON.parse(readFileSync(fullPath, "utf-8")) as KinoComposition;
+  }
+
+  const mod = await import(pathToFileURL(fullPath).href);
+  const candidate = mod.default ?? mod.composition ?? mod.scene;
+
+  if (candidate === undefined) {
+    throw new Error(
+      `${fullPath} must export a composition — use \`export default composition(...).build()\` (or a named \`composition\` export).`
+    );
+  }
+
+  let value = typeof candidate === "function" ? await candidate() : candidate;
+  // A builder instance is accepted directly; `build()` produces the plain object.
+  if (value && typeof value.build === "function" && !Array.isArray(value.scenes)) {
+    value = value.build();
+  }
+
+  if (!value || typeof value !== "object" || !Array.isArray(value.scenes)) {
+    throw new Error(`${fullPath} did not resolve to a composition object with a \`scenes\` array.`);
+  }
+
+  return value as KinoComposition;
 }
 
 async function main() {
@@ -76,6 +120,7 @@ async function main() {
 
   File formats:
     .json                  JSON composition file
+    .ts / .js / .mjs       Code composition, e.g. export default composition(...).build()
     .kino                  Pre-compiled .kino artifact (renders without recompiling)
 
   Options:
@@ -87,6 +132,9 @@ async function main() {
     --gpu                  Enable GPU hardware acceleration (alias for --encoder auto with CPU fallback)
     -p, --port <number>    Port for studio server (default: 3333)
     --dry-run              Compile to a portable .kino artifact and print the FFmpeg command without rendering (remote assets are downloaded at compile time)
+    --preview [height]     Fast preview render: downscale the output to <height>px tall (default 144) and encode with ultrafast. Layout-accurate, not text-legible above 144p.
+    --no-asset-cache       Re-download remote assets instead of using the on-disk cache
+    --asset-cache-dir <p>  Directory for the remote asset cache (default: ./.kino-cache)
     --unsafe-inline-text   Disable textfile delivery (text passed inline; apostrophes may render blank)
     --verbose              Show full FFmpeg output logs during render
     -h, --help             Show help output
@@ -103,6 +151,9 @@ async function main() {
   let isDryRun = false;
   let isVerbose = false;
   let isUnsafeInlineText = false;
+  let previewHeight: number | undefined = undefined;
+  let assetCache = true;
+  let assetCacheDir: string | undefined = undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -122,6 +173,27 @@ async function main() {
       preset = args[++i];
     } else if (arg === "--dry-run") {
       isDryRun = true;
+    } else if (arg === "--no-asset-cache") {
+      assetCache = false;
+    } else if (arg === "--asset-cache-dir") {
+      assetCacheDir = args[++i];
+    } else if (arg === "--preview") {
+      // `--preview` alone = 144p; `--preview 480` = explicit height.
+      const next = args[i + 1];
+      if (next && /^\d+$/.test(next)) {
+        previewHeight = Number(next);
+        i++;
+      } else {
+        previewHeight = PREVIEW_DEFAULT_HEIGHT;
+      }
+    } else if (arg.startsWith("--preview=")) {
+      const raw = arg.slice("--preview=".length);
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        console.error(`Error: --preview expects a height in pixels (got '${raw}').`);
+        process.exit(1);
+      }
+      previewHeight = Math.round(parsed);
     } else if (arg === "--unsafe-inline-text") {
       isUnsafeInlineText = true;
     } else if (arg === "--verbose") {
@@ -161,8 +233,7 @@ async function main() {
       return;
     }
 
-    const fileContent = readFileSync(fullPath, "utf-8");
-    const composition = JSON.parse(fileContent) as KinoComposition;
+    const composition = await loadComposition(fullPath);
 
     if (isUnsafeInlineText) {
       console.warn(
@@ -176,6 +247,9 @@ async function main() {
         encoder,
         preset,
         unsafeInlineText: isUnsafeInlineText,
+        preview: previewHeight,
+        assetCache,
+        assetCacheDir,
       });
       console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
       console.log(`[kino dry-run] FFmpeg command (relative paths, cwd = extraction dir):\nffmpeg ${ffmpegArgs.join(" ")}`);
@@ -191,6 +265,9 @@ async function main() {
       ffmpegPath,
       browserPath,
       unsafeInlineText: isUnsafeInlineText,
+      preview: previewHeight,
+      assetCache,
+      assetCacheDir,
     });
     console.log(`[kino] Successfully rendered to ${result.output}`);
   } catch (err: any) {

@@ -25,6 +25,7 @@ export type {
   VideoElement,
   ElementInput,
   TextOverlay,
+  ChromaKeyConfig,
 } from "./elements.js";
 
 // Templates
@@ -55,3 +56,4 @@ export type {
 
 // Render
 export type { VideoEncoder, RenderOptions, CompileResult } from "./render.js";
+export { PREVIEW_DEFAULT_HEIGHT, resolvePreviewHeight } from "./render.js";

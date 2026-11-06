@@ -1,4 +1,5 @@
 import type { MediaFit } from "./elements.js";
+import type { ChromaKey } from "../pipeline/elements/media.js";
 import type { BackgroundConfig } from "./background.js";
 import type { Easing } from "./animation.js";
 
@@ -71,6 +72,7 @@ export interface NormalizedImageElement extends NormalizedBaseElement {
   width?: number;
   height?: number;
   fit?: MediaFit;
+  chromaKey?: ChromaKey;
 }
 
 export interface NormalizedHtmlElement extends NormalizedBaseElement {
@@ -93,6 +95,7 @@ export interface NormalizedVideoElement extends NormalizedBaseElement {
   trimStart?: number;
   loop?: boolean;
   volume?: number;
+  chromaKey?: ChromaKey;
 }
 
 export type NormalizedElement =

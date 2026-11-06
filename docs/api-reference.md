@@ -7,6 +7,133 @@ import { render, compile } from "@glitchoff/kino";
 import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from "@glitchoff/kino";
 ```
 
+`render()` and `compile()` accept a plain `KinoComposition` — whether parsed from
+JSON, built with `composition()`, or wrapped in `defineComposition()`. They all
+produce the same data shape.
+
+---
+
+## Builder
+
+A small, chainable API that emits a plain `KinoComposition`. Nothing downstream
+distinguishes it from JSON.
+
+```typescript
+import { composition, text, image, fadeIn } from "@glitchoff/kino";
+
+const video = composition({ width: 1080, height: 1920, fps: 30 })
+  .scene({ duration: 8, background: "#0f172a", transition: "fade" }, (s) =>
+    s
+      .text("Title", { fontSize: 84, color: "#fff", x: "center", animation: { opacity: fadeIn(0.6) } })
+      .image("https://example.com/a.jpg", { width: 640, x: "center", startAt: 2 })
+  )
+  .build();
+```
+
+### `composition(options)`
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `width` | `number \| string` | Canvas width |
+| `height` | `number \| string` | Canvas height |
+| `fps` | `number \| string` | Frame rate |
+| `audio` | `AudioTrack \| AudioTrack[]` | Audio bed |
+| `templates` | `KinoTemplate[]` | Reusable element templates |
+
+Returns a `CompositionBuilder`.
+
+### `CompositionBuilder`
+
+| Method | Description |
+| --- | --- |
+| `.scene(options, cb?)` | Add a scene; `cb` receives a `SceneBuilder` |
+| `.addScene(scene)` | Append a raw `KinoScene` |
+| `.addScenes(scenes)` | Append several raw scenes |
+| `.audio(tracks)` | Set the audio bed |
+| `.template(t)` | Register a template |
+| `.build()` | Return the `KinoComposition` |
+
+`SceneOptions` accepts `id`, `duration`, `background`, and `transition` (either a
+`KinoTransitionType` string, which expands to `{ type, duration: 0.5 }`, or a full
+`KinoTransition` object).
+
+### `SceneBuilder`
+
+| Method | Description |
+| --- | --- |
+| `.text(content, options?)` | Add a text element |
+| `.image(src, options?)` | Add an image element |
+| `.video(src, options?)` | Add a video element |
+| `.html(markup, options)` | Add an HTML element (`width`/`height` required) |
+| `.add(element)` | Add any raw element |
+| `.addAll(elements)` | Add several elements |
+
+### Element factories
+
+The same helpers are exported standalone and return the element directly, which
+is convenient with `map`:
+
+```typescript
+import { composition, text } from "@glitchoff/kino";
+
+composition().scene({ duration: 3 }, (s) =>
+  s.addAll(["One", "Two"].map((label, i) => text(label, { startAt: i, duration: 1 })))
+);
+```
+
+`text()`, `image()`, `video()`, `html()` — options mirror the composition fields,
+with `color` → `fontColor` and `align` → `textAlign`.
+
+#### Chroma key
+
+`image()` and `video()` accept `chromaKey` to key out a background colour
+(green/blue screen). The layer is composited in RGBA, so the keyed pixels become
+transparent instead of black.
+
+```typescript
+s.video("./greenscreen.mp4", {
+  width: 1280,
+  height: 720,
+  fit: "cover",
+  chromaKey: { color: "#00ff00", similarity: 0.15, blend: 0.1, despill: true },
+});
+```
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `color` | `"#00ff00"` | Key colour to remove. `true` keys green with defaults. |
+| `similarity` | `0.01` | How close to the key colour counts as background (0–1). Raise for uneven lighting. |
+| `blend` | `0` | Softens the edge between keyed and kept pixels (0–1). |
+| `despill` | `false` | Removes colour bleed from the key colour on the subject. |
+
+### Animation helpers
+
+| Helper | Returns |
+| --- | --- |
+| `animate({ from, to, duration, delay?, easing? })` | `AnimationValue` |
+| `fadeIn(duration = 0.5, easing = "easeOut")` | opacity 0 → 1 |
+| `fadeOut(duration = 0.5, easing = "easeIn")` | opacity 1 → 0 |
+| `slideIn(axis, distance, duration = 0.5, easing = "easeOut")` | position offset → 0 |
+| `popIn(duration = 0.4, easing = "easeOut")` | scale 0.8 → 1 |
+
+### `defineComposition(composition)`
+
+Identity function that types a plain object literal as `KinoComposition`:
+
+```typescript
+import { defineComposition } from "@glitchoff/kino";
+
+export default defineComposition({
+  width: 1080,
+  scenes: [{ duration: 5, elements: [{ type: "text", content: "Hi" }] }],
+});
+```
+
+### `toComposition(input)`
+
+Accepts a builder or a plain object and always returns a `KinoComposition`
+(calling `.build()` when needed).
+
 ---
 
 ## `compile(composition, options?)`
@@ -73,6 +200,15 @@ async function render(
 - `kinoPath?: string` — Where `compile()` writes the `.kino` artifact. Defaults to `<output>.kino`.
 - `unsafeInlineText?: boolean` — **Dangerous.** When set, text is passed to drawtext inline via the `text=` option instead of a `textfile`, bypassing the `.kino` text mechanism. Text containing apostrophes (or other special characters) may render blank on some platforms with no error. Only use if you cannot write temp files. `render()` prints a warning when enabled.
 - `browserPath?: string` — Custom Chrome/Chromium executable path for `HtmlElement` compilation. If omitted, Puppeteer uses its bundled browser or automatically installs Chrome when needed.
+- `preview?: boolean | number` — Fast preview mode. `true` downscales the output to 144p; a number sets the height in pixels (width follows the source aspect). The encoder also switches to `ultrafast` unless `preset` is given. Only the **output stage** changes, so the scene graph a preview shows is identical to a full render.
+- `assetCache?: boolean` — Cache remote assets on disk, keyed by a SHA-256 of the URL, so re-renders skip the download. Defaults to `true`.
+- `assetCacheDir?: string` — Where the asset cache lives. Defaults to `.kino-cache/` in the working directory, falling back to `~/.cache/kino/assets` if that is not writable.
+
+```typescript
+// ~2x faster iteration while authoring
+await render(video, { output: "./preview.mp4", preview: true });
+await render(video, { output: "./preview.mp4", preview: 480 }); // readable text
+```
 
 Puppeteer (via `puppeteer-core`) is an optional capability in practice: it is only invoked when the composition contains an `HtmlElement`, and **no browser is downloaded at install time**. The first time such a composition is compiled, Kino downloads Chrome into the shared cache (`~/.cache/puppeteer`) automatically; run `npx kino setup` (or `npx kino setup browser`) to pre-install it ahead of time. Passing `browserPath` uses the given executable directly and disables the automatic download.
 

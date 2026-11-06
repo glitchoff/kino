@@ -5,6 +5,7 @@ import type {
   NormalizedHtmlElement,
   NormalizedVideoElement,
 } from "../types/normalized.js";
+import { normalizeChromaKey } from "../pipeline/elements/media.js";
 import {
   parseDuration,
   parseLineHeight,
@@ -124,6 +125,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
       width: rawWidth,
       height: rawHeight,
       fit: elem.fit,
+      chromaKey: normalizeChromaKey(elem.chromaKey),
       startAt,
       startTime: parseDuration(elem.startTime) ?? 0,
       duration,
@@ -173,6 +175,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
       trimStart: parseDuration(elem.trimStart),
       loop: elem.loop,
       volume: parseVolume(elem.volume),
+      chromaKey: normalizeChromaKey(elem.chromaKey),
       startAt,
       startTime: parseDuration(elem.startTime) ?? 0,
       duration,
