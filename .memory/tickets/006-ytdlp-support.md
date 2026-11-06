@@ -1,14 +1,22 @@
 # 006 — Optional yt-dlp support
 
-**Status:** proposed
+**Status:** proposed — personal use only
 **Created:** 2026-11-06
+
+> **Scope note:** this is a private capability for the repo owner, not a public
+> feature. No user-facing docs, no README entry, no changelog mention. The
+> implementation should stay small and out of the way.
 
 ## Goal
 
 Let a composition reference a video URL that FFmpeg cannot fetch directly
 (YouTube and friends) and have Kino pull it through `yt-dlp` — **optional,
-external, never bundled**. Users without `yt-dlp` installed see an actionable
-error, not a broken build.
+external, never bundled**.
+
+**The user must have `yt-dlp` installed and on `PATH`.** Kino does not install
+it, download it, or manage its version. If it is missing, Kino fails with an
+actionable error and stops — there is no fallback, no auto-install, no
+`kino setup yt-dlp` command.
 
 ## Design
 
@@ -18,8 +26,7 @@ s.video("yt:https://www.youtube.com/watch?v=abc123", { trimStart: 30, duration: 
 
 - The `yt:` prefix is the opt-in marker. A bare `https://…` URL keeps today's
   behaviour (direct fetch), so nothing existing changes.
-- `yt-dlp` is resolved from `PATH`. A `kino setup yt-dlp` command can install a
-  platform standalone binary, mirroring `scripts/install-ffmpeg.mjs`.
+- `yt-dlp` is resolved from `PATH` only. No bundled binary, no managed download.
 - Downloads land in the existing asset cache (`src/remote/downloader.ts`),
   keyed on video id + format selector + section range + yt-dlp version.
 
@@ -72,9 +79,8 @@ Match **prefixes**, not full strings: wording drifts between releases.
 - **Rate limits are documented:** ~300 videos/hour for guest sessions
   (~2000 with an account). Cache aggressively; do not loop.
 - **Licensing:** yt-dlp *source* is Unlicense, but the standalone PyInstaller
-  binaries are **GPLv3+**. Never vendor a binary into the npm tarball — download
-  at runtime or require it on `PATH`. Shelling out to a separate program is
-  mere aggregation and does not affect Kino's MIT licence.
+  binaries are **GPLv3+**. Kino never ships either — the user installs yt-dlp
+  themselves, so there is no redistribution at all.
 - **Cookies are the only reliable cloud path.** `--cookies <file>` with a
   Netscape-format jar. Never default to `--cookies-from-browser`: it exports
   every cookie for every site.
@@ -96,6 +102,5 @@ Ship these with the yt-dlp work — they are the same feature from a user's view
 
 - Default height cap: `720p` seems right for a renderer, but it should be
   overridable per element (`{ source: { maxHeight: 1080 } }`?).
-- Does `kino setup yt-dlp` download the standalone binary (~41 MB on Linux) or
-  just print install instructions? The binary is GPLv3+ and 41 MB — printing
-  instructions is safer, downloading is friendlier.
+- Minimum supported `yt-dlp` version — do we check, or just let it fail with
+  yt-dlp's own error?
