@@ -20,12 +20,30 @@ and manually. Steps:
    `telegram-render.yml`, so both workflows share entries)
 3. `pnpm install --frozen-lockfile --prefer-offline`
 4. `pnpm typecheck`
-5. `pnpm test`
-6. `pnpm exec tsup`
+5. `pnpm exec tsup`
+6. `pnpm test`
 7. Every `examples/*.ts` compiles via `--dry-run`
 8. Verify the bundled Linux ffmpeg has `drawtext`
 
 `concurrency` cancels superseded runs on the same ref.
+
+## First run caught a real bug
+
+The workflow's very first run failed with:
+
+```
+Error: Failed to resolve entry for package "@glitchoff/kino".
+```
+
+`test/timeline.test.ts` imports `../examples/all-transitions.js`, and the example
+imports `@glitchoff/kino`, which resolves through `dist/` (the package's own
+`exports` map). With the build step after the tests, `dist/` did not exist yet
+and the import failed. Locally it passed only because `dist/` was already built
+from an earlier run — a stale-artifact false pass.
+
+**Fix:** build before test. Order is now typecheck → build → test → examples.
+Reproduced from a clean tree (`rm -rf dist`): 1 failed / 84 passed, then 85/85
+once the build runs first.
 
 ## Decisions
 

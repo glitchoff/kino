@@ -58,12 +58,13 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
-
-      # The compiler must build before examples can be loaded by the CLI.
+      # Must come before tests: examples import "@glitchoff/kino", which resolves
+      # through dist/. Without a build, that import fails to resolve.
       - name: Build library + CLI
         run: pnpm exec tsup
+
+      - name: Test
+        run: pnpm test
 
       # Every example must at least compile. This catches stale or broken
       # example files without paying for a full render.
