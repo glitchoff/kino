@@ -1,0 +1,97 @@
+name: Telegram Render
+
+# Manual only — pick a composition, render it, and push the MP4 to Telegram.
+on:
+  workflow_dispatch:
+    inputs:
+      example:
+        description: Composition file to render
+        required: true
+        default: examples/basic.json
+        type: choice
+        options:
+          - examples/basic.json
+          - examples/animations.json
+          - examples/all-transitions.json
+          - examples/scene-transitions.json
+          - examples/templates.json
+          - examples/easings-showcase.json
+          - examples/apostrophe-text.json
+          - examples/local-demo.json
+          - examples/official.json
+          - examples/showcase.json
+      caption:
+        description: Caption for the Telegram message
+        required: false
+        default: ""
+        type: string
+      delivery:
+        description: How to deliver the video
+        required: true
+        default: link
+        type: choice
+        options:
+          - link
+          - document
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-render
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Render composition
+        run: |
+          node dist/cli.js "${{ inputs.example }}" -o out/render.mp4
+          ls -lh out/render.mp4
+
+      - name: Send to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CAPTION: ${{ inputs.caption }}
+          DELIVERY: ${{ inputs.delivery }}
+          EXAMPLE: ${{ inputs.example }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::error::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets are not set"
+            exit 1
+          fi
+          node scripts/telegram-file-sender.mjs out/render.mp4 \
+            --caption "${CAPTION:-Kino render: $EXAMPLE}" \
+            --mode "$DELIVERY"
+
+      - name: Upload render artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render
+          path: out/render.mp4
+          if-no-files-found: warn
+          retention-days: 7
