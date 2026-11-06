@@ -1,5 +1,8 @@
+import type { TtsSpec } from "../tts/piper.js";
+
 export interface AudioTrack {
-  src: string;
+  /** A file path, URL, `yt:` source, or `tts()` spec. */
+  src: string | TtsSpec;
   startTime?: number | string;
   offset?: number | string;
   duration?: number | string;

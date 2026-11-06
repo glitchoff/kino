@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { render, compile } from "./pipeline/index.js";
 import { parseRenderArgs, RENDER_FLAGS } from "./cli-args.js";
+import { replaceTtsWithPlaceholders } from "./tts/resolve.js";
 import { startStudio } from "../studio/server.js";
 import type { KinoComposition } from "./types/index.js";
 
@@ -31,6 +32,40 @@ async function setupFFmpeg(): Promise<void> {
     process.exit(1);
   }
   console.log("[kino] ffmpeg is ready.");
+}
+
+async function setupTts(): Promise<void> {
+  const { isPiperAvailable, describeVoices, defaultVoiceDir, ensureVoice, resolveVoice, KNOWN_VOICES } = await import(
+    "./tts/piper.js"
+  );
+
+  console.log("[kino] Checking for Piper...");
+  if (!isPiperAvailable()) {
+    console.error(
+      "[kino] Piper is not installed.\n" +
+        "  Install it with:  pip install piper-tts\n" +
+        "  Then re-run:      npx kino setup tts"
+    );
+    process.exit(1);
+  }
+  console.log("[kino] Piper found on PATH.\n");
+
+  console.log(`Available voices:\n${describeVoices()}\n`);
+  console.log(`Voices are downloaded on first use into ${defaultVoiceDir()}`);
+
+  // `kino setup tts <voice>` downloads that voice now instead of at render time.
+  const requested = process.argv.slice(2).filter((a) => !a.startsWith("-"));
+  // Drop the `setup` and `tts` subcommand words themselves.
+  const voices = requested.slice(2);
+  for (const id of voices) {
+    const spec = resolveVoice(id);
+    console.log(`[kino] Downloading ${spec.id} (${spec.languageName})...`);
+    await ensureVoice(spec);
+    console.log(`[kino] ${spec.id} is ready.`);
+  }
+  if (!voices.length) {
+    console.log("\n  Download one now:  npx kino setup tts " + Object.keys(KNOWN_VOICES)[0]);
+  }
 }
 
 /**
@@ -85,8 +120,10 @@ async function main() {
       await setupBrowser();
     } else if (target === "ffmpeg") {
       await setupFFmpeg();
+    } else if (target === "tts") {
+      await setupTts();
     } else {
-      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg]`);
+      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg|tts]`);
       process.exit(1);
     }
     return;
@@ -110,12 +147,13 @@ async function main() {
     npx kino <file> [options]
     npx kino render <file> [options]
     npx kino studio [--port <number>]
-    npx kino setup [browser|ffmpeg]
+    npx kino setup [browser|ffmpeg|tts]
 
   Commands:
     studio                 Launch Kino Studio web editor & preview server
     setup [browser]        Download Chrome for HTML elements (no-op if already installed; also happens automatically on first HTML render)
     setup ffmpeg           Install/verify the bundled ffmpeg (downloads the drawtext-enabled Linux build; verifies ffmpeg-static elsewhere)
+    setup tts [voice]      Check for Piper and download a voice (pip install piper-tts first)
     render <file>          Render composition to video file
 
   File formats:
@@ -173,7 +211,10 @@ async function main() {
     }
 
     if (isDryRun) {
-      const { args: ffmpegArgs, kinoFilePath } = compile(composition, opts);
+      // Dry runs must not download voices or spawn piper, so TTS sources are
+      // shown as a placeholder in the command instead of being synthesised.
+      const dryComposition = replaceTtsWithPlaceholders(composition);
+      const { args: ffmpegArgs, kinoFilePath } = compile(dryComposition, opts);
       console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
       console.log(`[kino dry-run] FFmpeg command (relative paths, cwd = extraction dir):\nffmpeg ${ffmpegArgs.join(" ")}`);
       return;

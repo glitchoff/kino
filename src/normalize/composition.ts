@@ -155,6 +155,21 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
     const sceneStart = currentOffset;
     currentOffset += sceneDur;
 
+    // `s.say()` attaches speech to a scene; hoist it into composition audio at
+    // the scene's absolute start, which is only known here.
+    const narration = (scene as { narration?: unknown[] }).narration;
+    if (narration?.length) {
+      for (const spec of narration) {
+        audioTracks.push({
+          // Already a WAV path when resolveTtsTracks() ran; otherwise a spec
+          // that normalizeAudio() rejects loudly.
+          src: spec as NormalizedAudioTrack["src"],
+          startTime: sceneStart,
+          volume: 1,
+        });
+      }
+    }
+
     const normBg = normalizeBackground(scene.background);
     const normElems: NormalizedElement[] = [];
 

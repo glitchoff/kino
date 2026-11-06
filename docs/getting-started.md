@@ -189,6 +189,52 @@ the same derived factory can be reused freely.
 
 See `examples/reusable-components.ts` for a runnable version.
 
+### Text-to-Speech
+
+Narration is generated locally with [Piper](https://github.com/OHF-Voice/piper1-gpl).
+Piper is **external and optional** — Kino spawns the `piper` binary and never
+bundles it (its engine is GPL-3.0; the subprocess boundary keeps that out of
+this package).
+
+```bash
+pip install piper-tts      # install the engine
+npx kino setup tts         # verify it and list voices
+npx kino setup tts hi_IN-rohan   # download a voice now (~64 MB)
+```
+
+Attach speech to a scene with `s.say()`, or to the composition with `tts()`:
+
+```typescript
+import { composition, tts } from "@glitchoff/kino";
+
+const video = composition({ width: 1080, height: 1920 })
+  .scene({ duration: 4 }, (s) =>
+    s
+      .text("नमस्ते", { fontSize: 120, x: "center", y: "center-120" })
+      .say("नमस्ते, यह Kino से बनाया गया है।", { voice: "hi_IN-rohan" })
+  )
+  .audio([{ src: tts("Kino is scripting-first.", { voice: "en_US-lessac-medium" }), startTime: 4 }])
+  .build();
+```
+
+| Voice | Language | Size |
+| --- | --- | --- |
+| `hi_IN-rohan`, `hi_IN-pratham`, `hi_IN-priyamvada` | Hindi | ~63 MB |
+| `en_US-lessac-medium`, `en_US-amy-medium` | English (US) | ~63 MB |
+| `en_GB-alba-medium` | English (GB) | ~63 MB |
+
+Options: `voice`, `rate` (1 = normal, 2 = double speed).
+
+Notes:
+
+- Voices download **lazily on first use** into `~/.cache/kino/tts/voices` —
+  global, so every project shares them.
+- Synthesised audio is cached in `~/.cache/kino/tts/audio`, keyed on
+  text + voice + rate. A repeated line is never re-synthesised.
+- `--dry-run` never downloads a voice or runs Piper.
+- `s.say()` audio starts at the scene's start time, accounting for transition
+  overlap.
+
 ### Plain objects, still typed
 
 If you prefer object literals, wrap them in `defineComposition` to get checking

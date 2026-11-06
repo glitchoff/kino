@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { compile } from "./compile.js";
+import { resolveTtsTracks, compositionHasTts } from "../tts/resolve.js";
 import { extractKino, readKinoManifest } from "../artifact/index.js";
 import {
   getFFmpegBinaryPath,
@@ -56,6 +57,9 @@ export async function render(
 
   let kinoPath: string;
   let ownsKinoFile = false;
+  // Set when the input was a composition; reused by the encoder fallback so it
+  // recompiles the TTS-resolved version rather than the original.
+  let resolvedComposition: KinoComposition | undefined;
 
   if (typeof compositionOrKinoPath === "string") {
     kinoPath = compositionOrKinoPath;
@@ -63,7 +67,13 @@ export async function render(
       throw new Error(`.kino file not found: ${kinoPath}`);
     }
   } else {
-    const composition = compositionOrKinoPath;
+    let composition = compositionOrKinoPath;
+    // TTS is synthesised up front: compile() is synchronous and only ever sees
+    // real WAV paths.
+    if (compositionHasTts(composition)) {
+      composition = await resolveTtsTracks(composition);
+    }
+    resolvedComposition = composition;
     await assertDrawtextSupport(ffmpegBin, composition);
     if (options.unsafeInlineText) {
       console.warn(
@@ -110,7 +120,11 @@ export async function render(
         const fbKinoDir = mkdtempSync(join(tmpdir(), "kino-"));
         try {
           const fbKinoPath = join(fbKinoDir, "composition.kino");
-          compile(compositionOrKinoPath, { ...options, encoder: "libx264", kinoPath: fbKinoPath });
+          compile(resolvedComposition ?? compositionOrKinoPath, {
+            ...options,
+            encoder: "libx264",
+            kinoPath: fbKinoPath,
+          });
           const fbManifest = readKinoManifest(fbKinoPath);
           const fbArgs = [...fbManifest.ffmpegArgs.slice(0, -1), options.output];
           if (options.verbose) {

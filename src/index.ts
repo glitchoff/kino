@@ -5,6 +5,20 @@ export { parseRenderArgs, RENDER_FLAGS } from "./cli-args.js";
 export type { ParsedArgs } from "./cli-args.js";
 export { selectScene } from "./normalize/composition.js";
 export {
+  tts,
+  isTtsSpec,
+  resolveVoice,
+  ensureVoice,
+  isPiperAvailable,
+  synthesizeToWav,
+  defaultVoiceDir,
+  defaultTtsCacheDir,
+  describeVoices,
+  KNOWN_VOICES,
+  DEFAULT_VOICE,
+} from "./tts/piper.js";
+export type { TtsSpec, TtsOptions, VoiceSpec } from "./tts/piper.js";
+export {
   composition,
   defineComposition,
   toComposition,

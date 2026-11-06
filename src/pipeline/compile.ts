@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { normalizeComposition, selectScene } from "../normalize/index.js";
 import { prestageRemoteAssets, KINO_VERSION, defaultAssetCacheDir } from "../remote/index.js";
 import { isYtdlpSource, ytdlpUrl, fetchWithYtdlp } from "../remote/ytdlp.js";
+import { isTtsSpec, synthesizeToWav, stageTts } from "../tts/piper.js";
 import { packKino } from "../artifact/index.js";
 import { buildAnimationExpressions } from "../animation/index.js";
 import { buildSceneBackground } from "./background.js";
@@ -244,6 +245,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     }
 
     // ── Stage 4: Audio ───────────────────────────────────────────────────────
+    // TTS tracks are resolved to WAV paths by `resolveTtsTracks()` before
+    // compile() runs, so everything here is a real file.
     const audioTracks = norm.audio;
     const audioInputIndices: number[] = [];
     for (const track of audioTracks) {

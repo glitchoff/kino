@@ -21,6 +21,9 @@ on:
           - examples/showcase.ts
           - examples/video-element.ts
           - examples/video-showcase.ts
+          - examples/essay-narration.ts
+          - examples/tts-narration.ts
+          - examples/reusable-components.ts
       caption:
         description: Caption for the Telegram message
         required: false
@@ -90,6 +93,19 @@ jobs:
           node scripts/install-ffmpeg.mjs --print-path > /tmp/kino-ffmpeg-path
           "$(cat /tmp/kino-ffmpeg-path)" -filters | grep -q drawtext
           echo "FFMPEG_PATH=$(cat /tmp/kino-ffmpeg-path)" >> "$GITHUB_ENV"
+
+      # Piper is optional and external: the engine is GPL-3.0, so Kino spawns it
+      # rather than bundling it. Cached voices avoid a ~63 MB fetch per run.
+      - name: Install Piper (text-to-speech)
+        run: pip install --quiet piper-tts
+
+      - name: Cache Piper voices
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/kino/tts
+          key: piper-voices-${{ runner.os }}-v1
+          restore-keys: |
+            piper-voices-${{ runner.os }}-
 
       # Only the library + CLI are needed to render; skip the studio Vite build.
       - name: Build library + CLI

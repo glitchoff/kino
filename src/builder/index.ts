@@ -42,6 +42,7 @@ import type {
 } from "../types/elements.js";
 import type { AnimationValue, Easing, ElementAnimation } from "../types/animation.js";
 import type { KinoTemplate } from "../types/template.js";
+import { tts, type TtsOptions, type TtsSpec } from "../tts/piper.js";
 
 /** Position helpers: `"center"` or ffmpeg-style expressions are both accepted. */
 export type Position = number | string;
@@ -269,6 +270,7 @@ export interface SceneOptions {
 
 export class SceneBuilder {
   private readonly elements: ElementInput[] = [];
+  private readonly narration: TtsSpec[] = [];
 
   constructor(private readonly options: SceneOptions) {}
 
@@ -294,6 +296,18 @@ export class SceneBuilder {
     return this.add(html(markup, options));
   }
 
+  /**
+   * Declare speech for this scene. Synthesised lazily by Piper at render time.
+   *
+   * ```ts
+   * s.say("नमस्ते, welcome to Kino", { voice: "hi_IN-rohan" });
+   * ```
+   */
+  say(text: string, options?: TtsOptions): this {
+    this.narration.push(tts(text, options));
+    return this;
+  }
+
   /** Append many elements at once — handy with `map`/`flatMap`. */
   addAll(elements: ElementInput[]): this {
     for (const element of elements) this.add(element);
@@ -306,6 +320,9 @@ export class SceneBuilder {
       duration: this.options.duration,
       ...(this.options.background !== undefined ? { background: this.options.background } : {}),
       elements: this.elements,
+      // Normalization lifts these into composition-level audio at the scene's
+      // start time, so transitions and offsets stay correct.
+      ...(this.narration.length ? { narration: this.narration } : {}),
       ...(this.options.transition !== undefined
         ? {
             transition:
