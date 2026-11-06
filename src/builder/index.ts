@@ -231,6 +231,32 @@ export function html(markup: string, options: HtmlOptions): HtmlElement {
 }
 
 // ---------------------------------------------------------------------------
+// Reusable components
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a factory with defaults baked in, so a piece of video can be defined
+ * once and reused with different data.
+ *
+ * ```ts
+ * const Title = withDefaults(text, { fontSize: 84, color: "#fff", x: "center", y: "center" });
+ *
+ * Title("Hello");                        // defaults
+ * Title("Hello", { color: "#38bdf8" });  // per-call options win
+ * ```
+ *
+ * Defaults merge one level deep: passing `stroke` replaces the default
+ * `stroke` wholesale rather than merging keys inside it. That keeps the
+ * behaviour predictable for nested option objects such as `animation`.
+ */
+export function withDefaults<I, O extends object, R>(
+  factory: (input: I, options?: O) => R,
+  defaults: O
+): (input: I, options?: Partial<O>) => R {
+  return (input: I, options?: Partial<O>) => factory(input, { ...defaults, ...options } as O);
+}
+
+// ---------------------------------------------------------------------------
 // Scene builder
 // ---------------------------------------------------------------------------
 
@@ -306,6 +332,14 @@ export interface CompositionOptions {
 
 type SceneCallback = (scene: SceneBuilder) => void | SceneBuilder;
 
+/** Anything `.scene()` accepts: options, a pre-built scene, or a builder. */
+export type SceneInput = SceneOptions | KinoScene | SceneBuilder;
+
+function isSceneOptions(input: SceneInput): input is SceneOptions {
+  // A scene object has `elements`; options never do.
+  return !("elements" in input) && !(input instanceof SceneBuilder);
+}
+
 export class CompositionBuilder {
   private readonly scenes: KinoScene[] = [];
   private readonly templates: KinoTemplate[] = [];
@@ -317,13 +351,24 @@ export class CompositionBuilder {
   }
 
   /**
-   * Add a scene. The callback receives a `SceneBuilder` so you can chain
-   * `.text(...)`; omit it for an empty scene.
+   * Add a scene. Accepts scene options plus an optional callback (which
+   * receives a `SceneBuilder`), or a pre-built scene / builder directly.
+   *
+   * ```ts
+   * comp.scene({ duration: 5 }, (s) => s.text("Hi"));
+   * comp.scene(lowerThird("Alice").build());   // reuse a component
+   * ```
    */
-  scene(options: SceneOptions, build?: SceneCallback): this {
-    const scene = new SceneBuilder(options);
-    if (build) build(scene);
-    this.scenes.push(scene.build());
+  scene(input: SceneOptions, build?: SceneCallback): this;
+  scene(scene: KinoScene | SceneBuilder): this;
+  scene(input: SceneInput, build?: SceneCallback): this {
+    if (isSceneOptions(input)) {
+      const scene = new SceneBuilder(input);
+      if (build) build(scene);
+      this.scenes.push(scene.build());
+    } else {
+      this.scenes.push(input instanceof SceneBuilder ? input.build() : input);
+    }
     return this;
   }
 

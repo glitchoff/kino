@@ -150,6 +150,45 @@ const video = composition({ width: 1080, height: 1920 })
   .build();
 ```
 
+### Reusable components
+
+A component is just a function or a `SceneBuilder` — there is no separate
+component model to learn. Four patterns cover most reuse:
+
+```typescript
+import { composition, text, withDefaults, SceneBuilder } from "@glitchoff/kino";
+
+// 1. A derived factory: define the look once, override per use.
+const Title = withDefaults(text, {
+  fontSize: 96, color: "#fff", x: "center", y: "center",
+});
+Title("Hello");                          // defaults
+Title("Hello", { color: "#38bdf8" });    // per-call options win
+
+// 2. A scene callback: same scene, different data.
+const titleCard = (heading: string) => (s: SceneBuilder) => s.add(Title(heading));
+
+// 3. A pre-built scene: `.scene()` accepts a KinoScene or SceneBuilder directly.
+const lowerThird = (name: string) =>
+  new SceneBuilder({ duration: 3 }).text(name, { x: 80, y: "bottom-140" });
+
+composition({ width: 1080, height: 1920 })
+  .scene({ duration: 3 }, titleCard("Intro"))
+  .scene({ duration: 2 }, titleCard("Outro"))
+  .scene(lowerThird("Alice").build());
+
+// 4. A generator: one scene per item.
+function* credits(names: string[]) {
+  for (const name of names) yield (s: SceneBuilder) => s.text(name, { y: "center" });
+}
+```
+
+`withDefaults` merges one level deep — passing `stroke` replaces a default
+`stroke` entirely rather than merging its keys. Defaults are never mutated, so
+the same derived factory can be reused freely.
+
+See `examples/reusable-components.ts` for a runnable version.
+
 ### Plain objects, still typed
 
 If you prefer object literals, wrap them in `defineComposition` to get checking

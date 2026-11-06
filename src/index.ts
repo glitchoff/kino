@@ -17,12 +17,14 @@ export {
   fadeOut,
   slideIn,
   popIn,
+  withDefaults,
   CompositionBuilder,
   SceneBuilder,
 } from "./builder/index.js";
 export type {
   CompositionOptions,
   SceneOptions,
+  SceneInput,
   ElementOptions,
   TextOptions,
   MediaOptions,

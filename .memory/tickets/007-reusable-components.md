@@ -1,6 +1,6 @@
 # 007 — Reusable components
 
-**Status:** proposed
+**Status:** done (withDefaults + .scene(scene); no new model)
 **Created:** 2026-11-06
 
 ## Goal
@@ -91,9 +91,24 @@ from the package root, so it is effectively private.
 - **No component registry.** Composition-local functions are simpler and type
   better than a string-keyed registry.
 
-## Open questions
+## Open questions (resolved)
 
-- Should `.scene()` accept a pre-built `KinoScene` directly, so
-  `comp.scene(lowerThird("Alice").build())` works without `addScene`?
-- Does `withDefaults` need deep-merging for nested options (`animation`,
-  `chromaKey`), or is shallow merge enough in practice?
+- **`.scene()` accepting a pre-built scene — done.** Overloads accept
+  `SceneOptions`, `KinoScene` or `SceneBuilder`. Detection is `"elements" in input`,
+  so options and scene objects can't be confused.
+- **Deep vs shallow merge — shallow, deliberately.** Passing `stroke` replaces
+  a default `stroke` wholesale. Deep merge would make "remove a default" or
+  "replace a nested object" ambiguous; one level is predictable and is all the
+  examples need.
+
+## What shipped
+
+- `withDefaults(factory, defaults)` — generic over the factory, so it works for
+  `text`, `image`, `video`, `html` with full inference. Never mutates defaults.
+- `.scene()` accepts a `KinoScene` or `SceneBuilder` directly.
+- `SceneBuilder` and `SceneInput` exported from the package root (SceneBuilder
+  was already re-exported; `SceneInput` is new).
+- `examples/reusable-components.ts` — all four patterns in one runnable file.
+- Docs: "Reusable components" section in `docs/getting-started.md`.
+- Tests: +8 in `test/builder.test.ts` (defaults, override precedence, no
+  mutation, all four factories, scene reuse, filtergraph check).

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compile } from "../src/pipeline/index.js";
 import {
   animate,
   composition,
@@ -10,6 +11,8 @@ import {
   text,
   toComposition,
   video,
+  withDefaults,
+  SceneBuilder,
 } from "../src/builder/index.js";
 
 describe("builder: composition", () => {
@@ -188,5 +191,90 @@ describe("builder: JSON equivalence", () => {
     expect(built).toEqual(json);
     // Must survive a JSON round trip unchanged — it is a plain data object.
     expect(JSON.parse(JSON.stringify(built))).toEqual(json);
+  });
+});
+
+describe("builder: reusable components", () => {
+  it("withDefaults applies defaults to text", () => {
+    const Title = withDefaults(text, { fontSize: 84, color: "#ffffff", x: "center", y: "center" });
+    expect(Title("Hello")).toEqual({
+      type: "text",
+      content: "Hello",
+      fontSize: 84,
+      fontColor: "#ffffff",
+      x: "center",
+      y: "center",
+    });
+  });
+
+  it("withDefaults lets per-call options win", () => {
+    const Title = withDefaults(text, { fontSize: 84, color: "#ffffff" });
+    const red = Title("Hello", { color: "#ff0000" });
+    expect(red).toMatchObject({ fontSize: 84, fontColor: "#ff0000" });
+  });
+
+  it("withDefaults works for image, video and html", () => {
+    const Thumb = withDefaults(image, { width: 320, fit: "cover" as const });
+    expect(Thumb("a.jpg")).toMatchObject({ type: "image", src: "a.jpg", width: 320, fit: "cover" });
+    expect(Thumb("a.jpg", { width: 640 })).toMatchObject({ width: 640, fit: "cover" });
+
+    const Clip = withDefaults(video, { loop: true, volume: 0.5 });
+    expect(Clip("v.mp4")).toMatchObject({ type: "video", loop: true, volume: 0.5 });
+
+    const Card = withDefaults(html, { width: 400, height: 200, css: "color:red" });
+    expect(Card("<b>hi</b>")).toMatchObject({ type: "html", width: 400, height: 200, css: "color:red" });
+  });
+
+  it("does not mutate the defaults between calls", () => {
+    const Title = withDefaults(text, { fontSize: 84 });
+    Title("A", { fontSize: 10 });
+    expect(Title("B")).toMatchObject({ fontSize: 84 });
+  });
+
+  it("derived factories compose into scenes", () => {
+    const Title = withDefaults(text, { fontSize: 84, color: "#ffffff", x: "center", y: "center" });
+    const comp = composition({ width: 1080, height: 1920 })
+      .scene({ duration: 3 }, (s) => s.add(Title("Intro")))
+      .scene({ duration: 3 }, (s) => s.add(Title("Outro", { fontSize: 48 })))
+      .build();
+
+    expect(comp.scenes).toHaveLength(2);
+    expect(comp.scenes[0].elements?.[0]).toMatchObject({ content: "Intro", fontSize: 84 });
+    expect(comp.scenes[1].elements?.[0]).toMatchObject({ content: "Outro", fontSize: 48 });
+  });
+
+  it("scene() accepts a pre-built scene object", () => {
+    const lowerThird = new SceneBuilder({ duration: 3 })
+      .text("Alice", { x: 60, y: "bottom-80", fontSize: 36 })
+      .text("KINO", { x: 60, y: "bottom-40", fontSize: 24 });
+
+    const comp = composition({ width: 1080, height: 1920 })
+      .scene(lowerThird.build())
+      .scene(lowerThird.build())
+      .build();
+
+    expect(comp.scenes).toHaveLength(2);
+    expect(comp.scenes[0].elements).toHaveLength(2);
+    expect(comp.scenes[0]).toEqual(comp.scenes[1]);
+  });
+
+  it("scene() accepts a SceneBuilder directly", () => {
+    const comp = composition()
+      .scene(new SceneBuilder({ duration: 2 }).text("Hi"))
+      .build();
+
+    expect(comp.scenes).toEqual([{ duration: 2, elements: [{ type: "text", content: "Hi" }] }]);
+  });
+
+  it("a reused component still compiles to a filtergraph", () => {
+    const Title = withDefaults(text, { fontSize: 84, color: "#ffffff", x: "center", y: "center" });
+    const lowerThird = new SceneBuilder({ duration: 2 }).add(Title("Reused"));
+    const comp = composition({ width: 640, height: 360 })
+      .scene(lowerThird.build())
+      .scene(lowerThird.build())
+      .build();
+
+    const { filtergraph } = compile(comp, { output: "reuse.mp4" });
+    expect(filtergraph.match(/drawtext/g)).toHaveLength(2);
   });
 });
