@@ -94,6 +94,7 @@ jobs:
 
       - name: Render composition
         run: |
+          mkdir -p out
           node dist/cli.js "${{ inputs.example }}" -o out/render.mp4 --ffmpeg-path "$FFMPEG_PATH"
           ls -lh out/render.mp4
 
