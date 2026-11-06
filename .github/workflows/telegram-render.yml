@@ -83,12 +83,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Verify bundled Linux ffmpeg (drawtext)
+        run: |
+          node scripts/install-ffmpeg.mjs --print-path > /tmp/kino-ffmpeg-path
+          "$(cat /tmp/kino-ffmpeg-path)" -filters | grep -q drawtext
+          echo "FFMPEG_PATH=$(cat /tmp/kino-ffmpeg-path)" >> "$GITHUB_ENV"
+
       - name: Build
         run: pnpm run build
 
       - name: Render composition
         run: |
-          node dist/cli.js "${{ inputs.example }}" -o out/render.mp4
+          node dist/cli.js "${{ inputs.example }}" -o out/render.mp4 --ffmpeg-path "$FFMPEG_PATH"
           ls -lh out/render.mp4
 
       - name: Send to Telegram
