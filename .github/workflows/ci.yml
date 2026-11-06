@@ -1,0 +1,83 @@
+name: CI
+
+# Catch regressions before they reach main or a release tag.
+# publish.yml still runs the release checks on `v*`; this runs on every push/PR.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Same keys as telegram-render.yml so the two workflows share cache entries.
+      # Restore BEFORE install so postinstall finds vendor/ and skips the download.
+      - name: Cache bundled ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-ffmpeg.mjs') }}
+          restore-keys: |
+            ffmpeg-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # The compiler must build before examples can be loaded by the CLI.
+      - name: Build library + CLI
+        run: pnpm exec tsup
+
+      # Every example must at least compile. This catches stale or broken
+      # example files without paying for a full render.
+      - name: Compile all examples (dry run)
+        run: |
+          set -euo pipefail
+          for f in examples/*.ts; do
+            echo "::group::$f"
+            node dist/cli.js "$f" --dry-run > /dev/null
+            echo "ok"
+            echo "::endgroup::"
+          done
+
+      - name: Verify bundled Linux ffmpeg (drawtext)
+        run: |
+          node scripts/install-ffmpeg.mjs --print-path > /tmp/kino-ffmpeg-path
+          "$(cat /tmp/kino-ffmpeg-path)" -filters | grep -q drawtext

@@ -23,7 +23,7 @@ the legacy/interop format.
 | `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
 | `test/` | vitest suites (`timeline`, `units`) |
 | `docs/` | published documentation |
-| `.github/workflows/` | `publish.yml` (tag-triggered npm release), `telegram-render.yml` (manual) |
+| `.github/workflows/` | `ci.yml` (push/PR checks), `publish.yml` (tag-triggered npm release), `telegram-render.yml` (manual) |
 
 ## Health
 
