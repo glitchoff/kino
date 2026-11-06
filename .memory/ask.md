@@ -15,15 +15,6 @@ Format:
 
 ---
 
-### 2026-11-06 — Rotate the credentials used during setup
-
-**Ask:** rotate the GitHub PAT, Telegram bot token, and Pexels API key that were used while wiring up the render workflow. They were shared over a public file host.
-**Why:** an agent can revoke/regenerate some of these, but that breaks any other machine still using them, so the call is yours.
-**Status:** open
-**Answer:**
-
----
-
 ### 2026-11-06 — Add `workflow` scope to the classic PAT
 
 **Ask:** add the `workflow` scope to the classic GitHub token (Settings → Developer settings → Tokens → check `workflow`).
