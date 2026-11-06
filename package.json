@@ -26,6 +26,12 @@
     "access": "public"
   },
   "packageManager": "pnpm@10.30.3",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "ffmpeg-static"
+    ]
+  },
   "scripts": {
     "build": "tsup && pnpm studio:build",
     "dev": "tsup --watch",
