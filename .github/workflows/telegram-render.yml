@@ -60,18 +60,9 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      # pnpm store + node_modules: setup-node's `cache: pnpm` covers the store,
-      # this caches the installed tree so `pnpm install` is a no-op on repeat runs.
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            node-modules-${{ runner.os }}-
-
       # Bundled drawtext-enabled ffmpeg is downloaded by postinstall into vendor/.
-      # Cache it by arch so the ~80MB download is skipped after the first run.
+      # Restore it BEFORE install so postinstall finds it and skips the ~80MB download.
+      # Key on the script + arch: a changed URL/asset invalidates the cache on purpose.
       - name: Cache bundled ffmpeg
         uses: actions/cache@v4
         with:
@@ -79,6 +70,16 @@ jobs:
           key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-ffmpeg.mjs') }}
           restore-keys: |
             ffmpeg-${{ runner.os }}-${{ runner.arch }}-
+
+      # pnpm store (setup-node above) + the installed tree. Restoring node_modules
+      # makes `pnpm install` a fast no-op when the lockfile is unchanged.
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
@@ -89,8 +90,9 @@ jobs:
           "$(cat /tmp/kino-ffmpeg-path)" -filters | grep -q drawtext
           echo "FFMPEG_PATH=$(cat /tmp/kino-ffmpeg-path)" >> "$GITHUB_ENV"
 
-      - name: Build
-        run: pnpm run build
+      # Only the library + CLI are needed to render; skip the studio Vite build.
+      - name: Build library + CLI
+        run: pnpm exec tsup
 
       - name: Render composition
         run: |

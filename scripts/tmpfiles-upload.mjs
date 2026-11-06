@@ -12,7 +12,11 @@ form.append("file", new Blob([readFileSync(file)]), basename(file));
 
 const res = await fetch("https://tmpfiles.org/api/v1/upload", { method: "POST", body: form });
 const data = await res.json().catch(() => ({}));
-if (!res.ok || data.status !== true) { console.error("Upload failed:", data.message || res.statusText); process.exit(1); }
+const ok = data.status === true || data.status === "success" || typeof data.data?.url === "string";
+if (!res.ok || !ok || !data.data?.url) {
+  console.error("Upload failed:", data.message || data.status || res.statusText);
+  process.exit(1);
+}
 
 const url = data.data.url;
 const dl = url.replace("https://tmpfiles.org/", "https://tmpfiles.org/dl/");
