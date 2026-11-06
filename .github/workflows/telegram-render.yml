@@ -28,11 +28,11 @@ on:
       delivery:
         description: How to deliver the video
         required: true
-        default: link
+        default: document
         type: choice
         options:
-          - link
           - document
+          - link
 
 permissions:
   contents: read
