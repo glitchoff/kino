@@ -7,9 +7,10 @@ on:
       example:
         description: Composition file to render
         required: true
-        default: examples/basic.json
+        default: examples/basic.ts
         type: choice
         options:
+          - examples/basic.ts
           - examples/basic.json
           - examples/animations.json
           - examples/all-transitions.json

@@ -1,6 +1,11 @@
 # Getting Started with Kino
 
-Kino allows you to specify video scenes using declarative JSON objects and compile them to MP4 videos via FFmpeg.
+Kino lets you write video compositions in TypeScript (or JavaScript) and compile them to MP4 via FFmpeg. A composition is plain data, so you can build it with the `composition()` builder, as a typed object literal, or — for compatibility — as JSON.
+
+> **JSON is legacy.** New projects should use code compositions. JSON input is
+> still accepted everywhere and is not going away, but it is frozen: new features
+> land in the builder first, and JSON files only get what maps onto the
+> `KinoComposition` shape. See [Code Compositions](#-code-compositions).
 
 ---
 
@@ -57,37 +62,28 @@ The browser is needed only while compiling HTML into the `.kino` artifact. Once 
 Create a TypeScript or JavaScript file (e.g., `index.ts`):
 
 ```typescript
-import { render } from "@glitchoff/kino";
+import { composition, fadeIn, render } from "@glitchoff/kino";
 
-// 1. Define composition with mandatory scenes primitive
-const composition = {
-  width: 1920,
-  height: 1080,
-  fps: 30,
-  scenes: [
-    {
+// 1. Describe the video. The builder returns a plain KinoComposition object,
+//    so you get types, loops and computed values without a schema.
+const video = composition({ width: 1920, height: 1080, fps: 30 })
+  .scene({ duration: 5, background: "#0f172a" }, (scene) =>
+    scene.text("Welcome to Kino", {
+      fontSize: 64,
+      color: "#38bdf8",
+      x: "center",
+      y: "center",
+      startAt: 0,
       duration: 5,
-      background: "#0f172a",
-      elements: [
-        {
-          type: "text",
-          content: "Welcome to Kino",
-          fontSize: 64,
-          fontColor: "#38bdf8",
-          x: "center",
-          y: "center",
-          startAt: 0,
-          duration: 5
-        }
-      ]
-    }
-  ]
-};
+      animation: { opacity: fadeIn(0.6) },
+    })
+  )
+  .build();
 
 // 2. Render directly to MP4 with automatic hardware acceleration
 async function run() {
   console.log("Rendering video...");
-  const result = await render(composition, {
+  const result = await render(video, {
     output: "./welcome.mp4",
     encoder: "auto", // probes the machine and picks the best available GPU encoder
     verbose: true
@@ -98,17 +94,137 @@ async function run() {
 run();
 ```
 
+The same file works as a CLI input — `npx kino welcome.ts -o out.mp4` — as long as
+it has a default export. See [Code compositions](#-code-compositions) below.
+
+---
+
+## 🧩 Code Compositions
+
+A composition is just data. You can write it as JSON, as a plain object, or with
+the builder — all three produce the same `KinoComposition`, and every entry point
+accepts any of them.
+
+### The builder
+
+```typescript
+import { composition, image, text, fadeIn } from "@glitchoff/kino";
+
+const video = composition({ width: 1080, height: 1920 })
+  .scene({ duration: 8, background: "#0f172a", transition: "fade" }, (s) =>
+    s
+      .text("The Blue Marble", { fontSize: 84, color: "#fff", x: "center", y: "(h-text_h)/2-400" })
+      .image("https://example.com/earth.jpg", { width: 640, x: "center", startAt: 2 })
+  )
+  .build();
+```
+
+| Call | Purpose |
+| --- | --- |
+| `composition({ width, height, fps, audio, templates })` | Start a composition |
+| `.scene({ id, duration, background, transition }, cb?)` | Add a scene |
+| `.addScene(scene)` / `.addScenes(scenes)` | Append raw scene objects |
+| `.audio(tracks)` / `.template(t)` | Composition-level settings |
+| `.build()` | Produce a `KinoComposition` |
+
+Inside a scene callback: `.text()`, `.image()`, `.video()`, `.html()`, `.add()`,
+`.addAll()`.
+
+### Standalone element helpers
+
+Useful with `map`/`filter` when the content is generated:
+
+```typescript
+import { composition, text } from "@glitchoff/kino";
+
+const titles = ["One", "Two", "Three"];
+
+const video = composition({ width: 1080, height: 1920 })
+  .scene({ duration: 3 * titles.length, background: "#000" }, (s) =>
+    s.addAll(
+      titles.map((title, i) =>
+        text(title, { fontSize: 96, color: "#fff", x: "center", y: "center", startAt: i * 3, duration: 3 })
+      )
+    )
+  )
+  .build();
+```
+
+### Plain objects, still typed
+
+If you prefer object literals, wrap them in `defineComposition` to get checking
+and autocomplete without the builder:
+
+```typescript
+import { defineComposition } from "@glitchoff/kino";
+
+export default defineComposition({
+  width: 1080,
+  scenes: [{ duration: 5, elements: [{ type: "text", content: "Hi" }] }],
+});
+```
+
+### Animation helpers
+
+| Helper | Produces |
+| --- | --- |
+| `animate({ from, to, duration, easing })` | Arbitrary value animation |
+| `fadeIn(duration?, easing?)` | `opacity` 0 → 1 |
+| `fadeOut(duration?, easing?)` | `opacity` 1 → 0 |
+| `slideIn("x" \| "y", distance, duration?, easing?)` | Position offset → 0 |
+| `popIn(duration?, easing?)` | `scale` 0.8 → 1 |
+
+### Option aliases
+
+Builder options mirror the composition fields, with friendlier names:
+
+| Builder option | Composition field |
+| --- | --- |
+| `color` | `fontColor` |
+| `align` | `textAlign` |
+
+Unset options are omitted entirely, so the emitted object is clean, JSON-safe
+data.
+
+### Using code compositions from the CLI
+
+```bash
+npx kino scene.ts -o out.mp4       # TypeScript
+npx kino scene.js -o out.mp4       # JavaScript / ESM
+npx kino scene.json -o out.mp4     # JSON still works
+```
+
+The module must export the composition — `export default` is preferred; a named
+`composition` or `scene` export also works. Exporting a function is allowed and
+is called at load time, so a composition can be generated per run:
+
+```typescript
+import { composition } from "@glitchoff/kino";
+
+export default () =>
+  composition({ width: 1080, height: 1920 })
+    .scene({ duration: 5 }, (s) => s.text(new Date().toISOString(), { fontSize: 48, x: "center" }))
+    .build();
+```
+
+> **Note:** `.ts` input is loaded through Node's module loader. Use a Node version
+> with type stripping (22.6+ with `--experimental-strip-types`, on by default in
+> newer releases) or run the CLI through `tsx`.
+
 ---
 
 ## 🖥️ CLI Usage
 
-Kino comes with a CLI utility for compiling and rendering JSON composition files and pre-compiled `.kino` artifacts. GPU hardware encoding is used by default when available.
+Kino comes with a CLI utility for compiling and rendering composition files (JSON or code) and pre-compiled `.kino` artifacts. GPU hardware encoding is used by default when available.
 
-### Render JSON to Video (GPU-first by default)
+### Render to Video (GPU-first by default)
 
 ```bash
 # GPU hardware encoder (auto-detected; falls back to CPU if unavailable)
 npx kino path/to/scene.json -o output.mp4
+
+# Code composition (TypeScript or JavaScript)
+npx kino path/to/scene.ts -o output.mp4
 
 # Explicit CPU
 npx kino path/to/scene.json -o output.mp4 --encoder libx264

@@ -1,6 +1,6 @@
-# 001 — Code-first compositions
+# 001 — Scripting-first compositions
 
-**Status:** in-progress
+**Status:** done
 **Started:** 2026-11-06
 
 ## Goal
@@ -9,34 +9,34 @@ Author compositions in TypeScript instead of JSON, without introducing a second
 composition model. The builder produces a plain `KinoComposition`, so JSON and
 code are interchangeable.
 
-## Plan
+## Shipped
 
-1. `src/builder/index.ts` — `composition()`, `SceneBuilder`, element factories
-   (`text`, `image`, `video`, `html`) and animation helpers (`animate`,
-   `fadeIn`, `fadeOut`, `slideIn`, `popIn`). **Done, needs verification.**
-2. Export the builder from `src/index.ts`.
-3. CLI: accept `.ts` / `.js` composition modules in addition to `.json`.
-   - `.json` → `JSON.parse`
-   - `.js` → dynamic `import()`
-   - `.ts` → dynamic `import()` under a loader (`tsx` is already a devDependency;
-     needs a runtime strategy that works for published installs)
-4. Example: port one existing JSON example to code and keep both.
-5. Docs: a section in `docs/getting-started.md` plus a guide entry.
+1. `src/builder/index.ts` — `composition()`, `CompositionBuilder`, `SceneBuilder`,
+   element factories (`text`, `image`, `video`, `html`), animation helpers
+   (`animate`, `fadeIn`, `fadeOut`, `slideIn`, `popIn`), plus `defineComposition()`
+   and `toComposition()`.
+2. Exported from `src/index.ts`.
+3. CLI accepts `.ts`, `.mts`, `.js`, `.mjs` alongside `.json` and `.kino`.
+   A module may `export default` a composition, a builder, or a function that
+   returns either; named `composition` / `scene` exports also work.
+4. `examples/basic.ts` — the JSON example ported to code; renders identically.
+5. Docs: README, `docs/index.md`, `docs/getting-started.md` (new Code
+   Compositions section), `docs/api-reference.md` (builder reference),
+   `docs/schema-reference.md` (reframed as the data shape).
+6. Tests: `test/builder.test.ts` — 16 cases, including a JSON-equivalence check.
 
 ## Design notes
 
 - Element factories return `TextElement` / `ImageElement` / … directly, so they
   can be used standalone, in `.map()`, or through the scene builder.
-- Options objects mirror the JSON field names where practical, but use friendlier
-  aliases (`color` → `fontColor`, `align` → `textAlign`) since there is no schema
-  to memorise.
-- `undefined` options are omitted from the output rather than written as
-  `undefined`, so the emitted object is clean JSON.
-- The builder must not validate; validation stays in `src/validate/`.
+- Options mirror the composition fields where practical, with friendly aliases
+  (`color` → `fontColor`, `align` → `textAlign`).
+- Unset options are omitted rather than written as `undefined`, so the emitted
+  object is clean, JSON-safe data.
+- The builder does not validate; validation stays in `src/validate/`.
 
-## Open questions
+## Outcome
 
-- Should `.ts` support require the user to have `tsx` installed, or should the
-  CLI bundle a transpiler? Bundling adds weight to every install.
-- Do we want a `defineComposition()` helper purely for type inference on plain
-  object literals (no builder)? Cheap to add.
+Kino is now scripting-first. JSON is the legacy/interop format: still accepted
+everywhere and frozen, with new features landing in the builder first.
+

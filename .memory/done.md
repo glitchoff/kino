@@ -4,6 +4,12 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-06
 
+- **Scripting-first compositions** — `src/builder/` (composition builder, element
+  factories, animation helpers, `defineComposition`, `toComposition`), exported
+  from the package root. CLI accepts `.ts` / `.mts` / `.js` / `.mjs`.
+  `examples/basic.ts` ports the JSON example and renders identically.
+  16 builder tests including a JSON-equivalence check. Docs and README rewritten
+  around scripting; JSON marked as the legacy/interop format. — `tickets/001`
 - **Telegram helper scripts** — `scripts/telegram-send.mjs` (message/file),
   `telegram-poller.mjs` (getUpdates loop), `telegram-file-sender.mjs`
   (document by default, tmpfiles link opt-in, 50 MB fallback),

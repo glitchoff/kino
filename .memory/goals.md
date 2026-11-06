@@ -2,16 +2,13 @@
 
 Priority order. Update when priorities shift.
 
-## 1. Make compositions authorable in code
+## 1. Kino is scripting-first
 
-JSON is good for data, but real videos need loops, variables, computed timings
-and shared constants. Ship a small builder API so a composition can be written
-in TypeScript with full type inference, and let the CLI consume `.ts`/`.js`
-composition modules as well as `.json`.
+Compositions are written in TypeScript. JSON remains supported as the legacy /
+interop format but is frozen: it accepts the same `KinoComposition` shape and
+gets no new authoring features.
 
-- Status: in progress — see `tickets/001`
-- The builder must produce the same `KinoComposition` object, so JSON and code
-  stay interchangeable and nothing downstream changes.
+- Status: done — see `tickets/001`
 
 ## 2. Keep the render path reliable
 

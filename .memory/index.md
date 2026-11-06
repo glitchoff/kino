@@ -4,8 +4,9 @@ Last updated: 2026-11-06
 
 ## What kino is
 
-TypeScript library + CLI + local web studio that compiles declarative JSON scene
-compositions into MP4 via FFmpeg. Published as `@glitchoff/kino`.
+Scripting-first video engine: TypeScript compositions compiled to MP4 via
+FFmpeg. Published as `@glitchoff/kino`. JSON compositions are still accepted as
+the legacy/interop format.
 
 ## Layout
 
@@ -17,7 +18,7 @@ compositions into MP4 via FFmpeg. Published as `@glitchoff/kino`.
 | `src/encoder/` | FFmpeg binary resolution, drawtext probe, hardware encoder detection |
 | `src/artifact/` | `.kino` zip read/write |
 | `src/remote/` | remote asset downloader |
-| `src/builder/` | **code-first composition builder** (new) |
+| `src/builder/` | code-first composition builder (`composition()`, element factories, animation helpers) |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
 | `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
 | `test/` | vitest suites (`timeline`, `units`) |
@@ -26,9 +27,10 @@ compositions into MP4 via FFmpeg. Published as `@glitchoff/kino`.
 
 ## Health
 
-- `pnpm test` — 53 tests passing
+- `pnpm test` — 69 tests passing (3 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI in ~7s
+- `examples/basic.ts` renders successfully via the CLI
 
 ## Known issues
 

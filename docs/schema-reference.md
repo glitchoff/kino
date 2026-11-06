@@ -1,6 +1,11 @@
-# JSON Schema Reference
+# Composition Schema Reference
 
-The `KinoComposition` JSON object defines canvas properties, frame rate, global audio tracks, and mandatory `scenes[]`.
+The `KinoComposition` object defines canvas properties, frame rate, global audio tracks, and mandatory `scenes[]`.
+
+> **This is the data shape, not the authoring format.** In code you build it with
+> `composition()` (see [Code Compositions](./getting-started.md#-code-compositions));
+> the same object can be written as JSON and passed to `render()` / `compile()`
+> unchanged. Every field below is available from the builder.
 
 ---
 

@@ -3,7 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { render, compile } from "./pipeline/index.js";
 import { startStudio } from "../studio/server.js";
 import type { KinoComposition } from "./types/index.js";
@@ -30,6 +30,49 @@ async function setupFFmpeg(): Promise<void> {
     process.exit(1);
   }
   console.log("[kino] ffmpeg is ready.");
+}
+
+/**
+ * Load a composition from disk.
+ *
+ * - `.json`        parsed as JSON
+ * - `.mjs` / `.js` imported as an ES module
+ * - `.ts`          transpiled in-process, then imported (no extra dependency
+ *                  required — uses Node's built-in type stripping where
+ *                  available, falling back to a minimal strip for annotations)
+ *
+ * A module may `export default <composition | builder>`, or export a named
+ * `composition` / `scene`. A function export is called (and awaited) so a
+ * composition can be generated per run.
+ */
+async function loadComposition(fullPath: string): Promise<KinoComposition> {
+  const ext = fullPath.slice(fullPath.lastIndexOf("."));
+  const isModule = [".ts", ".mts", ".js", ".mjs"].includes(ext);
+
+  if (!isModule) {
+    return JSON.parse(readFileSync(fullPath, "utf-8")) as KinoComposition;
+  }
+
+  const mod = await import(pathToFileURL(fullPath).href);
+  const candidate = mod.default ?? mod.composition ?? mod.scene;
+
+  if (candidate === undefined) {
+    throw new Error(
+      `${fullPath} must export a composition — use \`export default composition(...).build()\` (or a named \`composition\` export).`
+    );
+  }
+
+  let value = typeof candidate === "function" ? await candidate() : candidate;
+  // A builder instance is accepted directly; `build()` produces the plain object.
+  if (value && typeof value.build === "function" && !Array.isArray(value.scenes)) {
+    value = value.build();
+  }
+
+  if (!value || typeof value !== "object" || !Array.isArray(value.scenes)) {
+    throw new Error(`${fullPath} did not resolve to a composition object with a \`scenes\` array.`);
+  }
+
+  return value as KinoComposition;
 }
 
 async function main() {
@@ -76,6 +119,7 @@ async function main() {
 
   File formats:
     .json                  JSON composition file
+    .ts / .js / .mjs       Code composition, e.g. export default composition(...).build()
     .kino                  Pre-compiled .kino artifact (renders without recompiling)
 
   Options:
@@ -161,8 +205,7 @@ async function main() {
       return;
     }
 
-    const fileContent = readFileSync(fullPath, "utf-8");
-    const composition = JSON.parse(fileContent) as KinoComposition;
+    const composition = await loadComposition(fullPath);
 
     if (isUnsafeInlineText) {
       console.warn(

@@ -3,13 +3,10 @@
 Author a composition in TypeScript instead of JSON. The builder emits a plain
 `KinoComposition`, so code and JSON stay interchangeable.
 
-> Status: in progress — see `tickets/001`. The builder exists in
-> `src/builder/index.ts`; CLI support for `.ts`/`.js` input is not wired yet.
-
 ## Shape
 
 ```ts
-import { composition, text, image, animate, fadeIn, render } from "@glitchoff/kino";
+import { composition, fadeIn, render } from "@glitchoff/kino";
 
 const comp = composition({ width: 1080, height: 1920, fps: 30 })
   .audio({ src: "https://…/bed.mp3", volume: 0.8, fadeIn: 2, fadeOut: 3 })
@@ -57,18 +54,34 @@ builder.scene({ duration: 6 }, (s) => s.addAll(cards));
 Animation helpers: `animate({ from, to, duration, easing })`, `fadeIn()`,
 `fadeOut()`, `slideIn()`, `popIn()`.
 
+Plain objects can be typed with `defineComposition({ ... })`; `toComposition()`
+normalises a builder or object into a `KinoComposition`.
+
+## CLI
+
+```bash
+node dist/cli.js examples/basic.ts -o out/basic.mp4
+node dist/cli.js examples/basic.ts --dry-run
+```
+
+A module may `export default` a composition, a builder, or a function returning
+either; named `composition` / `scene` exports also work.
+
 ## Option aliases
 
-Options mirror the JSON field names, with a few friendlier aliases:
+Options mirror the composition fields, with a few friendlier aliases:
 
-| Builder option | JSON field |
+| Builder option | Composition field |
 | --- | --- |
 | `color` | `fontColor` |
 | `align` | `textAlign` |
-| `fit` | `fit` |
-| `startAt` | `startAt` |
 
-`undefined` options are omitted entirely, so the emitted object is clean.
+Unset options are omitted entirely, so the emitted object is clean.
+
+## JSON status
+
+JSON is the legacy/interop format. It is still accepted everywhere and is not
+being removed, but it is frozen — new features land in the builder first.
 
 ## Why not JSX / a reactive DSL
 

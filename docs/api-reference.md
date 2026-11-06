@@ -7,6 +7,111 @@ import { render, compile } from "@glitchoff/kino";
 import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from "@glitchoff/kino";
 ```
 
+`render()` and `compile()` accept a plain `KinoComposition` — whether parsed from
+JSON, built with `composition()`, or wrapped in `defineComposition()`. They all
+produce the same data shape.
+
+---
+
+## Builder
+
+A small, chainable API that emits a plain `KinoComposition`. Nothing downstream
+distinguishes it from JSON.
+
+```typescript
+import { composition, text, image, fadeIn } from "@glitchoff/kino";
+
+const video = composition({ width: 1080, height: 1920, fps: 30 })
+  .scene({ duration: 8, background: "#0f172a", transition: "fade" }, (s) =>
+    s
+      .text("Title", { fontSize: 84, color: "#fff", x: "center", animation: { opacity: fadeIn(0.6) } })
+      .image("https://example.com/a.jpg", { width: 640, x: "center", startAt: 2 })
+  )
+  .build();
+```
+
+### `composition(options)`
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `width` | `number \| string` | Canvas width |
+| `height` | `number \| string` | Canvas height |
+| `fps` | `number \| string` | Frame rate |
+| `audio` | `AudioTrack \| AudioTrack[]` | Audio bed |
+| `templates` | `KinoTemplate[]` | Reusable element templates |
+
+Returns a `CompositionBuilder`.
+
+### `CompositionBuilder`
+
+| Method | Description |
+| --- | --- |
+| `.scene(options, cb?)` | Add a scene; `cb` receives a `SceneBuilder` |
+| `.addScene(scene)` | Append a raw `KinoScene` |
+| `.addScenes(scenes)` | Append several raw scenes |
+| `.audio(tracks)` | Set the audio bed |
+| `.template(t)` | Register a template |
+| `.build()` | Return the `KinoComposition` |
+
+`SceneOptions` accepts `id`, `duration`, `background`, and `transition` (either a
+`KinoTransitionType` string, which expands to `{ type, duration: 0.5 }`, or a full
+`KinoTransition` object).
+
+### `SceneBuilder`
+
+| Method | Description |
+| --- | --- |
+| `.text(content, options?)` | Add a text element |
+| `.image(src, options?)` | Add an image element |
+| `.video(src, options?)` | Add a video element |
+| `.html(markup, options)` | Add an HTML element (`width`/`height` required) |
+| `.add(element)` | Add any raw element |
+| `.addAll(elements)` | Add several elements |
+
+### Element factories
+
+The same helpers are exported standalone and return the element directly, which
+is convenient with `map`:
+
+```typescript
+import { composition, text } from "@glitchoff/kino";
+
+composition().scene({ duration: 3 }, (s) =>
+  s.addAll(["One", "Two"].map((label, i) => text(label, { startAt: i, duration: 1 })))
+);
+```
+
+`text()`, `image()`, `video()`, `html()` — options mirror the composition fields,
+with `color` → `fontColor` and `align` → `textAlign`.
+
+### Animation helpers
+
+| Helper | Returns |
+| --- | --- |
+| `animate({ from, to, duration, delay?, easing? })` | `AnimationValue` |
+| `fadeIn(duration = 0.5, easing = "easeOut")` | opacity 0 → 1 |
+| `fadeOut(duration = 0.5, easing = "easeIn")` | opacity 1 → 0 |
+| `slideIn(axis, distance, duration = 0.5, easing = "easeOut")` | position offset → 0 |
+| `popIn(duration = 0.4, easing = "easeOut")` | scale 0.8 → 1 |
+
+### `defineComposition(composition)`
+
+Identity function that types a plain object literal as `KinoComposition`:
+
+```typescript
+import { defineComposition } from "@glitchoff/kino";
+
+export default defineComposition({
+  width: 1080,
+  scenes: [{ duration: 5, elements: [{ type: "text", content: "Hi" }] }],
+});
+```
+
+### `toComposition(input)`
+
+Accepts a builder or a plain object and always returns a `KinoComposition`
+(calling `.build()` when needed).
+
 ---
 
 ## `compile(composition, options?)`
