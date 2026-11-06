@@ -39,7 +39,7 @@ Puppeteer and Chromium are only needed when a composition contains an `html` ele
 If you already have Chrome or Chromium installed, skip the download entirely and point Kino at it with `--browser-path`. When `--browser-path` is provided, Kino uses that executable directly and **never downloads a browser**:
 
 ```bash
-npx kino examples/html-showcase.json -o html-showcase.mp4 \
+npx kino examples/showcase.ts -o html-showcase.mp4 \
   --browser-path "C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
 
@@ -326,10 +326,10 @@ Try the included examples:
 
 ```bash
 # Showcase all 11 transitions
-npx kino examples/all-transitions.json -o all-transitions.mp4
+npx kino examples/all-transitions.ts -o all-transitions.mp4
 
 # Basic scene transitions demo
-npx kino examples/scene-transitions.json -o scene-transitions.mp4
+npx kino examples/scene-transitions.ts -o scene-transitions.mp4
 ```
 
 ---

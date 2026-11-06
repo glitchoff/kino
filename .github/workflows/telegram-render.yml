@@ -11,16 +11,16 @@ on:
         type: choice
         options:
           - examples/basic.ts
-          - examples/basic.json
-          - examples/animations.json
-          - examples/all-transitions.json
-          - examples/scene-transitions.json
-          - examples/templates.json
-          - examples/easings-showcase.json
-          - examples/apostrophe-text.json
-          - examples/local-demo.json
-          - examples/official.json
-          - examples/showcase.json
+          - examples/all-transitions.ts
+          - examples/animations.ts
+          - examples/scene-transitions.ts
+          - examples/easings-showcase.ts
+          - examples/apostrophe-text.ts
+          - examples/local-demo.ts
+          - examples/official.ts
+          - examples/showcase.ts
+          - examples/video-element.ts
+          - examples/video-showcase.ts
       caption:
         description: Caption for the Telegram message
         required: false

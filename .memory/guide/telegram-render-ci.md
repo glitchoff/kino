@@ -8,14 +8,14 @@ GitHub UI → Actions → **Telegram Render** → Run workflow, or:
 
 ```bash
 gh workflow run telegram-render.yml \
-  -f example=examples/basic.json \
+  -f example=examples/basic.ts \
   -f caption="what changed" \
   -f delivery=document
 ```
 
 | Input | Values | Default |
 | --- | --- | --- |
-| `example` | static list of `examples/*.json` | `examples/basic.json` |
+| `example` | static list of `examples/*.ts` | `examples/basic.ts` |
 | `caption` | free text | empty |
 | `delivery` | `document` (direct upload), `link` (tmpfiles) | `document` |
 
@@ -38,7 +38,7 @@ gh secret set TELEGRAM_CHAT_ID   -R <owner>/<repo> --body "$TELEGRAM_CHAT_ID"
 - `node_modules` is cached, keyed on `pnpm-lock.yaml`.
 - The build is `pnpm exec tsup` (library + CLI only) — the studio Vite build is
   skipped because rendering does not need it.
-- Result: ~30 s for `examples/basic.json`.
+- Result: ~30 s for `examples/basic.ts`.
 
 ## Render step
 

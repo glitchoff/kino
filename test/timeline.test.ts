@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, test, expect } from "vitest";
 import { validateComposition, KinoValidationError } from "../src/validate/index.js";
 import { normalizeComposition } from "../src/normalize/index.js";
@@ -289,10 +288,8 @@ describe("Kino Timeline Simplification + Scene Transitions", () => {
       }
     });
 
-    test("compiles 11 transitions in 1 single video composition", () => {
-      const allTransComp: KinoComposition = JSON.parse(
-        readFileSync("./examples/all-transitions.json", "utf-8")
-      );
+    test("compiles 11 transitions in 1 single video composition", async () => {
+      const allTransComp = (await import("../examples/all-transitions.js")).default;
       const result = compile(allTransComp, { output: "all-transitions-out.mp4" });
       expect(result.filtergraph).toContain("xfade=transition=fade");
       expect(result.filtergraph).toContain("xfade=transition=slideleft");
