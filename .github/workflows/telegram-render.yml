@@ -60,8 +60,28 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # pnpm store + node_modules: setup-node's `cache: pnpm` covers the store,
+      # this caches the installed tree so `pnpm install` is a no-op on repeat runs.
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-
+
+      # Bundled drawtext-enabled ffmpeg is downloaded by postinstall into vendor/.
+      # Cache it by arch so the ~80MB download is skipped after the first run.
+      - name: Cache bundled ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-ffmpeg.mjs') }}
+          restore-keys: |
+            ffmpeg-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Build
         run: pnpm run build
