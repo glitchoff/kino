@@ -135,6 +135,8 @@ async function main() {
     --preview [height]     Fast preview render: downscale the output to <height>px tall (default 144) and encode with ultrafast. Layout-accurate, not text-legible above 144p.
     --no-asset-cache       Re-download remote assets instead of using the on-disk cache
     --asset-cache-dir <p>  Directory for the remote asset cache (default: ./.kino-cache)
+    --ytdlp                Allow yt: sources, fetched with the yt-dlp binary on PATH (not bundled)
+    --ytdlp-cookies <file> Netscape cookie jar passed to yt-dlp (needed when YouTube asks for sign-in)
     --unsafe-inline-text   Disable textfile delivery (text passed inline; apostrophes may render blank)
     --verbose              Show full FFmpeg output logs during render
     -h, --help             Show help output
@@ -154,6 +156,8 @@ async function main() {
   let previewHeight: number | undefined = undefined;
   let assetCache = true;
   let assetCacheDir: string | undefined = undefined;
+  let ytdlp = false;
+  let ytdlpCookies: string | undefined = undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -177,6 +181,10 @@ async function main() {
       assetCache = false;
     } else if (arg === "--asset-cache-dir") {
       assetCacheDir = args[++i];
+    } else if (arg === "--ytdlp") {
+      ytdlp = true;
+    } else if (arg === "--ytdlp-cookies") {
+      ytdlpCookies = args[++i];
     } else if (arg === "--preview") {
       // `--preview` alone = 144p; `--preview 480` = explicit height.
       const next = args[i + 1];
@@ -250,6 +258,8 @@ async function main() {
         preview: previewHeight,
         assetCache,
         assetCacheDir,
+        ytdlp,
+        ytdlpCookies,
       });
       console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
       console.log(`[kino dry-run] FFmpeg command (relative paths, cwd = extraction dir):\nffmpeg ${ffmpegArgs.join(" ")}`);
@@ -268,6 +278,8 @@ async function main() {
       preview: previewHeight,
       assetCache,
       assetCacheDir,
+      ytdlp,
+      ytdlpCookies,
     });
     console.log(`[kino] Successfully rendered to ${result.output}`);
   } catch (err: any) {

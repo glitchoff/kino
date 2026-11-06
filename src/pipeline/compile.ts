@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeComposition } from "../normalize/index.js";
-import { prestageRemoteAssets, KINO_VERSION } from "../remote/index.js";
+import { prestageRemoteAssets, KINO_VERSION, defaultAssetCacheDir } from "../remote/index.js";
+import { isYtdlpSource, ytdlpUrl, fetchWithYtdlp } from "../remote/ytdlp.js";
 import { packKino } from "../artifact/index.js";
 import { buildAnimationExpressions } from "../animation/index.js";
 import { buildSceneBackground } from "./background.js";
@@ -56,6 +57,11 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const assetNames = new Map<string, string>();
   let assetCounter = 0;
 
+  const assetCacheDir =
+    options?.assetCache === false
+      ? undefined
+      : options?.assetCacheDir ?? defaultAssetCacheDir();
+
   const remoteAssets = prestageRemoteAssets(stagingDir, norm, {
     cache: options?.assetCache,
     cacheDir: options?.assetCacheDir,
@@ -68,6 +74,22 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   }
 
   const stageAsset = (src: string): string => {
+    if (isYtdlpSource(src)) {
+      if (!options?.ytdlp) {
+        throw new Error(
+          `'${src}' uses the yt: prefix, but yt-dlp support is off. Enable it with --ytdlp (yt-dlp must be installed).`
+        );
+      }
+      const existingYt = assetNames.get(src);
+      if (existingYt) return existingYt;
+      const name = fetchWithYtdlp(ytdlpUrl(src), {
+        stagingDir,
+        cacheDir: options.assetCache === false ? undefined : assetCacheDir,
+        cookies: options.ytdlpCookies,
+      });
+      assetNames.set(src, name);
+      return name;
+    }
     if (src.startsWith("http://") || src.startsWith("https://")) {
       const staged = remoteAssets.map.get(src);
       if (staged) return staged;
