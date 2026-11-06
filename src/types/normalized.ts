@@ -19,6 +19,7 @@ export interface NormalizedElementAnimation {
 }
 
 export interface NormalizedAudioTrack {
+  /** Always a real file path or URL: `tts()` specs are resolved before compile. */
   src: string;
   startTime: number;
   offset?: number;

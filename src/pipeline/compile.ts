@@ -2,8 +2,10 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { normalizeComposition } from "../normalize/index.js";
-import { prestageRemoteAssets, KINO_VERSION } from "../remote/index.js";
+import { normalizeComposition, selectScene } from "../normalize/index.js";
+import { prestageRemoteAssets, KINO_VERSION, defaultAssetCacheDir } from "../remote/index.js";
+import { isYtdlpSource, ytdlpUrl, fetchWithYtdlp } from "../remote/ytdlp.js";
+import { isTtsSpec, synthesizeToWav, stageTts } from "../tts/piper.js";
 import { packKino } from "../artifact/index.js";
 import { buildAnimationExpressions } from "../animation/index.js";
 import { buildSceneBackground } from "./background.js";
@@ -48,13 +50,19 @@ function addFFmpegInput(
 }
 
 export function compile(composition: KinoComposition, options?: Partial<RenderOptions>): CompileResult {
-  const norm = normalizeComposition(composition);
+  let norm = normalizeComposition(composition);
+  if (options?.scene) norm = selectScene(norm, options.scene);
   const { width, height, duration, fps } = norm;
   const output = options?.output || "./out.mp4";
 
   const stagingDir = mkdtempSync(join(tmpdir(), "kino-stage-"));
   const assetNames = new Map<string, string>();
   let assetCounter = 0;
+
+  const assetCacheDir =
+    options?.assetCache === false
+      ? undefined
+      : options?.assetCacheDir ?? defaultAssetCacheDir();
 
   const remoteAssets = prestageRemoteAssets(stagingDir, norm, {
     cache: options?.assetCache,
@@ -68,6 +76,22 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   }
 
   const stageAsset = (src: string): string => {
+    if (isYtdlpSource(src)) {
+      if (!options?.ytdlp) {
+        throw new Error(
+          `'${src}' uses the yt: prefix, but yt-dlp support is off. Enable it with --ytdlp (yt-dlp must be installed).`
+        );
+      }
+      const existingYt = assetNames.get(src);
+      if (existingYt) return existingYt;
+      const name = fetchWithYtdlp(ytdlpUrl(src), {
+        stagingDir,
+        cacheDir: options.assetCache === false ? undefined : assetCacheDir,
+        cookies: options.ytdlpCookies,
+      });
+      assetNames.set(src, name);
+      return name;
+    }
     if (src.startsWith("http://") || src.startsWith("https://")) {
       const staged = remoteAssets.map.get(src);
       if (staged) return staged;
@@ -221,6 +245,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     }
 
     // ── Stage 4: Audio ───────────────────────────────────────────────────────
+    // TTS tracks are resolved to WAV paths by `resolveTtsTracks()` before
+    // compile() runs, so everything here is a real file.
     const audioTracks = norm.audio;
     const audioInputIndices: number[] = [];
     for (const track of audioTracks) {

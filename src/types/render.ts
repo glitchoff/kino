@@ -31,6 +31,15 @@ export interface RenderOptions {
   assetCache?: boolean;
   /** Override the asset cache directory (default `.kino-cache/` in the cwd). */
   assetCacheDir?: string;
+  /**
+   * Allow `yt:` sources, fetched with the `yt-dlp` binary on PATH. Off by
+   * default; Kino never installs yt-dlp.
+   */
+  ytdlp?: boolean;
+  /** Render only this scene by id; its timeline is rebased to zero. */
+  scene?: string;
+  /** Netscape cookie jar forwarded to yt-dlp as `--cookies`. */
+  ytdlpCookies?: string;
 }
 
 /** Preview output height in pixels; `true` maps to 144p. */

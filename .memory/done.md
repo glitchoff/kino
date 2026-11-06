@@ -4,6 +4,9 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-06
 
+- **CI on push/PR** — `.github/workflows/ci.yml` runs typecheck, tests, build,
+  a `--dry-run` compile of every example, and the ffmpeg `drawtext` check.
+  Shares cache keys with the render workflow. — `tickets/004`
 - **Preview renders, chroma key, asset cache** — `--preview [height]` downscales
   the output stage only (144p default, ultrafast); `chromaKey` on image/video
   layers composites in RGBA with optional despill; remote assets cache on disk by

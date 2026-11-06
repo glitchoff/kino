@@ -73,6 +73,43 @@ function applyTemplate(
 }
 
 export function normalizeComposition(comp: KinoComposition): NormalizedComposition {
+  const norm = normalizeCompositionFull(comp);
+  return norm;
+}
+
+/** Selects a single scene by id, rebasing its timeline to zero. */
+export function selectScene(norm: NormalizedComposition, sceneId: string): NormalizedComposition {
+  const scene = norm.scenes.find((s) => s.id === sceneId);
+  if (!scene) {
+    const known = norm.scenes.map((s) => s.id).join(", ");
+    throw new Error(`Unknown scene '${sceneId}'. Available scenes: ${known}`);
+  }
+
+  // A scene rendered alone has no neighbours to transition from.
+  const elements = scene.elements.map((elem) => ({
+    ...elem,
+    startTime: (elem.startTime ?? 0) - scene.startTime,
+  }));
+  const shifted = { ...scene, startTime: 0, elements, transition: undefined };
+
+  return {
+    ...norm,
+    duration: scene.duration,
+    background: scene.background,
+    elements,
+    scenes: [shifted],
+    // Audio that starts before this scene would otherwise be dropped; clamp
+    // tracks that begin inside the scene and keep their relative offset.
+    audio: norm.audio
+      .filter((track) => {
+        const start = track.startTime ?? 0;
+        return start >= scene.startTime && start < scene.startTime + scene.duration;
+      })
+      .map((track) => ({ ...track, startTime: (track.startTime ?? 0) - scene.startTime })),
+  };
+}
+
+function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition {
   const width = parsePixels(comp.width, undefined, 1920)!;
   const height = parsePixels(comp.height, undefined, 1080)!;
   const fps = parseFps(comp.fps, 30);
@@ -117,6 +154,21 @@ export function normalizeComposition(comp: KinoComposition): NormalizedCompositi
     }
     const sceneStart = currentOffset;
     currentOffset += sceneDur;
+
+    // `s.say()` attaches speech to a scene; hoist it into composition audio at
+    // the scene's absolute start, which is only known here.
+    const narration = (scene as { narration?: unknown[] }).narration;
+    if (narration?.length) {
+      for (const spec of narration) {
+        audioTracks.push({
+          // Already a WAV path when resolveTtsTracks() ran; otherwise a spec
+          // that normalizeAudio() rejects loudly.
+          src: spec as NormalizedAudioTrack["src"],
+          startTime: sceneStart,
+          volume: 1,
+        });
+      }
+    }
 
     const normBg = normalizeBackground(scene.background);
     const normElems: NormalizedElement[] = [];

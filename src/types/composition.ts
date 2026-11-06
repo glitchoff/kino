@@ -27,6 +27,12 @@ export interface KinoScene {
   background?: BackgroundInput;
   elements?: ElementInput[];
   transition?: KinoTransition;
+  /**
+   * Speech declared for this scene (from `s.say(...)`). Lifted into
+   * composition-level audio at the scene's start time during normalization.
+   * Builder-only — not part of the JSON schema.
+   */
+  narration?: unknown[];
 }
 
 export interface KinoComposition {

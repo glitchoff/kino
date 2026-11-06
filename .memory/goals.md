@@ -27,4 +27,4 @@ gets no new authoring features.
 ## 4. Catch regressions before release
 
 - Run install + FFmpeg verification + tests on push/PR, not only on tags.
-- Status: open — see `tickets/004`
+- Status: done — see `tickets/004`

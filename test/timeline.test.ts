@@ -934,7 +934,7 @@ describe("Kino Timeline Simplification + Scene Transitions", () => {
       };
       const result = compile(comp, { output: "test-out.mp4" });
       expect(result.filtergraph).toContain("fontsize=120");
-      expect(result.filtergraph).toContain("fontcolor=#ffffff");
+      expect(result.filtergraph).toContain("fontcolor=0xffffff");
       expect(result.filtergraph).toContain("x=(w-text_w)/2");
     });
   });

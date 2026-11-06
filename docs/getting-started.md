@@ -150,6 +150,91 @@ const video = composition({ width: 1080, height: 1920 })
   .build();
 ```
 
+### Reusable components
+
+A component is just a function or a `SceneBuilder` — there is no separate
+component model to learn. Four patterns cover most reuse:
+
+```typescript
+import { composition, text, withDefaults, SceneBuilder } from "@glitchoff/kino";
+
+// 1. A derived factory: define the look once, override per use.
+const Title = withDefaults(text, {
+  fontSize: 96, color: "#fff", x: "center", y: "center",
+});
+Title("Hello");                          // defaults
+Title("Hello", { color: "#38bdf8" });    // per-call options win
+
+// 2. A scene callback: same scene, different data.
+const titleCard = (heading: string) => (s: SceneBuilder) => s.add(Title(heading));
+
+// 3. A pre-built scene: `.scene()` accepts a KinoScene or SceneBuilder directly.
+const lowerThird = (name: string) =>
+  new SceneBuilder({ duration: 3 }).text(name, { x: 80, y: "bottom-140" });
+
+composition({ width: 1080, height: 1920 })
+  .scene({ duration: 3 }, titleCard("Intro"))
+  .scene({ duration: 2 }, titleCard("Outro"))
+  .scene(lowerThird("Alice").build());
+
+// 4. A generator: one scene per item.
+function* credits(names: string[]) {
+  for (const name of names) yield (s: SceneBuilder) => s.text(name, { y: "center" });
+}
+```
+
+`withDefaults` merges one level deep — passing `stroke` replaces a default
+`stroke` entirely rather than merging its keys. Defaults are never mutated, so
+the same derived factory can be reused freely.
+
+See `examples/reusable-components.ts` for a runnable version.
+
+### Text-to-Speech
+
+Narration is generated locally with [Piper](https://github.com/OHF-Voice/piper1-gpl).
+Piper is **external and optional** — Kino spawns the `piper` binary and never
+bundles it (its engine is GPL-3.0; the subprocess boundary keeps that out of
+this package).
+
+```bash
+pip install piper-tts      # install the engine
+npx kino setup tts         # verify it and list voices
+npx kino setup tts hi_IN-rohan   # download a voice now (~64 MB)
+```
+
+Attach speech to a scene with `s.say()`, or to the composition with `tts()`:
+
+```typescript
+import { composition, tts } from "@glitchoff/kino";
+
+const video = composition({ width: 1080, height: 1920 })
+  .scene({ duration: 4 }, (s) =>
+    s
+      .text("नमस्ते", { fontSize: 120, x: "center", y: "center-120" })
+      .say("नमस्ते, यह Kino से बनाया गया है।", { voice: "hi_IN-rohan" })
+  )
+  .audio([{ src: tts("Kino is scripting-first.", { voice: "en_US-lessac-medium" }), startTime: 4 }])
+  .build();
+```
+
+| Voice | Language | Size |
+| --- | --- | --- |
+| `hi_IN-rohan`, `hi_IN-pratham`, `hi_IN-priyamvada` | Hindi | ~63 MB |
+| `en_US-lessac-medium`, `en_US-amy-medium` | English (US) | ~63 MB |
+| `en_GB-alba-medium` | English (GB) | ~63 MB |
+
+Options: `voice`, `rate` (1 = normal, 2 = double speed).
+
+Notes:
+
+- Voices download **lazily on first use** into `~/.cache/kino/tts/voices` —
+  global, so every project shares them.
+- Synthesised audio is cached in `~/.cache/kino/tts/audio`, keyed on
+  text + voice + rate. A repeated line is never re-synthesised.
+- `--dry-run` never downloads a voice or runs Piper.
+- `s.say()` audio starts at the scene's start time, accounting for transition
+  overlap.
+
 ### Plain objects, still typed
 
 If you prefer object literals, wrap them in `defineComposition` to get checking
@@ -262,6 +347,19 @@ npx kino scene.ts --preview --dry-run    # just inspect the graph
 `--preview` only changes the **output stage** — the final video is downscaled and
 encoded with `ultrafast`. The scene graph is untouched, so a preview that looks
 right will render right. Treat 144p as a *layout* preview: text is not legible.
+
+### Rendering One Scene
+
+```bash
+npx kino scene.ts --scene intro            # only that scene
+npx kino scene.ts --scene intro --preview  # fastest possible loop
+```
+
+`--scene <id>` compiles just that scene, with its timeline rebased to zero. Use
+it while authoring a long composition — the cost scales with the scene, not the
+whole video. A selected scene drops its transition, since there is no preceding
+scene to transition from. Ids default to `scene-1`, `scene-2`, …; set
+`id: "intro"` on a scene to name it.
 
 ### Asset Cache
 

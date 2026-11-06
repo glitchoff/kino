@@ -19,8 +19,8 @@ Format:
 
 **Ask:** add the `workflow` scope to the classic GitHub token (Settings → Developer settings → Tokens → check `workflow`).
 **Why:** a classic PAT without `workflow` cannot create or update files under `.github/workflows/`.
-**Status:** open
-**Answer:**
+**Status:** dropped
+**Answer:** Not needed — pushes go through `gh auth token` (the Codespaces `ghu_` token), which has `workflow` scope. The classic PAT is unused for this.
 
 ---
 
@@ -28,5 +28,5 @@ Format:
 
 **Ask:** should the `scripts/install-ffmpeg.mjs` fix be opened as a PR to the upstream repository?
 **Why:** it affects every Linux install; the change is small and self-contained, but the upstream repo is not ours to push to.
-**Status:** open
-**Answer:**
+**Status:** answered
+**Answer:** Done. Opened as `glitchoff/kino#1` and merged by the maintainer on 2026-11-06 (merge commit `2108a60`). It went up with the whole 16-commit batch, not as a standalone PR.

@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { render, compile } from "./pipeline/index.js";
-import { PREVIEW_DEFAULT_HEIGHT } from "./types/index.js";
+import { parseRenderArgs, RENDER_FLAGS } from "./cli-args.js";
+import { replaceTtsWithPlaceholders } from "./tts/resolve.js";
 import { startStudio } from "../studio/server.js";
 import type { KinoComposition } from "./types/index.js";
 
@@ -31,6 +32,40 @@ async function setupFFmpeg(): Promise<void> {
     process.exit(1);
   }
   console.log("[kino] ffmpeg is ready.");
+}
+
+async function setupTts(): Promise<void> {
+  const { isPiperAvailable, describeVoices, defaultVoiceDir, ensureVoice, resolveVoice, KNOWN_VOICES } = await import(
+    "./tts/piper.js"
+  );
+
+  console.log("[kino] Checking for Piper...");
+  if (!isPiperAvailable()) {
+    console.error(
+      "[kino] Piper is not installed.\n" +
+        "  Install it with:  pip install piper-tts\n" +
+        "  Then re-run:      npx kino setup tts"
+    );
+    process.exit(1);
+  }
+  console.log("[kino] Piper found on PATH.\n");
+
+  console.log(`Available voices:\n${describeVoices()}\n`);
+  console.log(`Voices are downloaded on first use into ${defaultVoiceDir()}`);
+
+  // `kino setup tts <voice>` downloads that voice now instead of at render time.
+  const requested = process.argv.slice(2).filter((a) => !a.startsWith("-"));
+  // Drop the `setup` and `tts` subcommand words themselves.
+  const voices = requested.slice(2);
+  for (const id of voices) {
+    const spec = resolveVoice(id);
+    console.log(`[kino] Downloading ${spec.id} (${spec.languageName})...`);
+    await ensureVoice(spec);
+    console.log(`[kino] ${spec.id} is ready.`);
+  }
+  if (!voices.length) {
+    console.log("\n  Download one now:  npx kino setup tts " + Object.keys(KNOWN_VOICES)[0]);
+  }
 }
 
 /**
@@ -85,8 +120,10 @@ async function main() {
       await setupBrowser();
     } else if (target === "ffmpeg") {
       await setupFFmpeg();
+    } else if (target === "tts") {
+      await setupTts();
     } else {
-      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg]`);
+      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg|tts]`);
       process.exit(1);
     }
     return;
@@ -110,12 +147,13 @@ async function main() {
     npx kino <file> [options]
     npx kino render <file> [options]
     npx kino studio [--port <number>]
-    npx kino setup [browser|ffmpeg]
+    npx kino setup [browser|ffmpeg|tts]
 
   Commands:
     studio                 Launch Kino Studio web editor & preview server
     setup [browser]        Download Chrome for HTML elements (no-op if already installed; also happens automatically on first HTML render)
     setup ffmpeg           Install/verify the bundled ffmpeg (downloads the drawtext-enabled Linux build; verifies ffmpeg-static elsewhere)
+    setup tts [voice]      Check for Piper and download a voice (pip install piper-tts first)
     render <file>          Render composition to video file
 
   File formats:
@@ -124,84 +162,23 @@ async function main() {
     .kino                  Pre-compiled .kino artifact (renders without recompiling)
 
   Options:
-    -o, --output <path>    Output video file path (default: ./out.mp4)
-    -e, --encoder <name>   Video encoder (libx264, h264_nvenc, hevc_nvenc, h264_qsv, h264_amf, h264_videotoolbox, auto)
-    --preset <name>        Encoder preset (auto-detected when unset; e.g. NVENC p1-p7, x264 veryfast/slow, AMF speed/balanced/quality)
-    --ffmpeg-path <path>   Use a specific ffmpeg binary instead of the bundled one
-    --browser-path <path>  Use a specific Chromium/Chrome executable for HTML elements (disables automatic browser download)
-    --gpu                  Enable GPU hardware acceleration (alias for --encoder auto with CPU fallback)
-    -p, --port <number>    Port for studio server (default: 3333)
-    --dry-run              Compile to a portable .kino artifact and print the FFmpeg command without rendering (remote assets are downloaded at compile time)
-    --preview [height]     Fast preview render: downscale the output to <height>px tall (default 144) and encode with ultrafast. Layout-accurate, not text-legible above 144p.
-    --no-asset-cache       Re-download remote assets instead of using the on-disk cache
-    --asset-cache-dir <p>  Directory for the remote asset cache (default: ./.kino-cache)
-    --unsafe-inline-text   Disable textfile delivery (text passed inline; apostrophes may render blank)
-    --verbose              Show full FFmpeg output logs during render
-    -h, --help             Show help output
+`);
+
+  for (const [flag, description] of RENDER_FLAGS) {
+    console.log(`    ${flag.padEnd(23)}${description}`);
+  }
+  console.log(`    -p, --port <number>    Port for studio server (default: 3333)
 `);
     process.exit(0);
   }
 
-  let inputPath = "";
-  let outputPath = "./out.mp4";
-  let encoder: any = undefined;
-  let preset: string | undefined = undefined;
-  let ffmpegPath: string | undefined = undefined;
-  let browserPath: string | undefined = undefined;
-  let isDryRun = false;
-  let isVerbose = false;
-  let isUnsafeInlineText = false;
-  let previewHeight: number | undefined = undefined;
-  let assetCache = true;
-  let assetCacheDir: string | undefined = undefined;
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === "render") {
-      continue;
-    } else if (arg === "-o" || arg === "--output") {
-      outputPath = args[++i] || "./out.mp4";
-    } else if (arg === "--ffmpeg-path") {
-      ffmpegPath = args[++i];
-    } else if (arg === "--browser-path") {
-      browserPath = args[++i];
-    } else if (arg === "-e" || arg === "--encoder") {
-      encoder = args[++i];
-    } else if (arg === "--gpu") {
-      encoder = "auto";
-    } else if (arg === "--preset") {
-      preset = args[++i];
-    } else if (arg === "--dry-run") {
-      isDryRun = true;
-    } else if (arg === "--no-asset-cache") {
-      assetCache = false;
-    } else if (arg === "--asset-cache-dir") {
-      assetCacheDir = args[++i];
-    } else if (arg === "--preview") {
-      // `--preview` alone = 144p; `--preview 480` = explicit height.
-      const next = args[i + 1];
-      if (next && /^\d+$/.test(next)) {
-        previewHeight = Number(next);
-        i++;
-      } else {
-        previewHeight = PREVIEW_DEFAULT_HEIGHT;
-      }
-    } else if (arg.startsWith("--preview=")) {
-      const raw = arg.slice("--preview=".length);
-      const parsed = Number(raw);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        console.error(`Error: --preview expects a height in pixels (got '${raw}').`);
-        process.exit(1);
-      }
-      previewHeight = Math.round(parsed);
-    } else if (arg === "--unsafe-inline-text") {
-      isUnsafeInlineText = true;
-    } else if (arg === "--verbose") {
-      isVerbose = true;
-    } else if (!arg.startsWith("-") && !inputPath) {
-      inputPath = arg;
-    }
-  }
+  const parsed = parseRenderArgs(args);
+  const inputPath = parsed.input ?? "";
+  const opts = parsed.options;
+  const outputPath = opts.output ?? "./out.mp4";
+  const isDryRun = parsed.dryRun;
+  const isVerbose = opts.verbose ?? false;
+  const isUnsafeInlineText = opts.unsafeInlineText ?? false;
 
   if (!inputPath) {
     console.error("Error: Please provide a valid input file (.json or .kino) or use `npx kino studio`.");
@@ -220,15 +197,7 @@ async function main() {
   try {
     if (isKinoFile) {
       console.log(`[kino] Rendering pre-compiled artifact ${inputPath} -> ${outputPath}...`);
-      const result = await render(fullPath, {
-        output: outputPath,
-        verbose: isVerbose,
-        encoder,
-        preset,
-        ffmpegPath,
-        browserPath,
-        unsafeInlineText: isUnsafeInlineText,
-      });
+      const result = await render(fullPath, { ...opts, output: outputPath });
       console.log(`[kino] Successfully rendered to ${result.output}`);
       return;
     }
@@ -242,33 +211,17 @@ async function main() {
     }
 
     if (isDryRun) {
-      const { args: ffmpegArgs, kinoFilePath } = compile(composition, {
-        output: outputPath,
-        encoder,
-        preset,
-        unsafeInlineText: isUnsafeInlineText,
-        preview: previewHeight,
-        assetCache,
-        assetCacheDir,
-      });
+      // Dry runs must not download voices or spawn piper, so TTS sources are
+      // shown as a placeholder in the command instead of being synthesised.
+      const dryComposition = replaceTtsWithPlaceholders(composition);
+      const { args: ffmpegArgs, kinoFilePath } = compile(dryComposition, opts);
       console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
       console.log(`[kino dry-run] FFmpeg command (relative paths, cwd = extraction dir):\nffmpeg ${ffmpegArgs.join(" ")}`);
       return;
     }
 
     console.log(`[kino] Rendering ${inputPath} -> ${outputPath}...`);
-    const result = await render(composition, {
-      output: outputPath,
-      verbose: isVerbose,
-      encoder,
-      preset,
-      ffmpegPath,
-      browserPath,
-      unsafeInlineText: isUnsafeInlineText,
-      preview: previewHeight,
-      assetCache,
-      assetCacheDir,
-    });
+    const result = await render(composition, { ...opts, output: outputPath });
     console.log(`[kino] Successfully rendered to ${result.output}`);
   } catch (err: any) {
     console.error(`[kino] Error: ${err.message}`);
