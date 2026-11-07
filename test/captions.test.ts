@@ -123,6 +123,71 @@ describe("captions: elements", () => {
     expect(els[0].captionWords).toBeUndefined();
   });
 
+  describe("reveal style", () => {
+    const els = captions(line, { style: "reveal", wordsPerLine: 6, fontSize: 52 });
+
+    /** Every word's highlighted element, in spoken order. */
+    const sung = els.filter((e) => e.fontColor === "#38bdf8");
+    /** Offset of an `x` like "w/2-12.5" from the frame centre. */
+    const offset = (x: unknown) => Number(String(x).replace(/^w\/2/, ""));
+
+    test("each word is its own element, with no captionWords", () => {
+      // One highlighted element per word, plus a dim redraw for all but the last.
+      expect(sung.map((e) => e.content)).toEqual([
+        "Where", "the", "mind", "is", "without", "fear.",
+      ]);
+      expect(els).toHaveLength(11);
+      expect(els.every((e) => !e.captionWords)).toBe(true);
+    });
+
+    test("x positions increase so words sit side by side", () => {
+      const xs = sung.map((e) => offset(e.x));
+      for (const x of xs) expect(Number.isFinite(x)).toBe(true);
+      for (let i = 1; i < xs.length; i++) expect(xs[i]).toBeGreaterThan(xs[i - 1]);
+    });
+
+    test("x is centred on the frame, never a bare number", () => {
+      // drawtext resolves `w-210` from the right edge and treats a plain
+      // negative number as a literal offset, both of which push the line
+      // off-screen. `w/2 +/- n` is the only form that anchors at the centre.
+      for (const el of els) expect(String(el.x)).toMatch(/^w\/2[+-][\d.]+$/);
+    });
+
+    test("a centred line spans the frame symmetrically", () => {
+      const xs = sung.map((e) => offset(e.x));
+      // The first word starts left of centre and the last one right of it.
+      expect(xs[0]).toBeLessThan(0);
+      expect(xs[xs.length - 1]).toBeGreaterThan(0);
+    });
+
+    test("the sung word is highlighted, then settles to the dim colour", () => {
+      const [sung, settled] = els;
+      expect(sung.content).toBe(settled.content);
+      expect(sung.fontColor).toBe("#38bdf8");
+      expect(settled.fontColor).toBe("#f8fafc");
+      expect(Number(settled.startAt)).toBeGreaterThanOrEqual(Number(sung.startAt));
+    });
+
+    test("the last word of a line is never redrawn in the dim colour", () => {
+      // Nothing follows it, so it stays highlighted for the rest of the line.
+      const last = els[els.length - 1];
+      expect(last.content).toBe("fear.");
+      expect(last.fontColor).toBe("#38bdf8");
+    });
+
+    test("words appear in spoken order", () => {
+      const firsts = els.filter((_, i) => i % 2 === 0);
+      const starts = firsts.map((e) => Number(e.startAt));
+      for (let i = 1; i < starts.length; i++) expect(starts[i]).toBeGreaterThanOrEqual(starts[i - 1]);
+    });
+
+    test("a word's element lasts until the next word begins", () => {
+      const [sung] = els;
+      const next = els[2];
+      expect(Number(sung.startAt) + Number(sung.duration)).toBeCloseTo(Number(next.startAt), 5);
+    });
+  });
+
   test("at shifts the whole track", () => {
     const els = captions(line, { style: "block", wordsPerLine: 6, at: 2 });
     expect(els[0].startAt).toBeCloseTo(2, 5);

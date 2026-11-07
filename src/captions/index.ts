@@ -32,6 +32,8 @@
  */
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { estimateTextWidth } from "../normalize/element.js";
+import { parsePixels } from "../normalize/unit-parser.js";
 import type { TextElement, CaptionWord } from "../types/elements.js";
 
 // ---------------------------------------------------------------------------
@@ -58,6 +60,8 @@ export type CaptionTiming = "auto" | "align" | "even";
 export type CaptionStyle =
   /** Words appear in groups; the spoken word is highlighted. */
   | "karaoke"
+  /** Words pop in one at a time and stay, so the line builds up as it is sung. */
+  | "reveal"
   /** One word at a time, replacing the last. */
   | "word"
   /** A group appears together and stays; no per-word emphasis. */
@@ -472,6 +476,105 @@ function baseOptions(
   };
 }
 
+/** Rendered width of `text` at `fontSize`, using the renderer's estimator. */
+function measure(text: string, fontSize: number): number {
+  return estimateTextWidth(text, fontSize);
+}
+
+/**
+ * Word-by-word reveal: each word is its own element, appearing when it is sung
+ * and staying until the line ends, so the sentence builds up as it is heard.
+ *
+ * Two things make this work with drawtext:
+ *
+ * - Each element is placed at an explicit pixel `x`, computed from the width of
+ *   the words before it. Centring every element would stack them on top of each
+ *   other, since each one holds only a single word.
+ * - The word being sung is drawn in `highlight`; once the next word starts, an
+ *   overlapping element redraws it in `color` until the line ends. That keeps
+ *   the current word standing out without needing per-glyph colouring.
+ */
+function revealElements(
+  timings: WordTiming[],
+  options: CaptionOptions,
+  ctx: { fontSize: number | string; color: string; highlight: string; fade: number; at: number }
+): TextElement[] {
+  const { color, highlight, fade, at } = ctx;
+  const fontSize = parsePixels(ctx.fontSize) ?? 56;
+  const lines = buildCaptionLines(groupWords(timings, options.wordsPerLine ?? 4), options);
+  const out: TextElement[] = [];
+  const zIndex = options.zIndex ?? 100;
+
+  for (const line of lines) {
+    const lineStart = at + line.start;
+    const lineEnd = lineStart + (line.end - line.start);
+    const lineLeft = resolveAnchor(options.x, measure(line.text, fontSize));
+
+    let before = 0;
+    for (let i = 0; i < line.words.length; i++) {
+      const word = line.words[i];
+      const wordStart = at + word.start;
+      const next = line.words[i + 1];
+      const nextStart = next ? at + next.start : lineEnd;
+      const wordX = lineLeft + before;
+
+      const base = {
+        type: "text" as const,
+        content: word.word,
+        fontSize,
+        // Positioned from the frame centre, not from `w` directly: drawtext
+        // resolves `w-210` to 960-210 measured from the right edge, which
+        // pushed every word off-screen. `w/2 +/- n` is unambiguous.
+        x: `w/2${wordX < 0 ? "-" : "+"}${Math.abs(wordX).toFixed(3)}`,
+        y: options.y ?? "bottom-240",
+        textAlign: "left" as const,
+        zIndex,
+        ...options.text,
+      };
+
+      // While this word is being sung it is highlighted...
+      out.push({
+        ...base,
+        fontColor: highlight,
+        startAt: wordStart,
+        duration: Math.max(0.05, Math.min(nextStart, lineEnd) - wordStart),
+        animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
+      } as TextElement);
+
+      // ...then it settles into the resting colour for the rest of the line.
+      const settledFor = lineEnd - nextStart;
+      if (settledFor > 0.05) {
+        out.push({
+          ...base,
+          fontColor: color,
+          startAt: Math.max(wordStart, nextStart),
+          duration: settledFor,
+        } as TextElement);
+      }
+
+      // Advance by this word plus the space that separates it from the next.
+      // The space is added explicitly: measuring "word " would count a trailing
+      // space drawtext never draws, drifting the line right by a space per word.
+      before += measure(word.word, fontSize) + measure(" ", fontSize);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Turns a caption `x` option into a left-edge pixel offset for a line of
+ * `width`, so reveal elements can be positioned individually.
+ */
+function resolveAnchor(x: number | string | undefined, width: number): number {
+  if (typeof x === "number") return x;
+  const value = (x ?? "center").trim();
+  if (value === "center" || value === "c") return -width / 2;
+  if (value === "left") return 0;
+  if (value === "right") return -width;
+  return parsePixels(value) ?? -width / 2;
+}
+
 /**
  * Builds caption elements from word timings.
  *
@@ -503,6 +606,10 @@ export function captionElements(
           ...baseOptions(options, at + word.start, word.end - word.start + (options.hold ?? 0.35)),
         }) as TextElement
     );
+  }
+
+  if (style === "reveal") {
+    return revealElements(timings, options, { fontSize, color, highlight, fade, at });
   }
 
   const lines = buildCaptionLines(groupWords(timings, options.wordsPerLine ?? 4), options);

@@ -79,6 +79,8 @@ export {
   normalizeElement,
   resolveSceneDuration,
   NARRATION_PAD,
+  estimateTextWidth,
+  wrapText,
 } from "./normalize/index.js";
 export { validateComposition, KinoValidationError } from "./validate/index.js";
 export type { ValidationIssue } from "./validate/index.js";

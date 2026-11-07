@@ -298,6 +298,7 @@ const comp = composition({ width: 1080, height: 1920 })
 | Style | Result |
 | --- | --- |
 | `karaoke` (default) | A group of words; each one lights up as it is spoken |
+| `reveal` | Words appear one at a time and stay, so the line builds up as it is sung |
 | `word` | One word at a time, replacing the last |
 | `block` | Timed subtitles — a group appears together, no highlight |
 
