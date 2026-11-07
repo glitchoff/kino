@@ -221,7 +221,8 @@ By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded u
 | `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
 | `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
 | `duration` | `number` | Scene duration | Visible duration in seconds. This is also the length of source footage consumed. |
-| `trimStart` | `number` | `0` | Seek offset in seconds into the source file for playback (source segment = `trimStart` → `trimStart + duration`). |
+| `trimStart` | `number \| string` | `0` | Seek offset into the source file for playback (source segment = `trimStart` → `trimStart + duration`). Accepts clock strings (`"0:32"`, `"1:02.5"`, `"1:00:05"`). |
+| `trimEnd` | `number \| string` | undefined | Where to stop reading the source. When `duration` is unset, the element's duration becomes `trimEnd - trimStart`, so `{ trimStart: "0:32", trimEnd: "0:45" }` plays 13s. An explicit `duration` wins. Must be greater than `trimStart`. |
 | `loop` | `boolean` | `false` | Loop the source to fill `duration` when the footage is shorter. If `false` and the remaining source (after `trimStart`) is shorter than `duration`, the clip is clipped at the source end. |
 | `volume` | `number` | `0` | Source audio gain. `0` (default) **silences** element audio (no audio stream is emitted). Set to a positive value (e.g. `1`) to opt the source audio into the shared `amix` master. |
 | `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
@@ -238,6 +239,16 @@ source playback begins at t=12s   (trimStart)
 plays for 6 seconds               (duration)
    ↓
 source segment = 12s → 18s        (trimStart → trimStart + duration)
+```
+
+With `trimEnd`, the segment is bounded by the clock instead:
+
+```
+{ trimStart: "0:32", trimEnd: "0:45" }
+   ↓
+plays for 13 seconds              (trimEnd - trimStart)
+   ↓
+source segment = 32s → 45s
 ```
 
 ##### Shared Media Fit (`MediaFit`)

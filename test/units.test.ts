@@ -33,6 +33,25 @@ describe("Kino Flexible Units & Pythonic Agent Compatibility", () => {
       expect(parseDuration(undefined)).toBeUndefined();
     });
 
+    test("parses clock times as mm:ss and hh:mm:ss", () => {
+      expect(parseDuration("0:32")).toBe(32);
+      expect(parseDuration("1:02")).toBe(62);
+      expect(parseDuration("2:43.5")).toBe(163.5);
+      expect(parseDuration("1:00:05")).toBe(3605);
+      // Surrounding whitespace is tolerated, as with the other unit forms.
+      expect(parseDuration(" 0:45 ")).toBe(45);
+      // Minutes may exceed 59 when they are the leading component.
+      expect(parseDuration("90:00")).toBe(5400);
+    });
+
+    test("rejects malformed clock times", () => {
+      // A typo in a timestamp should be surfaced, not silently parsed.
+      expect(() => parseDuration("1:xx")).toThrow(/not a number/);
+      expect(() => parseDuration("1:2:3:4")).toThrow(/expected mm:ss/);
+      expect(() => parseDuration("1:75")).toThrow(/below 60/);
+      expect(() => parseDuration("1.5:30")).toThrow(/whole number/);
+    });
+
     test("parses fps, volume, scale, line height", () => {
       expect(parseFps("30fps")).toBe(30);
       expect(parseFps("60")).toBe(60);
@@ -190,6 +209,47 @@ describe("Kino Flexible Units & Pythonic Agent Compatibility", () => {
       expect(norm.audio[0].duration).toBe(5);
       expect(norm.audio[0].volume).toBe(0.8);
       expect(norm.audio[0].fadeIn).toBe(0.5);
+    });
+
+    test("a video trimmed with trimEnd plays from trimStart for the trimmed span", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 10,
+            elements: [{ type: "video", src: "clip.mp4", trimStart: "0:32", trimEnd: "0:45" }],
+          },
+        ],
+      };
+      const vid = normalizeComposition(comp).scenes[0].elements[0] as any;
+      expect(vid.trimStart).toBe(32);
+      expect(vid.trimEnd).toBe(45);
+      // "0:32".."0:45" is 13s, which is what an author expects to see.
+      expect(vid.duration).toBe(13);
+    });
+
+    test("an explicit duration wins over trimEnd", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 10,
+            elements: [{ type: "video", src: "clip.mp4", trimStart: 2, trimEnd: 45, duration: 4 }],
+          },
+        ],
+      };
+      const vid = normalizeComposition(comp).scenes[0].elements[0] as any;
+      expect(vid.duration).toBe(4);
+    });
+
+    test("rejects a trimEnd that does not come after trimStart", () => {
+      const comp: KinoComposition = {
+        scenes: [
+          {
+            duration: 10,
+            elements: [{ type: "video", src: "clip.mp4", trimStart: "0:30", trimEnd: "0:20" }],
+          },
+        ],
+      };
+      expect(() => normalizeComposition(comp)).toThrow(/trimEnd .* must be greater than trimStart/);
     });
   });
 

@@ -46,6 +46,36 @@ export function parseDuration(
 
   const str = String(val).trim();
 
+  // Clock form: "mm:ss" or "hh:mm:ss", optionally with fractional seconds
+  // ("1:02.5"). Parsed before the other forms because the colons are
+  // unambiguous, and a malformed clock string is a typo worth surfacing.
+  if (str.includes(":")) {
+    const parts = str.split(":");
+    if (parts.length > 3) {
+      throw new Error(`Invalid time '${str}': expected mm:ss or hh:mm:ss.`);
+    }
+    let total = 0;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (!/^\d+(\.\d+)?$/.test(part)) {
+        throw new Error(`Invalid time '${str}': '${part}' is not a number.`);
+      }
+      const n = parseFloat(part);
+      // Every component but the first is bounded by 60: minutes and seconds
+      // are sexagesimal. Only the final component may be fractional. The
+      // leading component is unbounded, so "90:00" reads as 90 minutes.
+      const isLast = i === parts.length - 1;
+      if (i > 0 && (n >= 60 || (!isLast && !Number.isInteger(n)))) {
+        throw new Error(`Invalid time '${str}': '${part}' must be a whole number below 60.`);
+      }
+      if (i === 0 && !isLast && !Number.isInteger(n)) {
+        throw new Error(`Invalid time '${str}': '${part}' must be a whole number.`);
+      }
+      total = total * 60 + n;
+    }
+    return total;
+  }
+
   // Percentage of scene duration e.g. "50%"
   if (str.endsWith("%")) {
     const num = parseFloat(str.slice(0, -1));

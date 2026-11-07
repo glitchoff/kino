@@ -145,6 +145,9 @@ function validateVideoElement(elem: Record<string, unknown>, elemPath: string, i
   if (elem.trimStart !== undefined && !isFlexibleNonNegativeNumber(elem.trimStart)) {
     issues.push({ path: `${elemPath}.trimStart`, message: `Expected a non-negative number or duration string, received ${elem.trimStart}` });
   }
+  if (elem.trimEnd !== undefined && !isFlexibleNonNegativeNumber(elem.trimEnd)) {
+    issues.push({ path: `${elemPath}.trimEnd`, message: `Expected a non-negative number or duration string, received ${elem.trimEnd}` });
+  }
   if (elem.loop !== undefined && typeof elem.loop !== "boolean") {
     issues.push({ path: `${elemPath}.loop`, message: `Expected a boolean, received ${typeof elem.loop}` });
   }

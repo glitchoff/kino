@@ -104,6 +104,7 @@ export interface NormalizedVideoElement extends NormalizedBaseElement {
   height?: number;
   fit?: MediaFit;
   trimStart?: number;
+  trimEnd?: number;
   loop?: boolean;
   volume?: number;
   chromaKey?: ChromaKey;

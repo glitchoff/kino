@@ -162,6 +162,17 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
 
   if (elem.type === "video") {
     const fit = elem.fit ?? "contain";
+    const trimStart = parseDuration(elem.trimStart);
+    const trimEnd = parseDuration(elem.trimEnd);
+    if (trimStart !== undefined && trimEnd !== undefined && trimEnd <= trimStart) {
+      throw new Error(
+        `Video element trimEnd (${elem.trimEnd}) must be greater than trimStart (${elem.trimStart}).`
+      );
+    }
+    // An explicit duration wins; otherwise trimEnd defines how long the clip
+    // plays. `"0:32"`..`"0:45"` is 13s, which is what an author expects.
+    const videoDuration =
+      duration ?? (trimStart !== undefined && trimEnd !== undefined ? trimEnd - trimStart : undefined);
     const vid: NormalizedVideoElement = {
       type: "video",
       src: elem.src || "",
@@ -172,13 +183,14 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
       width: rawWidth,
       height: rawHeight,
       fit,
-      trimStart: parseDuration(elem.trimStart),
+      trimStart,
+      trimEnd,
       loop: elem.loop,
       volume: parseVolume(elem.volume),
       chromaKey: normalizeChromaKey(elem.chromaKey),
       startAt,
       startTime: parseDuration(elem.startTime) ?? 0,
-      duration,
+      duration: videoDuration,
       sfx: elem.sfx,
       zIndex,
       animation,

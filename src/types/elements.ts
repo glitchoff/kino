@@ -106,6 +106,11 @@ export interface VideoElement extends BaseElement {
 
   // Source playback
   trimStart?: number | string;
+  /**
+   * Where to stop reading the source. Duration is derived from it when
+   * `duration` is unset, so `{ trimStart: "0:32", trimEnd: "0:45" }` plays 13s.
+   */
+  trimEnd?: number | string;
   loop?: boolean;
   volume?: number | string;
   /** Key out a background colour (green/blue screen). `true` keys green. */
