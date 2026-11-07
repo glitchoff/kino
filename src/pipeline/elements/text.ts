@@ -246,13 +246,22 @@ export function buildKaraokeFilters(
     const t1 = (startAt + w.at + w.duration).toFixed(4);
     const enable = `between(t\\,${t0}\\,${t1})`;
 
+    // Crop to the word box *first*, then draw the highlight into that small
+    // crop. Drawing into the full frame and cropping afterwards costs a
+    // full-resolution drawtext per word; a word box is a few hundred pixels,
+    // so this is ~50x cheaper and a minute of captions stays renderable.
+    //
+    // The text inside the crop is positioned relative to the crop's origin, so
+    // the original x/y are shifted by the crop offset.
+    const small = `[ka_small_${i}]`;
+    chain.push(`${wordLabels[i]}crop=w=${wPx}:h=${hPx}:x='${leftPx}':y='${topPx}'${small}`);
+
+    const shifted = bandFilterFor(highlightFilter, leftPx, topPx, frameW, frameH);
     const hl = `[ka_hl_${i}]`;
-    const crop = `[ka_crop_${i}]`;
-    chain.push(`${wordLabels[i]}${highlightFilter}:enable='${enable}'${hl}`);
-    chain.push(`${hl}crop=w=${wPx}:h=${hPx}:x='${leftPx}':y='${topPx}'${crop}`);
+    chain.push(`${small}${shifted}:enable='${enable}'${hl}`);
 
     const next = `[ka_out_${i}]`;
-    chain.push(`${prev}${crop}overlay=x='${leftPx}':y='${topPx}':format=auto${next}`);
+    chain.push(`${prev}${hl}overlay=x='${leftPx}':y='${topPx}':format=auto${next}`);
     prev = next;
   }
 
@@ -269,11 +278,37 @@ export function buildKaraokeFilters(
  * `h-…`, and `w`/`h` percentages. Anything it cannot evaluate returns `"0"`,
  * which puts the highlight at the frame origin rather than failing the render.
  */
+/**
+ * Rewrites a drawtext filter to draw into a cropped region whose top-left is
+ * at (`dx`, `dy`) in the original frame.
+ *
+ * Inside a crop `w`/`h` (and `main_w`/`main_h`) are the *crop's* size, so a
+ * position computed against the frame would be wrong — centring on the crop
+ * would place the text relative to a few hundred pixels instead of the frame.
+ * The frame size is substituted back in and the crop offset subtracted, so the
+ * text lands at exactly the same place it would on the full frame.
+ */
+function bandFilterFor(filter: string, dx: string, dy: string, frameW: number, frameH: number): string {
+  return filter
+    .replace(/\bmain_w\b/g, String(frameW))
+    .replace(/\bmain_h\b/g, String(frameH))
+    .replace(/:x=('[^']*'|[^:]+)/, (_m, expr) => `:x=${shiftPosition(expr, dx)}`)
+    .replace(/:y=('[^']*'|[^:]+)/, (_m, expr) => `:y=${shiftPosition(expr, dy)}`);
+}
+
 /** Approximate rendered extent of the text, for centring a caption crop. */
 function textExtent(which: string, fontSize: number): number {
   // drawtext's text_h for a single line is roughly the font size plus
   // leading; text_w is measured from the em-width estimate at the call site.
   return which === "text_h" ? fontSize * 1.2 : 0;
+}
+
+/** Subtracts a pixel offset from a drawtext position expression. */
+function shiftPosition(expr: string): string;
+function shiftPosition(expr: string, dx: string): string;
+function shiftPosition(expr: string, offset = "0"): string {
+  const raw = expr.replace(/^'|'$/g, "");
+  return `'(${raw})-${offset}'`;
 }
 
 function resolvePx(expr: string, frame: number, fontSize: number): string {
