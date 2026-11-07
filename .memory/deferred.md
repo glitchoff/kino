@@ -39,3 +39,23 @@ upside; it stays frozen instead.
 The studio currently edits JSON. Loading and saving TypeScript compositions
 needs a code editor surface and a way to run the module in the browser, which is
 a separate piece of work.
+
+## Chunked alignment inside the library
+
+`captionsAsync()` aligns the whole audio in one pass. That is O(n²) in audio
+length, so a full song needs more memory than a small machine has and gets
+OOM-killed. Chunking into overlapping windows works and is what the full-song
+lyric experiments use, but it is currently done in a script, not in `kino`.
+Moving it into `src/captions/` would make long inputs "just work"; deferred
+because it needs its own design (window sizing, overlap, word-budget per window)
+and tests, and captions on TTS-length audio are unaffected.
+
+## Glyph-accurate text measurement
+
+`estimateTextWidth` weights characters by rough class (wide/narrow/uppercase).
+It is within ~5% for a line but can be off by 6px for a single word, which is
+enough to make neighbouring words in the `reveal` style touch. The real
+advances have been measured from Inter (0.28–1.07em per character). Adopting
+them is deferred until a table-driven estimator can be added without
+hand-maintaining one entry per glyph; the fallback must stay reasonable for
+fonts other than Inter.

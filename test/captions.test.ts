@@ -282,4 +282,29 @@ describe("captions: pipeline", () => {
     expect(graph).not.toContain("split=");
     expect(graph).not.toContain("crop=");
   });
+
+  test("a graph too long for the command line is written to a script file", () => {
+    // Long caption tracks produce graphs past ARG_MAX, which fails at spawn
+    // with E2BIG and no useful message. Past a threshold the graph goes to a
+    // file instead, and ffmpeg reads it with -filter_complex_script.
+    const words = Array.from({ length: 400 }, (_, i) => ({
+      word: `word${i}`,
+      clean: `word${i}`,
+      start: i * 0.2,
+      end: i * 0.2 + 0.18,
+    }));
+    const els = captionElements(words, { style: "karaoke", wordsPerLine: 4 });
+    const comp = composition({ width: 640, height: 360 })
+      .scene({ duration: 90 }, (s) => s.addAll(els))
+      .build();
+
+    const { args, filtergraph } = compile(comp, { output: "out.mp4" });
+    expect(filtergraph!.length).toBeGreaterThan(100_000);
+    expect(args).not.toContain("-filter_complex");
+    const idx = args.indexOf("-filter_complex_script");
+    expect(idx).toBeGreaterThan(-1);
+    // The manifest is replayed with the extraction dir as cwd, so the script is
+    // referenced by name rather than by an absolute staging path.
+    expect(args[idx + 1]).toBe("filtergraph.txt");
+  });
 });

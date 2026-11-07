@@ -18,6 +18,14 @@ import { buildTransitionPipeline } from "./transitions.js";
 import { buildAudioMix } from "./audio.js";
 import { resolveEncoderSync, buildEncoderFlags } from "./encoder-flags.js";
 import { resolvePreviewHeight } from "../types/render.js";
+
+/**
+ * Longest filtergraph passed on the command line. The OS limit (ARG_MAX) is
+ * typically 2 MB and shared with the environment; this leaves generous room so
+ * a graph that fits today does not fail on a machine with a smaller limit.
+ */
+const FILTERGRAPH_ARG_LIMIT = 100_000;
+const FILTERGRAPH_SCRIPT_NAME = "filtergraph.txt";
 import type {
   KinoComposition,
   RenderOptions,
@@ -286,7 +294,19 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
     if (filterComplex.length > 0) {
       filtergraphStr = filterComplex.join(";");
-      args.push("-filter_complex", filtergraphStr);
+      // A long caption track produces a filtergraph far past the OS argument
+      // limit (E2BIG, typically 2 MB), which fails at spawn with no useful
+      // error. Handing ffmpeg a script file keeps the graph off the command
+      // line, so graph size no longer limits a composition.
+      if (filtergraphStr.length > FILTERGRAPH_ARG_LIMIT) {
+        // Written into the staging dir, which is packed into the .kino and
+        // extracted at render time; ffmpeg then runs with that as its cwd, so
+        // the basename is the whole path it needs.
+        writeFileSync(join(stagingDir, FILTERGRAPH_SCRIPT_NAME), filtergraphStr, "utf8");
+        args.push("-filter_complex_script", FILTERGRAPH_SCRIPT_NAME);
+      } else {
+        args.push("-filter_complex", filtergraphStr);
+      }
       args.push("-map", lastVideoPad);
       if (finalAudioMap) {
         args.push("-map", finalAudioMap, "-c:a", "aac", "-b:a", "192k");
