@@ -6,7 +6,10 @@ export type { ParsedArgs } from "./cli-args.js";
 export { selectScene } from "./normalize/composition.js";
 export {
   tts,
+  voice,
+  isVoice,
   isTtsSpec,
+  wavDuration,
   resolveVoice,
   ensureVoice,
   isPiperAvailable,
@@ -17,7 +20,7 @@ export {
   KNOWN_VOICES,
   DEFAULT_VOICE,
 } from "./tts/piper.js";
-export type { TtsSpec, TtsOptions, VoiceSpec } from "./tts/piper.js";
+export type { TtsSpec, TtsOptions, VoiceSpec, Voice } from "./tts/piper.js";
 export {
   composition,
   defineComposition,
@@ -51,6 +54,8 @@ export {
   normalizeComposition,
   normalizeBackground,
   normalizeElement,
+  resolveSceneDuration,
+  NARRATION_PAD,
 } from "./normalize/index.js";
 export { validateComposition, KinoValidationError } from "./validate/index.js";
 export type { ValidationIssue } from "./validate/index.js";
@@ -68,6 +73,8 @@ export type {
   BackgroundConfig,
   ElementInput,
   KinoScene,
+  SceneDuration,
+  NarrationFit,
   Easing,
   AnimationValue,
   ElementAnimation,

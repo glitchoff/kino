@@ -21,9 +21,24 @@ export interface KinoTransition {
   duration: number | string;
 }
 
+/** A scene sized to a measured line of speech. */
+export interface NarrationFit {
+  /** The `Voice` returned by `await voice(...)`. */
+  fit: { readonly __kinoVoice: true; readonly seconds: number };
+  /** Seconds added after the speech so the last word is not clipped. Default 0.6. */
+  pad?: number;
+  /** Seconds added before the speech. Default 0. */
+  lead?: number;
+  /** Shortest scene, whatever the speech length. */
+  min?: number;
+}
+
+/** `duration` accepts a fixed length or a narration fit. */
+export type SceneDuration = number | string | NarrationFit;
+
 export interface KinoScene {
   id?: string;
-  duration: number | string;
+  duration: SceneDuration;
   background?: BackgroundInput;
   elements?: ElementInput[];
   transition?: KinoTransition;

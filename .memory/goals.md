@@ -28,3 +28,17 @@ gets no new authoring features.
 
 - Run install + FFmpeg verification + tests on push/PR, not only on tags.
 - Status: done — see `tickets/004`
+
+## 5. Content lives in the script
+
+- Narration is written as text, not shipped as audio files; synthesised locally
+  by Piper at render time, cached globally.
+- Timing follows the words, not the other way round: `await voice()` measures a
+  line, `duration: { fit: voice }` sizes a scene to it.
+- Status: done — see `tickets/008` and `done.md` (2026-11-07)
+
+## 6. Write it once, reuse it
+
+- Scenes and elements are plain functions and objects: `withDefaults()`,
+  pre-built `SceneBuilder`s, generators.
+- Status: done — see `tickets/007`

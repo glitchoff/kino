@@ -37,6 +37,8 @@ export type {
   KinoTransition,
   KinoScene,
   KinoComposition,
+  NarrationFit,
+  SceneDuration,
 } from "./composition.js";
 
 // Normalized

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -258,6 +258,99 @@ export function stageTts(src: string, stagingDir: string): string {
   const dest = join(stagingDir, name);
   if (src !== dest) copyFileSync(src, dest);
   return name;
+}
+
+// ---------------------------------------------------------------------------
+// Durations
+// ---------------------------------------------------------------------------
+
+/**
+ * Seconds of audio in a PCM WAV file, read from the `fmt ` and `data` chunks.
+ *
+ * Piper always writes 16-bit mono PCM, but the header is parsed rather than
+ * assumed: `byteRate` is the one field that turns a byte count into a length,
+ * and it is correct for any format. Returns `undefined` for anything that is
+ * not a readable RIFF/WAVE file rather than throwing — a caller that needs the
+ * duration can decide what to do about it.
+ */
+export function wavDuration(file: string): number | undefined {
+  const buf = readFileSync(file);
+  if (buf.length < 44 || buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WAVE") {
+    return undefined;
+  }
+
+  let offset = 12;
+  let byteRate: number | undefined;
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString("ascii", offset, offset + 4);
+    const size = buf.readUInt32LE(offset + 4);
+    const body = offset + 8;
+    if (id === "fmt " && body + 16 <= buf.length) {
+      byteRate = buf.readUInt32LE(body + 8);
+    } else if (id === "data") {
+      if (!byteRate) return undefined;
+      // A truncated file (a killed piper) reports a size past EOF; clamp to
+      // what is actually on disk.
+      const available = Math.min(size, buf.length - body);
+      return available / byteRate;
+    }
+    // Chunks are word-aligned: an odd size is followed by one pad byte.
+    offset = body + size + (size % 2);
+  }
+  return undefined;
+}
+
+/**
+ * A synthesised line of speech, measured.
+ *
+ * Created with {@link voice}. Because synthesis is a subprocess, the duration
+ * can only be known asynchronously — `await` the factory, then use
+ * `seconds` anywhere a number is accepted.
+ */
+export interface Voice {
+  /** Marker used by the builder and `compile()`. */
+  readonly __kinoVoice: true;
+  /** What Piper will say. */
+  readonly text: string;
+  /** Voice and rate used. */
+  readonly options: TtsOptions;
+  /** The synthesised WAV, already on disk (and cached). */
+  readonly path: string;
+  /** Audio length in seconds, from the WAV header. */
+  readonly seconds: number;
+  /** The `tts()` spec this voice wraps, for `s.say()` / `audio()`. */
+  readonly spec: TtsSpec;
+}
+
+/**
+ * Synthesises `text` now and returns it as a measured {@link Voice}.
+ *
+ * Unlike `tts()`, which defers synthesis to render time, this resolves
+ * immediately so the duration is available while building:
+ *
+ * ```ts
+ * const line = await voice("Where the mind is without fear", { voice: "en_US-lessac-medium" });
+ *
+ * comp.scene({ duration: line.seconds + 0.5 }, (s) =>
+ *   s.text("Where the mind is\nwithout fear").say(line)
+ * );
+ * ```
+ *
+ * The audio is cached globally by text + voice + rate, so a second call — or a
+ * render — is a file read, not a subprocess.
+ */
+export async function voice(text: string, options: TtsOptions = {}): Promise<Voice> {
+  const spec = tts(text, options);
+  const path = await synthesizeToWav(spec.text, spec.options);
+  const seconds = wavDuration(path);
+  if (seconds === undefined) {
+    throw new Error(`Could not read the duration of synthesised audio at ${path}. Is it a valid WAV?`);
+  }
+  return { __kinoVoice: true, text: spec.text, options: spec.options, path, seconds, spec };
+}
+
+export function isVoice(value: unknown): value is Voice {
+  return typeof value === "object" && value !== null && (value as Voice).__kinoVoice === true;
 }
 
 /** @internal Exposed for tests. */

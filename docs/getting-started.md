@@ -235,6 +235,50 @@ Notes:
 - `s.say()` audio starts at the scene's start time, accounting for transition
   overlap.
 
+#### Sizing a scene from its narration
+
+`tts()` defers synthesis to render time, so it cannot tell you how long a line
+is. `await voice(...)` synthesises immediately and returns the measured audio:
+
+```typescript
+import { composition, voice } from "@glitchoff/kino";
+
+const line = await voice("Where the mind is without fear.", { voice: "en_US-lessac-medium" });
+
+line.seconds; // 1.63 — plain seconds, usable anywhere a duration is
+line.path;    // the cached WAV
+line.spec;    // the tts() spec, for audio() tracks
+
+const video = composition({ width: 1080, height: 1920 })
+  .scene({ duration: { fit: line } }, (s) =>
+    s.text("Where the mind\nis without fear", { x: "center", y: "center" }).say(line)
+  )
+  .build();
+```
+
+`duration: { fit: voice }` sets the scene to the speech length plus a tail, so
+the last word is never clipped:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `pad` | `0.6` | Seconds after the speech |
+| `lead` | `0` | Seconds before the speech |
+| `min` | — | Shortest scene, whatever the speech length |
+
+Because `seconds` is a number, the usual arithmetic works too:
+
+```typescript
+comp.scene({ duration: line.seconds + 2 }, (s) => s.say(line));
+s.text("…", { animation: fadeIn(Math.min(0.5, line.seconds / 4)) });
+```
+
+A `Voice` passed to `s.say()` reuses the audio already synthesised — nothing is
+spoken twice — so one measured line can be shared by several scenes. Measuring
+is cached by text + voice + rate, so a re-run costs a file read, not a Piper
+spawn. Measuring many lines is worth parallelising with `Promise.all`.
+
+See `examples/narration-fit.ts`.
+
 ### Plain objects, still typed
 
 If you prefer object literals, wrap them in `defineComposition` to get checking
