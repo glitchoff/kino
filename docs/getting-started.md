@@ -279,6 +279,63 @@ spawn. Measuring many lines is worth parallelising with `Promise.all`.
 
 See `examples/narration-fit.ts`.
 
+#### Word-level captions
+
+`captions()` turns a measured line into timed caption elements. The words are
+already known — they are the line you asked Piper to say — so nothing is
+transcribed.
+
+```typescript
+import { composition, voice, captions } from "@glitchoff/kino";
+
+const line = await voice("Where the mind is without fear.");
+
+const comp = composition({ width: 1080, height: 1920 })
+  .scene({ duration: { fit: line } }, (s) => s.addAll(captions(line, { style: "karaoke" })))
+  .build();
+```
+
+| Style | Result |
+| --- | --- |
+| `karaoke` (default) | A group of words; each one lights up as it is spoken |
+| `word` | One word at a time, replacing the last |
+| `block` | Timed subtitles — a group appears together, no highlight |
+
+Options: `wordsPerLine` (4), `y` (`"bottom-240"`), `x`, `fontSize` (56),
+`color` (`#f8fafc`), `highlight` (`#38bdf8`), `fade`, `hold`, `zIndex`, `at`.
+
+**Timing.** `captions()` spreads words across the audio by length, pausing at
+punctuation. That is accurate for TTS, which reads at a steady pace, and needs
+nothing installed. For exact timing use forced alignment:
+
+```bash
+npx kino setup captions   # installs the optional aligner and its model (~317 MB)
+```
+
+```typescript
+const caps = await captionsAsync(line, { style: "karaoke" });
+```
+
+`captionsAsync()` uses alignment when it is available and falls back to even
+timing when it is not, so the same code works with or without the model.
+
+The aligner is **never a dependency**. `setup captions` installs it into
+`~/.cache/kino/captions` rather than your project, so no manifest or lockfile
+changes and every project on the machine shares one copy. The model downloads
+on first use into the same directory. Captions work fine if you skip all of
+this — you just get even timing instead of aligned timing.
+
+Notes:
+
+- A caption's highlight is drawn by re-rendering the line and cropping to the
+  active word's box, so captions work with any font and any wrapping.
+- Word boxes are estimated from character widths; the crop is padded so a
+  word is never cut mid-glyph.
+- Captions are plain `TextElement`s — they mix with other elements and honour
+  `zIndex`, so they need no special renderer.
+
+See `examples/captions.ts`.
+
 ### Plain objects, still typed
 
 If you prefer object literals, wrap them in `defineComposition` to get checking

@@ -242,6 +242,16 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
     sfx: elem.sfx,
     zIndex,
     animation,
+    ...(Array.isArray(elem.captionWords) && elem.captionWords.length
+      ? {
+          captionWords: elem.captionWords.map((w: any) => ({
+            word: String(w.word),
+            at: parseDuration(w.at) ?? 0,
+            duration: parseDuration(w.duration) ?? 0,
+          })),
+          highlight: elem.highlight,
+        }
+      : {}),
   };
   return text;
 }

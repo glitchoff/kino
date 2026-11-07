@@ -15,9 +15,28 @@ export interface BaseElement {
   animation?: ElementAnimation;
 }
 
+/** One word inside a caption line, timed relative to the element's start. */
+export interface CaptionWord {
+  /** The word as written. */
+  word: string;
+  /** Seconds from the element's `startAt` until the word begins. */
+  at: number;
+  /** Seconds the word is spoken. */
+  duration: number;
+}
+
 export interface TextElement extends BaseElement {
   type?: "text";
   content: string;
+  /**
+   * Caption words. When set, the pipeline draws `content` once in `fontColor`
+   * and then re-draws it clipped to each word, in `highlight`, for as long as
+   * that word is spoken — a karaoke sweep. Builder-only; `content` is still
+   * the full line, so the element renders sensibly without it.
+   */
+  captionWords?: CaptionWord[];
+  /** Colour used for the word being spoken. Default `#38bdf8`. */
+  highlight?: string;
   fontSize?: number | string;
   fontColor?: string;
   fontFile?: string;

@@ -20,6 +20,7 @@ the legacy/interop format.
 | `src/remote/` | remote asset downloader |
 | `src/builder/` | code-first composition builder (`composition()`, element factories, animation helpers) |
 | `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement, resolution before compile |
+| `src/captions/` | Word timings (even or aligned) and karaoke/subtitle element generation |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
 | `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
 | `test/` | vitest suites (`timeline`, `units`) |
@@ -28,10 +29,10 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 151 tests passing (10 files)
+- `pnpm test` — 175 tests passing (11 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
-- all `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
+- all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
 - TTS verified by real render on 2026-11-07 (Piper on PATH here)
 
 ## Uncommitted
