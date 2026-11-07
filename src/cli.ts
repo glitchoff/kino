@@ -69,6 +69,40 @@ async function setupTts(): Promise<void> {
 }
 
 /**
+ * Prepares word-level caption alignment.
+ *
+ * The aligner itself is an optional dependency; this installs it if needed and
+ * then loads it, which downloads and caches the ONNX model so the first render
+ * with captions does not stall on a 317 MB fetch.
+ */
+async function setupCaptions(): Promise<void> {
+  const { isAlignmentAvailable, defaultCaptionCacheDir } = await import("./captions/index.js");
+
+  if (!(await isAlignmentAvailable())) {
+    // The aligner is installed into Kino's own cache, not the project. That
+    // keeps it a capability rather than a dependency: no manifest, no
+    // lockfile, and one copy shared by every project on the machine. It also
+    // means pnpm, npm and yarn projects all behave the same.
+    const { installAligner } = await import("./captions/index.js");
+    console.log("[kino] Installing the optional aligner 'mms-forced-align'...");
+    try {
+      await installAligner();
+    } catch (err: any) {
+      console.error(
+        `[kino] Could not install 'mms-forced-align': ${err.message}\n` +
+          `  Captions still work without it, using even word timing.`
+      );
+      process.exit(1);
+    }
+  }
+
+  console.log("[kino] Loading the alignment model (downloads ~317 MB on first use)...");
+  const { warmAlignmentModel } = await import("./captions/index.js");
+  await warmAlignmentModel();
+  console.log(`[kino] Captions are ready. Model cached in ${defaultCaptionCacheDir()}`);
+}
+
+/**
  * Load a composition from disk.
  *
  * - `.json`        parsed as JSON
@@ -122,8 +156,10 @@ async function main() {
       await setupFFmpeg();
     } else if (target === "tts") {
       await setupTts();
+    } else if (target === "captions") {
+      await setupCaptions();
     } else {
-      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg|tts]`);
+      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg|tts|captions]`);
       process.exit(1);
     }
     return;
@@ -147,13 +183,14 @@ async function main() {
     npx kino <file> [options]
     npx kino render <file> [options]
     npx kino studio [--port <number>]
-    npx kino setup [browser|ffmpeg|tts]
+    npx kino setup [browser|ffmpeg|tts|captions]
 
   Commands:
     studio                 Launch Kino Studio web editor & preview server
     setup [browser]        Download Chrome for HTML elements (no-op if already installed; also happens automatically on first HTML render)
     setup ffmpeg           Install/verify the bundled ffmpeg (downloads the drawtext-enabled Linux build; verifies ffmpeg-static elsewhere)
     setup tts [voice]      Check for Piper and download a voice (pip install piper-tts first)
+    setup captions         Install the optional aligner and download its model (~317 MB, for word-perfect captions)
     render <file>          Render composition to video file
 
   File formats:

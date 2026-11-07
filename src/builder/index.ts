@@ -27,6 +27,7 @@ import type {
   KinoScene,
   KinoTransition,
   KinoTransitionType,
+  SceneDuration,
 } from "../types/composition.js";
 import type {
   AudioTrack,
@@ -42,7 +43,7 @@ import type {
 } from "../types/elements.js";
 import type { AnimationValue, Easing, ElementAnimation } from "../types/animation.js";
 import type { KinoTemplate } from "../types/template.js";
-import { tts, type TtsOptions, type TtsSpec } from "../tts/piper.js";
+import { isVoice, tts, type TtsOptions, type TtsSpec, type Voice } from "../tts/piper.js";
 
 /** Position helpers: `"center"` or ffmpeg-style expressions are both accepted. */
 export type Position = number | string;
@@ -134,6 +135,8 @@ export interface MediaOptions extends ElementOptions {
 
 export interface VideoOptions extends MediaOptions {
   trimStart?: number | string;
+  /** Stop reading the source here; sets the duration when `duration` is unset. */
+  trimEnd?: number | string;
   loop?: boolean;
   volume?: number | string;
 }
@@ -201,7 +204,7 @@ export function image(src: string, options: MediaOptions = {}): ImageElement {
 }
 
 export function video(src: string, options: VideoOptions = {}): VideoElement {
-  const { width, height, fit, trimStart, loop, volume, chromaKey } = options;
+  const { width, height, fit, trimStart, trimEnd, loop, volume, chromaKey } = options;
   return {
     type: "video",
     src,
@@ -209,6 +212,7 @@ export function video(src: string, options: VideoOptions = {}): VideoElement {
     ...(height !== undefined ? { height } : {}),
     ...(fit !== undefined ? { fit } : {}),
     ...(trimStart !== undefined ? { trimStart } : {}),
+    ...(trimEnd !== undefined ? { trimEnd } : {}),
     ...(loop !== undefined ? { loop } : {}),
     ...(volume !== undefined ? { volume } : {}),
     ...(chromaKey !== undefined ? { chromaKey } : {}),
@@ -263,7 +267,11 @@ export function withDefaults<I, O extends object, R>(
 
 export interface SceneOptions {
   id?: string;
-  duration: number | string;
+  /**
+   * A fixed length, or `{ fit: voice }` to size the scene from a measured line
+   * of speech (plus `pad`, default 0.6s).
+   */
+  duration: SceneDuration;
   background?: BackgroundInput;
   transition?: KinoTransitionType | KinoTransition;
 }
@@ -297,14 +305,19 @@ export class SceneBuilder {
   }
 
   /**
-   * Declare speech for this scene. Synthesised lazily by Piper at render time.
+   * Declare speech for this scene. A string is synthesised lazily by Piper at
+   * render time; a `Voice` was already synthesised by `await voice(...)`, so
+   * its audio is reused as-is.
    *
    * ```ts
    * s.say("नमस्ते, welcome to Kino", { voice: "hi_IN-rohan" });
+   * s.say(await voice("Already measured"));   // same audio, no re-synthesis
    * ```
    */
-  say(text: string, options?: TtsOptions): this {
-    this.narration.push(tts(text, options));
+  say(text: string, options?: TtsOptions): this;
+  say(voice: Voice): this;
+  say(textOrVoice: string | Voice, options?: TtsOptions): this {
+    this.narration.push(isVoice(textOrVoice) ? textOrVoice.spec : tts(textOrVoice, options));
     return this;
   }
 
