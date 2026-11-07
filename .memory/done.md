@@ -26,17 +26,21 @@ Newest first. One line per item; link the ticket for detail.
   24s windows with 4s overlap and stitch. Each window must also be given only
   ~3.2 words/second of transcript, or the model reports "no valid alignment
   path exists". A 2:43 track aligns in ~8 windows.
-- **Karaoke highlight is slow on long videos** — the highlight draws one full
-  frame per word (`split=N+1` plus a crop and overlay each), so a minute of
-  captions is hundreds of full-resolution passes and ffmpeg can emit no frame
-  for 25s+. `block` style renders the same 60s in seconds. Rework in progress:
-  crop to a band around the text and do the recolour work there.
-  A 60s `block` render of Co2 was delivered and looked right.
-  The band rework (crop to the text band, recolour there) cuts the graph from
-  202 KB to 14.8 KB and renders a 12s clip, but the frames come out **empty** —
-  the band is not being pasted back correctly. Not committed; the working
-  version is the full-frame one. Next step: fix the paste-back (likely the
-  `drawbox`/`pad`/`overlay` sequence losing the band's alpha).
+- **Karaoke highlight is slow on long videos** — the highlight drew the whole
+  line again per word and cropped afterwards, so each word cost a
+  full-resolution drawtext. A minute of captions (171 words) was ~550 full-frame
+  passes and ffmpeg sat at `frame=0` indefinitely. Fixed by cropping to the word
+  box *before* drawing: a word box is a few hundred pixels, so per-word cost
+  drops ~50x. Inside a crop `w`/`h` are the crop's size, so the frame dimensions
+  are substituted back in and the crop offset subtracted. Verified by frame
+  inspection (the spoken word lights up in the right place).
+  Still true: `karaoke` over a whole minute is slow, and `block` remains much
+  faster — a 60s `block` render of Co2 was delivered and looked right.
+- **Long filtergraphs are passed as a script file** — past 100 KB the graph is
+  written into the `.kino` staging dir and handed to ffmpeg with
+  `-filter_complex_script`, so graph size no longer hits `E2BIG` at spawn. The
+  script travels inside the artifact and is referenced by basename, matching the
+  extraction dir ffmpeg runs in.
 - **Word-level captions** — `captions()` (even timing, no deps) and
   `captionsAsync()` (forced alignment when `mms-forced-align` is present, even
   timing otherwise). Styles: `karaoke` (default), `word`, `block`. Timing
