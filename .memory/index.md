@@ -55,6 +55,16 @@ the legacy/interop format.
   `__dirname` is always the source layout and the `dist/` layout is never
   exercised. The ffmpeg one failed silently by falling back to a binary without
   drawtext.
+- **Agent feedback loop** — the theme behind `tickets/011` (`inspect()`) and
+  `tickets/012` (real text measurement). An agent currently can only learn what
+  a composition looks like by rendering it; `exportComposition({ frames })` made
+  that ~15× cheaper, but a description with no render at all would be better.
+- **Shapes and charts** — see `tickets/013`. No `rect`/`ellipse`/`line`, so
+  agents fake them with HTML, which pulls in a browser and renders differently
+  between Chrome and Obscura.
+- **Caption pipeline duplication** — see `tickets/014`. `captionImages`
+  re-implements grouping, defaults and anchoring instead of sharing them with
+  the text path, and that duplication already caused the stacked-captions bug.
 
 ## Known issues
 

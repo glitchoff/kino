@@ -23,6 +23,26 @@ Newest first. One line per item; link the ticket for detail.
   `../../../scripts/render-html.mjs` from `__dirname`, which is `dist/` in the
   tsup bundle, so every HTML element render failed with a missing module. Only
   worked from `src/`. Now walks up to the package root, like `findDrawtextFfmpeg`.
+- **`exportComposition`** — one call, three independent outputs, destructured
+  so you take what you asked for: `{ frames, video, preview }`. Asking only for
+  `frames` never encodes a video — ffmpeg seeks to each timestamp on the same
+  filtergraph and takes one frame. Measured on a 20s 640×360 composition: a
+  still costs 74–187 ms against 1126 ms for the video, so it is cheap enough for
+  a feedback loop. Each still returns `{ at, path, data }`, `data` being a
+  `data:image/png;base64,…` URL already in memory when the file is written.
+  Compile happens once and is shared; `video` and `preview` still need one
+  ffmpeg run each, because a preview is a different filtergraph *and* encoder
+  setting — there is no single invocation that produces both correctly.
+- **Bundled-build path bugs (two, same shape)** — `renderHtmlBatchSync`
+  resolved `../../../scripts/render-html.mjs` and `resolveVendoredFFmpeg`
+  resolved `../../vendor` from `__dirname`. Both are right from `src/` and wrong
+  from `dist/`, where they landed on `/scripts/…` and `/workspaces/vendor`.
+  The ffmpeg one was the dangerous case: it *silently* fell back to
+  `ffmpeg-static`, which has no `drawtext`, so every text render from the bundle
+  failed. Tests never saw either because vitest imports from `src/`. Both now
+  walk up to the package root. Verified: vendored ffmpeg has drawtext (1 match),
+  `ffmpeg-static` has none (0), and a `dist/` dry-run emits `drawtext=textfile=`.
+  See `tickets/010`.
 - **`groupWords` grouping options** — takes `{ wordsPerLine, gap, breakOn }`, and
   `CaptionOptions` exposes `gap`/`breakOn`. The lyric example had re-implemented
   grouping by hand (gap + comma), diverged from the library, and then called
