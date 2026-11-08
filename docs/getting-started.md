@@ -337,6 +337,61 @@ Notes:
 
 See `examples/captions.ts`.
 
+##### Word highlight for long videos
+
+The `karaoke` style above draws the line again for every word, so ffmpeg keeps
+a full-frame copy alive per word. That is fine for a sentence and collapses on
+a song: past roughly six lines the render stalls and never finishes.
+
+For anything long, rasterise the words instead. `captionImages()` draws each
+word state to a PNG once and returns one image per word, timed to that word's
+span. The composition only swaps images on a timeline, so per-frame cost does
+not grow with the word count — a 163 s song with word-level highlight renders
+in about two minutes.
+
+```typescript
+import { captionImages, composition } from "@glitchoff/kino";
+
+const frames = await captionImages(timings, {
+  width: 2560, height: 280,                 // render size (2x)
+  displayWidth: 1280, displayHeight: 140,   // on-screen size
+  dir: "/tmp/karaoke-frames",
+  fontSize: 132,
+  wordsPerLine: 5,
+  color: "#ffffff",
+  highlight: "#f5b544",
+  x: 0,
+  y: 290,
+});
+```
+
+`timings` is the same `WordTiming[]` that `captions()` accepts.
+
+Which to use:
+
+| Situation | Use |
+| --- | --- |
+| A sentence or a few lines | `karaoke` — no temp files, no rasterising |
+| A full song or many lines | `captionImages()` — cost stays flat |
+| No highlight needed | `block` — fastest of all |
+
+Things that are easy to get wrong:
+
+- **Pass every timing at once.** Lines are grouped and each line's hold is
+  trimmed so it cannot run into the next one, which needs to see the following
+  line. Calling `captionImages()` once per line leaves holds untrimmed and
+  stacks two lines on screen.
+- **`width`/`height` are the PNG size, not the screen size.** Set
+  `displayWidth`/`displayHeight` to the size the strip should occupy. Rasterise
+  at 2x for crisp text; 1x looks soft next to `karaoke` once the encoder scales
+  it.
+- **Do not animate the word frames.** Each frame replaces the last, so a fade or
+  slide restarts on every word and the line flickers.
+- **Word widths are measured from the rasterised text**, not estimated from
+  character classes, so the gaps between words stay even.
+
+See `examples/lyrics.ts` (`KINO_LYRICS_STYLE=frames`).
+
 ### Plain objects, still typed
 
 If you prefer object literals, wrap them in `defineComposition` to get checking

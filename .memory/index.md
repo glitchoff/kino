@@ -43,10 +43,6 @@ the legacy/interop format.
 
 ## Known issues
 
-- **Word-level highlight is documented in memory only.** `captionImages()` ships
-  in `src/captions/`, but `docs/` (the published site) still describes only the
-  drawtext `karaoke` path. The `guide/word-captions.md` entry is the reference
-  until the docs page catches up.
 - **CI workflow dispatch needs a `workflow`-scoped token.** A `ghu_` App token
   can push but returns 403 "Resource not accessible by integration" on
   `/actions/workflows/*/dispatches`. Use a classic `ghp_` token with `workflow`.

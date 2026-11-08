@@ -136,6 +136,61 @@ Accepts a builder or a plain object and always returns a `KinoComposition`
 
 ---
 
+## Captions
+
+### `captions(source, options?)`
+
+Turns a measured line or `WordTiming[]` into timed caption elements. Returns
+`TextElement[]` using `drawtext`, with `karaoke` as the default style.
+
+### `captionsAsync(source, options?)`
+
+Same, but aligns words to real audio first when the optional aligner is
+installed, and falls back to even timing when it is not.
+
+### `captionImages(timings, options)`
+
+Word-level karaoke as pre-rendered images. Returns `ImageElement[]`, one per
+word, timed to that word's span. Use this instead of `style: "karaoke"` when the
+caption track is long: `karaoke` re-renders the line for every word, which
+stalls past roughly six lines, while swapping images costs the same per frame
+regardless of word count.
+
+```typescript
+import { captionImages } from "@glitchoff/kino";
+
+const frames = await captionImages(timings, {
+  width: 2560, height: 280,
+  displayWidth: 1280, displayHeight: 140,
+  dir: "/tmp/karaoke-frames",
+  fontSize: 132,
+  wordsPerLine: 5,
+  color: "#ffffff",
+  highlight: "#f5b544",
+});
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `width` | `number` | — | PNG width. Rasterise at 2x the display size for crisp text |
+| `height` | `number` | — | PNG height |
+| `displayWidth` | `number` | `width` | On-screen width |
+| `displayHeight` | `number` | `height` | On-screen height |
+| `dir` | `string` | — | Where the PNGs are written |
+| `fontFile` | `string` | system font | Font used to draw the line |
+| `ffmpegPath` | `string` | bundled ffmpeg | Binary used to rasterise |
+| `x` | `number` | `0` | Strip position on the frame |
+| `y` | `number` | `0` | Strip position on the frame |
+
+Also accepts the `CaptionOptions` shared with `captions()`: `wordsPerLine`
+(4), `fontSize` (56), `color` (`#f8fafc`), `highlight` (`#38bdf8`), `hold`,
+`zIndex`, `at`.
+
+Pass every timing at once. Lines are grouped and each line's hold is trimmed
+against the following line, so calling this per line stacks captions on screen.
+
+---
+
 ## `compile(composition, options?)`
 
 Compiles a `KinoComposition` object into a portable **`.kino` artifact** (a zip archive) containing the full FFmpeg command, all text files, and every asset file the composition references — using relative paths only.
