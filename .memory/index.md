@@ -41,6 +41,13 @@ the legacy/interop format.
   `package-lock.json` is untracked — this repo uses pnpm, so it should probably
   not be committed.
 
+## Deferred
+
+- **Docs rewrite and site polish** — see `tickets/009`. The content is
+  chronological rather than task-based and the site is a thin skin over the
+  markdown (no search, no highlighting). Deliberately held until the caption
+  seam and HTML fallback settle, so it is not rewritten twice.
+
 ## Known issues
 
 - **CI workflow dispatch needs a `workflow`-scoped token.** A `ghu_` App token
