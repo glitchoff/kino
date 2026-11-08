@@ -1,0 +1,14 @@
+---
+import { getEntry, render } from "astro:content";
+import Doc from "../layouts/Doc.astro";
+
+// The landing page is docs/index.md, so the site and the repo agree on what
+// the entry point is.
+const entry = await getEntry("docs", "index");
+if (!entry) throw new Error("docs/index.md is missing — it is the site's landing page.");
+const { Content } = await render(entry);
+---
+
+<Doc>
+  <Content />
+</Doc>

@@ -1,0 +1,14 @@
+{
+  "name": "@glitchoff/kino-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^6.3.2",
+    "astro": "^5.14.1"
+  }
+}
