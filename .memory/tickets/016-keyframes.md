@@ -1,6 +1,6 @@
 # 016 — Keyframed animation with curves
 
-**Status:** open
+**Status:** done (2026-11-08) — `keyframes` on any animated channel, plus five new easings. `{ from, to }` unchanged. Compiles to a nested `if` chain over `t` in `keyframeExpression()`.
 **Created:** 2026-11-08
 
 ## Problem

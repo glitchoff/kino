@@ -454,6 +454,50 @@ estimator's guess. For a pure-JS report pass `{ measure: false }`.
 | `slideIn("x" \| "y", distance, duration?, easing?)` | Position offset → 0 |
 | `popIn(duration?, easing?)` | `scale` 0.8 → 1 |
 
+#### Keyframes
+
+`animate()` interpolates one segment between two values. For anything with more
+than one beat, give a channel a keyframe list instead:
+
+```typescript
+s.text("Title", {
+  x: "center",
+  y: "center",
+  animation: {
+    scale: {
+      keyframes: [
+        { at: 0, value: 0.8, easing: "easeOutBack" },
+        { at: 0.4, value: 1.1 },
+        { at: 0.7, value: 1.0 },
+      ],
+    },
+  },
+});
+```
+
+`at` is seconds from the element's `startAt`, matching `steps`. `easing` on a
+keyframe describes the segment *arriving* at it, so the first keyframe's easing
+is unused and the last one's applies on the way in. Omit it to inherit the
+track's `easing`, which defaults to `easeInOut`.
+
+`{ from, to, duration }` is sugar for two keyframes and stays the simpler form
+when there are only two.
+
+**Easings**
+
+| | |
+| --- | --- |
+| `linear`, `easeIn`, `easeOut`, `easeInOut` | Basic polynomial |
+| `easeInSine`, `easeOutSine`, `easeInOutSine` | Gentle |
+| `easeInExpo`, `easeOutExpo`, `easeInOutExpo` | Sharp |
+| `easeInCirc`, `easeOutCirc`, `easeInOutCirc` | Curved |
+| `easeInBack`, `easeOutBack`, `easeInOutBack` | Wind up / overshoot, then settle |
+| `easeOutElastic` | Springy oscillation |
+| `easeOutBounce` | Bounces into place |
+
+The overshooting curves (`*Back`, `easeOutElastic`) intentionally pass the end
+value before settling — that is the effect, not an error.
+
 ### Option aliases
 
 Builder options mirror the composition fields, with friendlier names:

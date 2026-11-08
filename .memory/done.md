@@ -4,6 +4,22 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Keyframed animation** — any animated channel accepts
+  `{ keyframes: [{ at, value, easing? }] }` alongside `{ from, to }`. `at` is
+  seconds from the element's `startAt`; a keyframe's `easing` describes the
+  segment arriving at it. Compiles to a nested `if(lt(t, end), seg, rest)` chain,
+  built back-to-front, so two keyframes give the same shape as `{ from, to }`.
+  Five new easings: `easeInBack`, `easeOutBack`, `easeInOutBack`,
+  `easeOutElastic`, `easeOutBounce` — verified rendered: `easeOutBack` overshoots
+  to 112 on the way to 100, `easeInBack` winds back to -1 first.
+- **`frames` returned t=0 for every still** — `-ss` was an input option, and the
+  background is a lavfi `color=...:d=N` generator, which cannot be seeked.
+  ffmpeg silently produced from t=0 and `-frames:v 1` captured the first frame,
+  so animations looked frozen and the still timings in `done.md` were misleading
+  about *which* frame they measured. Now an output option, so the graph runs to
+  `at` and the frame is dropped downstream. Also clamps a request at or past the
+  duration to the last whole frame: seeking there produces no file at all
+  (ffmpeg exits 0 and writes nothing).
 - **Audio ducking** — `duck` on an audio track lowers it under speech, via
   `sidechaincompress`. `duck: true` listens to every `tts()`/`s.say()` track;
   `duck: { by, amount, attack, release, threshold }` names them. Two things

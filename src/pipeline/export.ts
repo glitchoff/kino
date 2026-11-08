@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -6,6 +6,7 @@ import { compile } from "./compile.js";
 import { extractKino, readKinoManifest } from "../artifact/kino.js";
 import { getFFmpegBinaryPath } from "../encoder/probe.js";
 import type { KinoComposition } from "../types/index.js";
+import { normalizeComposition } from "../normalize/composition.js";
 import type { FrameRequest, FrameResult, ExportOptions, ExportResult } from "../types/export.js";
 
 /** Runs ffmpeg and rejects with its stderr on a non-zero exit. */
@@ -79,7 +80,9 @@ export async function exportComposition(
         sharedKino,
         options.frames!,
         ffmpegBin,
-        options
+        options,
+        // Scenes carry the length; there is no top-level duration to read.
+        normalizeComposition(compositionOrKinoPath as KinoComposition)
       );
     }
 
@@ -146,7 +149,8 @@ async function extractFrames(
   kinoPath: string,
   requests: FrameRequest[],
   ffmpegBin: string,
-  options: ExportOptions
+  options: ExportOptions,
+  timing?: { duration: number; fps: number }
 ): Promise<FrameResult[]> {
   const extractionDir = mkdtempSync(join(tmpdir(), "kino-frames-"));
   try {
@@ -165,12 +169,38 @@ async function extractFrames(
       const format = typeof request === "number" ? "png" : request.format ?? "png";
       const outPath = resolve(options.frameDir ?? ".", `${name}.${format}`);
 
+      // Clamp to just inside the composition. A seek at exactly the duration
+      // produces no frame — ffmpeg exits 0 and writes nothing — so asking for
+      // the last instant would otherwise fail with ENOENT.
+      // Clamp to the last whole frame inside the composition. A seek at or
+      // past the duration produces no frame — ffmpeg exits 0 and writes
+      // nothing — and so does a seek between frames, so subtract a frame
+      // rather than an arbitrary epsilon.
+      const duration = timing?.duration ?? NaN;
+      const fps = timing?.fps || 30;
+      const seekTo =
+        Number.isFinite(duration) && duration > 0 && at >= duration
+          ? Math.max(0, duration - 1 / fps)
+          : at;
+
+      // `-ss` must come *after* the inputs here. The background is a lavfi
+      // `color=...:d=N` generator, which cannot be seeked: as an input option
+      // ffmpeg silently produces from t=0 and `-frames:v 1` captures the first
+      // frame, so every still showed t=0 and animations looked frozen. As an
+      // output option the filtergraph runs to `at` and the frame is dropped
+      // downstream, which is what a still needs.
       await runFFmpeg(
         ffmpegBin,
-        ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(at), ...graphArgs, "-frames:v", "1", outPath],
+        ["-hide_banner", "-loglevel", "error", "-y", ...graphArgs, "-ss", String(seekTo), "-frames:v", "1", outPath],
         extractionDir,
         !!options.verbose
       );
+
+      if (!existsSync(outPath)) {
+        throw new Error(
+          `No frame at ${at}s. The composition may be shorter than that; seek a timestamp inside its duration.`
+        );
+      }
 
       const bytes = readFileSync(outPath);
       const mime = format === "jpg" || format === "jpeg" ? "image/jpeg" : "image/png";

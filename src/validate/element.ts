@@ -13,7 +13,56 @@ const VALID_EASINGS = [
   "easeInSine", "easeOutSine", "easeInOutSine",
   "easeInExpo", "easeOutExpo", "easeInOutExpo",
   "easeInCirc", "easeOutCirc", "easeInOutCirc",
+  "easeInBack", "easeOutBack", "easeInOutBack",
+  "easeOutElastic", "easeOutBounce",
 ] as const;
+
+function validateEasing(easing: unknown, path: string, issues: ValidationIssue[]): void {
+  if (typeof easing !== "string" || !VALID_EASINGS.includes(easing as any)) {
+    issues.push({
+      path,
+      message: `Expected one of: ${VALID_EASINGS.join(", ")}, received ${JSON.stringify(easing)}`,
+    });
+  }
+}
+
+/** `{ keyframes: [{ at, value, easing? }] }` — an alternative to `{ from, to }`. */
+function validateKeyframedValue(
+  channelVal: Record<string, unknown>,
+  chPath: string,
+  ch: string,
+  issues: ValidationIssue[]
+): void {
+  const kfs = channelVal.keyframes;
+  if (!Array.isArray(kfs)) {
+    issues.push({ path: `${chPath}.keyframes`, message: "Expected an array of keyframes" });
+    return;
+  }
+  if (kfs.length === 0) {
+    issues.push({ path: `${chPath}.keyframes`, message: "Expected at least one keyframe" });
+  }
+  kfs.forEach((kf, i) => {
+    const kfPath = `${chPath}.keyframes[${i}]`;
+    if (!isObject(kf)) {
+      issues.push({ path: kfPath, message: "Expected a keyframe object" });
+      return;
+    }
+    if (!isFlexibleNonNegativeNumber(kf.at)) {
+      issues.push({ path: `${kfPath}.at`, message: `Expected a non-negative time, received ${kf.at}` });
+    }
+    if (!isFlexibleFiniteNumber(kf.value)) {
+      issues.push({ path: `${kfPath}.value`, message: `Expected a finite number or unit value, received ${kf.value}` });
+    }
+    if (kf.easing !== undefined) validateEasing(kf.easing, `${kfPath}.easing`, issues);
+    if (ch === "opacity") {
+      const v = parseVolume(kf.value as string | number | undefined);
+      if (v !== undefined && (v < 0 || v > 1)) {
+        issues.push({ path: `${kfPath}.value`, message: `Expected value between 0 and 1 (or 0%-100%), received ${kf.value}` });
+      }
+    }
+  });
+  if (channelVal.easing !== undefined) validateEasing(channelVal.easing, `${chPath}.easing`, issues);
+}
 
 function validateAnimation(
   anim: Record<string, unknown>,
@@ -28,6 +77,11 @@ function validateAnimation(
     const chPath = `${animPath}.${ch}`;
     if (!isObject(channelVal)) {
       issues.push({ path: chPath, message: `Expected an animation channel object for ${ch}` });
+      continue;
+    }
+
+    if (Array.isArray(channelVal.keyframes)) {
+      validateKeyframedValue(channelVal, chPath, ch, issues);
       continue;
     }
 
