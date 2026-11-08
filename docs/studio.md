@@ -4,7 +4,7 @@
 
 ---
 
-## 🎨 Launching Kino Studio
+## Launching
 
 ### Development Mode (Vite HMR + Hono API)
 ```bash
@@ -25,7 +25,7 @@ Navigate to `http://localhost:3333`.
 
 ---
 
-## 🌟 Features
+## What it does
 
 1. **Monaco JSON Editor with Inline Diagnostics**:
    - Built-in JSON editor powered by `@monaco-editor/react`.

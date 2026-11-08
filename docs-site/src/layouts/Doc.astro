@@ -1,23 +1,9 @@
 ---
 import { getCollection } from "astro:content";
-
-// Sidebar order: index first, then a fixed reading order, then anything new.
-const ORDER = ["index", "getting-started", "api-reference", "schema-reference", "studio"];
+import { groupsWithExtras, neighbours, pagePath } from "../nav.ts";
 
 const entries = await getCollection("docs");
-const pages = entries
-  .map((entry) => ({
-    id: entry.id,
-    title: entry.data.title ?? entry.id.replace(/-/g, " "),
-  }))
-  .sort((a, b) => {
-    const ai = ORDER.indexOf(a.id);
-    const bi = ORDER.indexOf(b.id);
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-  });
-
-// `/previews/` is an Astro page, not a markdown doc, so it is added by hand.
-pages.push({ id: "previews", title: "Previews" });
+const groups = groupsWithExtras(entries.map((entry) => entry.id));
 
 const { pathname } = Astro.url;
 const current = pathname.replace(/\/$/, "").split("/").pop() || "index";
@@ -26,6 +12,9 @@ const current = pathname.replace(/\/$/, "").split("/").pop() || "index";
 // `/kinogetting-started/`. Normalise instead of assuming the shape.
 const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
 const href = (path = "") => `${base}${path}`;
+
+const { prev, next } = neighbours(current);
+const title = Astro.props.title as string | undefined;
 ---
 
 <!doctype html>
@@ -33,224 +22,799 @@ const href = (path = "") => `${base}${path}`;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{Astro.props.title ? `${Astro.props.title} — Kino` : "Kino"}</title>
-    <meta name="description" content="Kino — scripting-first video engine for TypeScript." />
+    <title>{title ? `${title} — Kino` : "Kino"}</title>
+    <meta name="description" content="Kino — a TypeScript library that compiles video compositions to MP4." />
     <link rel="icon" href={href("favicon.svg")} />
   </head>
   <body>
+    <a class="skip" href="#content">Skip to content</a>
+
     <header class="topbar">
-      <a class="brand" href={href()}>kino</a>
-      <span class="tag">scripting-first video engine</span>
-    </header>
-    <div class="shell">
-      <nav class="sidebar">
-        {pages.map((page) => (
-          <a
-            href={href(page.id === "index" ? "" : page.id + "/")}
-            aria-current={page.id === current ? "page" : undefined}
-          >
-            {page.title}
+      <button
+        class="menu"
+        type="button"
+        aria-label="Open navigation"
+        aria-expanded="false"
+        aria-controls="sidebar"
+        data-menu
+      >
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" />
+        </svg>
+      </button>
+
+      <a class="brand" href={href()}>
+        <span class="mark" aria-hidden="true"></span>
+        kino
+      </a>
+
+      <nav class="topnav" aria-label="Sections">
+        {groups.map((group) => (
+          <a href={href(pagePath(group.pages[0].id, ""))} class:list={{ here: group.pages.some((p) => p.id === current) }}>
+            {group.label}
           </a>
         ))}
       </nav>
-      <main>
+
+      <a class="repo" href="https://github.com/moviea849w/kino">GitHub</a>
+    </header>
+
+    <div class="shell">
+      <div class="scrim" data-scrim hidden></div>
+
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-inner">
+          {groups.map((group) => (
+            <div class="group">
+              <p class="group-label">{group.label}</p>
+              <ul>
+                {group.pages.map((page) => (
+                  <li>
+                    <a
+                      href={href(pagePath(page.id, ""))}
+                      aria-current={page.id === current ? "page" : undefined}
+                    >
+                      {page.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <main id="content">
         <slot />
+
+        {(prev || next) && (
+          <nav class="pager" aria-label="Pages">
+            {prev ? (
+              <a class="prev" href={href(pagePath(prev.id, ""))}>
+                <span class="dir">Previous</span>
+                <span class="name">{prev.title}</span>
+              </a>
+            ) : (
+              <span></span>
+            )}
+            {next && (
+              <a class="next" href={href(pagePath(next.id, ""))}>
+                <span class="dir">Next</span>
+                <span class="name">{next.title}</span>
+              </a>
+            )}
+          </nav>
+        )}
       </main>
     </div>
+
+    <script>
+      // The drawer is the only scripted part of the site. It is written so the
+      // page works without it: below the breakpoint the sidebar is hidden, and
+      // with no script it stays hidden rather than covering the article.
+      const button = document.querySelector<HTMLButtonElement>("[data-menu]");
+      const sidebar = document.getElementById("sidebar");
+      const scrim = document.querySelector<HTMLElement>("[data-scrim]");
+
+      const setOpen = (open: boolean) => {
+        if (!button || !sidebar || !scrim) return;
+        button.setAttribute("aria-expanded", String(open));
+        button.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+        sidebar.toggleAttribute("data-open", open);
+        scrim.hidden = !open;
+        document.body.style.overflow = open ? "hidden" : "";
+      };
+
+      button?.addEventListener("click", () => {
+        setOpen(button.getAttribute("aria-expanded") !== "true");
+      });
+      scrim?.addEventListener("click", () => setOpen(false));
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") setOpen(false);
+      });
+
+      // Following a link inside the drawer should close it, or the next page
+      // loads with the menu still covering it.
+      sidebar?.addEventListener("click", (event) => {
+        if ((event.target as HTMLElement).closest("a")) setOpen(false);
+      });
+
+      // Growing past the breakpoint while the drawer is open would leave the
+      // body locked and the scrim showing.
+      const wide = window.matchMedia("(min-width: 60rem)");
+      wide.addEventListener("change", (event) => {
+        if (event.matches) setOpen(false);
+      });
+    </script>
   </body>
 </html>
 
 <style is:global>
-  :root {
-    --bg: #0b0d12;
-    --panel: #12151c;
-    --text: #e6e8ee;
-    --muted: #8b93a7;
-    --accent: #f5b544;
-    --line: #232838;
+  /*
+   * Geist for the interface and Geist Mono for code, timecodes and meta. Both
+   * are self-hosted from `public/fonts` rather than fetched from a CDN, so the
+   * site has no third-party request and renders the same offline.
+   */
+  @font-face {
+    font-family: "Geist";
+    src: url("/kino/fonts/Geist-Variable.woff2") format("woff2-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
   }
 
-  * {
+  @font-face {
+    font-family: "Geist Mono";
+    src: url("/kino/fonts/GeistMono-Variable.woff2") format("woff2-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  /*
+   * The palette is one neutral ramp tinted toward the world in the design
+   * direction: a timeline, a render queue, a machine running at night. Surfaces
+   * stay neutral so the preview clips are the only things carrying colour.
+   * Three text roles, one accent, hairlines at 8%.
+   */
+  :root {
+    --deep: #07080d;      /* sidebar, code */
+    --bg: #0b0d14;        /* page */
+    --card: #11141c;      /* raised block */
+    --raised: #1a1e28;    /* active row, inline code */
+    --text: #eef0f5;
+    --text-2: #a3a9b8;
+    --muted: #7a8296;
+    --line: rgb(238 240 245 / 8%);
+    --line-strong: rgb(238 240 245 / 14%);
+    --accent: #5fb0ff;    /* clear sky, from the world */
+    --accent-ink: #0b0d14;
+
+    /* One spacing scale, multiples of 4. */
+    --s1: 4px;
+    --s2: 8px;
+    --s3: 12px;
+    --s4: 16px;
+    --s5: 20px;
+    --s6: 24px;
+    --s8: 32px;
+    --s10: 40px;
+    --s12: 48px;
+    --s16: 64px;
+
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --fast: 140ms;
+
+    --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+    --topbar: 56px;
+    --sidebar: 264px;
+  }
+
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
   html {
     color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: calc(var(--topbar) + var(--s4));
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.65;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ---- top bar ---------------------------------------------------------- */
+
+  .skip {
+    position: absolute;
+    left: var(--s4);
+    top: -100px;
+    padding: var(--s2) var(--s3);
+    background: var(--text);
+    color: var(--bg);
+    border-radius: var(--radius-sm);
+    z-index: 40;
+  }
+
+  .skip:focus {
+    top: var(--s2);
   }
 
   .topbar {
-    display: flex;
-    align-items: baseline;
-    gap: 0.75rem;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--line);
     position: sticky;
     top: 0;
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
-    backdrop-filter: blur(8px);
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    height: var(--topbar);
+    padding: 0 var(--s6);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(12px);
   }
 
   .brand {
-    color: var(--accent);
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     text-decoration: none;
-    font-size: 1.15rem;
   }
 
-  .tag {
-    color: var(--muted);
-    font-size: 0.85rem;
+  /*
+   * The signature: a timeline playhead. A hairline rule with a filled head,
+   * which is what a frame cursor looks like in an editor. It appears in the
+   * wordmark, on the active sidebar row, and on section headings.
+   */
+  .mark {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    border-left: 1.5px solid var(--accent);
+    border-radius: 1px;
   }
+
+  .mark::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 1px;
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    border-radius: 1.5px;
+  }
+
+  .topnav {
+    display: none;
+    gap: var(--s1);
+    margin-left: var(--s4);
+  }
+
+  .topnav a {
+    padding: var(--s1) var(--s3);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    font-size: 14px;
+    text-decoration: none;
+    transition: color var(--fast) var(--ease), background-color var(--fast) var(--ease);
+  }
+
+  .topnav a:hover,
+  .topnav a.here {
+    color: var(--text);
+    background: var(--raised);
+  }
+
+  .repo {
+    margin-left: auto;
+    padding: var(--s1) var(--s3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 13px;
+    text-decoration: none;
+    transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  }
+
+  .repo:hover {
+    color: var(--text);
+    border-color: var(--muted);
+  }
+
+  /* The drawer toggle. Hidden once the sidebar is permanent. */
+  .menu {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin-left: calc(var(--s2) * -1);
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  }
+
+  .menu:hover {
+    color: var(--text);
+    border-color: var(--muted);
+  }
+
+  /* ---- shell ------------------------------------------------------------ */
 
   .shell {
-    display: grid;
-    grid-template-columns: 15rem minmax(0, 1fr);
-    gap: 2.5rem;
-    max-width: 78rem;
+    max-width: 1440px;
     margin: 0 auto;
-    padding: 2rem 1.5rem 6rem;
   }
 
   .sidebar {
+    display: none;
+    background: var(--deep);
+    border-right: 1px solid var(--line);
+  }
+
+  .sidebar-inner {
+    padding: var(--s6) var(--s4) var(--s12);
+  }
+
+  .group + .group {
+    margin-top: var(--s6);
+  }
+
+  .group-label {
+    margin: 0 0 var(--s2);
+    padding: 0 var(--s3);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 16px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .group ul {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
-    position: sticky;
-    top: 4.5rem;
-    align-self: start;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  .sidebar a {
-    color: var(--muted);
+  .group a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 var(--s3);
+    border-radius: var(--radius-sm);
+    color: var(--text-2);
+    font-size: 14px;
     text-decoration: none;
-    padding: 0.4rem 0.7rem;
-    border-radius: 0.4rem;
-    text-transform: capitalize;
+    transition: color var(--fast) var(--ease), background-color var(--fast) var(--ease);
   }
 
-  .sidebar a:hover {
+  .group a:hover {
     color: var(--text);
-    background: var(--panel);
+    background: var(--raised);
   }
 
-  .sidebar a[aria-current="page"] {
-    color: var(--accent);
-    background: var(--panel);
+  .group a[aria-current="page"] {
+    color: var(--text);
+    background: var(--raised);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  }
+
+  /* The playhead, at the active row. */
+  .group a[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--accent);
   }
 
   main {
     min-width: 0;
+    padding: var(--s8) var(--s5) var(--s16);
+  }
+
+  /* ---- article ---------------------------------------------------------- */
+
+  main > :first-child {
+    margin-top: 0;
   }
 
   main h1 {
-    font-size: 2rem;
-    line-height: 1.2;
+    margin: 0 0 var(--s4);
+    font-size: 32px;
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  /* The title and its standfirst read as one block. */
+  main h1 + p {
+    max-width: 68ch;
+    color: var(--text-2);
+  }
+
+  /* A section rule needs air above it and less below, or it crowds the
+     heading it introduces. */
+  main h2 + p,
+  main h2 + ul,
+  main h2 + ol {
     margin-top: 0;
   }
 
   main h2 {
-    margin-top: 2.5rem;
-    padding-top: 1rem;
+    position: relative;
+    margin: var(--s12) 0 var(--s4);
+    padding-top: var(--s6);
     border-top: 1px solid var(--line);
+    font-size: 21px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+
+  /* The signature again: a small playhead above each section rule. */
+  main h2::before {
+    content: "";
+    position: absolute;
+    top: -3px;
+    left: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 1px;
+    background: var(--muted);
   }
 
   main h3 {
-    margin-top: 1.75rem;
+    margin: var(--s8) 0 var(--s3);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  main h4 {
+    margin: var(--s6) 0 var(--s2);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+
+  main p,
+  main ul,
+  main ol {
+    margin: 0 0 var(--s4);
+    color: var(--text-2);
+  }
+
+  main strong {
+    color: var(--text);
+    font-weight: 500;
   }
 
   main a {
     color: var(--accent);
+    text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    text-underline-offset: 2px;
+  }
+
+  main a:hover {
+    text-decoration-color: var(--accent);
+  }
+
+  main :is(h1, h2, h3, h4) a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  main ul,
+  main ol {
+    padding-left: var(--s5);
+  }
+
+  main li + li {
+    margin-top: var(--s1);
+  }
+
+  main li::marker {
+    color: var(--muted);
+  }
+
+  main hr {
+    margin: var(--s10) 0;
+    border: 0;
+    border-top: 1px solid var(--line);
   }
 
   main code {
-    background: var(--panel);
-    padding: 0.15em 0.4em;
-    border-radius: 0.3rem;
-    font-size: 0.9em;
+    padding: 0.1em 0.35em;
+    border-radius: 5px;
+    background: var(--raised);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.875em;
   }
 
   main pre {
-    background: var(--panel);
+    margin: 0 0 var(--s4);
+    padding: var(--s4);
     border: 1px solid var(--line);
-    border-radius: 0.5rem;
-    padding: 1rem;
+    border-radius: var(--radius);
+    background: var(--deep) !important;
+    font-size: 13px;
+    line-height: 1.6;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   main pre code {
-    background: none;
     padding: 0;
+    background: none;
+    font-size: inherit;
   }
 
-  main table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1rem 0;
-  }
-
-  main th,
-  main td {
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--line);
+  /* Keep highlighted code on the same ramp as the page rather than Shiki's
+     own github-dark surface, which is warmer and a shade lighter. */
+  main pre.astro-code {
+    background: var(--deep) !important;
   }
 
   main blockquote {
-    margin: 1rem 0;
-    padding: 0.5rem 1rem;
-    border-left: 3px solid var(--accent);
-    color: var(--muted);
+    margin: 0 0 var(--s4);
+    padding: var(--s3) var(--s4);
+    border-left: 2px solid var(--line-strong);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--card);
+    color: var(--text-2);
   }
 
-  /* A clip embedded in a page by the `:::preview` directive. */
+  main blockquote > :last-child {
+    margin-bottom: 0;
+  }
+
+  /* Tables scroll on their own instead of pushing the page sideways. */
+  main table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 var(--s4);
+    border-collapse: collapse;
+    font-size: 14px;
+    overflow-x: auto;
+  }
+
+  main thead {
+    display: table-header-group;
+  }
+
+  main th {
+    padding: var(--s2) var(--s3);
+    border-bottom: 1px solid var(--line-strong);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  main td {
+    padding: var(--s2) var(--s3);
+    border-bottom: 1px solid var(--line);
+    color: var(--text-2);
+    vertical-align: top;
+  }
+
+  main tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  /* ---- previews --------------------------------------------------------- */
+
   main figure.preview {
-    margin: 1.25rem 0;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: var(--s2);
+    margin: 0 0 var(--s5);
   }
 
   main figure.preview video {
+    display: block;
     width: 100%;
     max-width: 34rem;
-    border-radius: 0.4rem;
     border: 1px solid var(--line);
-    background: var(--panel);
-    display: block;
+    border-radius: var(--radius);
+    background: var(--card);
   }
 
   main figure.preview figcaption {
-    font-size: 0.8rem;
     color: var(--muted);
-    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 16px;
   }
 
-  /* Inline previews in the transitions and animation tables. */
   main table video {
     display: block;
-    border-radius: 0.3rem;
-    border: 1px solid var(--line);
-    background: var(--panel);
     max-width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--card);
   }
 
-  @media (max-width: 50rem) {
-    .shell {
+  /* ---- pager ------------------------------------------------------------ */
+
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s3);
+    margin-top: var(--s16);
+    padding-top: var(--s6);
+    border-top: 1px solid var(--line);
+  }
+
+  .pager a {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--s3) var(--s4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--card);
+    text-decoration: none;
+    transition: border-color var(--fast) var(--ease), background-color var(--fast) var(--ease);
+  }
+
+  .pager a:hover {
+    border-color: var(--line-strong);
+    background: var(--raised);
+  }
+
+  .pager .next {
+    grid-column: 2;
+    text-align: right;
+  }
+
+  .pager .dir {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .pager .name {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  /* ---- responsive ------------------------------------------------------- */
+
+  .scrim {
+    position: fixed;
+    inset: var(--topbar) 0 0;
+    z-index: 20;
+    background: rgb(0 0 0 / 55%);
+  }
+
+  @media (max-width: 59.99rem) {
+    .topbar {
+      padding: 0 var(--s4);
+    }
+
+    main {
+      padding: var(--s6) var(--s4) var(--s16);
+    }
+
+    main h1 {
+      font-size: 27px;
+    }
+
+    /* The drawer: off-canvas, above the scrim, scrolling on its own. */
+    .sidebar[data-open] {
+      display: block;
+      position: fixed;
+      top: var(--topbar);
+      bottom: 0;
+      left: 0;
+      z-index: 25;
+      width: min(280px, 84vw);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      border-right: 1px solid var(--line-strong);
+    }
+
+    .pager {
       grid-template-columns: 1fr;
     }
 
+    .pager .next {
+      grid-column: 1;
+    }
+  }
+
+  @media (min-width: 60rem) {
+    .menu,
+    .scrim {
+      display: none;
+    }
+
+    .topnav {
+      display: flex;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    }
+
     .sidebar {
-      position: static;
-      flex-direction: row;
-      flex-wrap: wrap;
+      display: block;
+      position: sticky;
+      top: var(--topbar);
+      height: calc(100dvh - var(--topbar));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    main {
+      padding: var(--s10) var(--s10) var(--s16);
+    }
+  }
+
+  @media (min-width: 80rem) {
+    main {
+      padding: var(--s12) var(--s16) var(--s16);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
   }
 </style>

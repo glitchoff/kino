@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^6.3.2",
-    "astro": "^5.14.1"
+    "astro": "^5.14.1",
+    "geist": "^1.9.2"
   },
   "devDependencies": {
     "unist-util-visit": "^5.2.0"

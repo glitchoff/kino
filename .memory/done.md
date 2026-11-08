@@ -26,6 +26,15 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **Docs site responsive + unslop redesign.** `getting-started.md` (787 lines)
+  split into five topic pages — compositions, content, look, sound, checking,
+  rendering — with `docs-site/src/nav.ts` owning sidebar order and prev/next so
+  the three never disagree. Grouped sidebar (Start / Guide / Reference), a real
+  mobile drawer with scrim, Escape and focus handling, sticky contents rail,
+  prev/next footer. Design passes: one Ink neutral ramp, one accent, Geist +
+  Geist Mono self-hosted, 4px spacing scale, code blocks on the page ramp, no
+  emoji headings, no hype words. Verified with headless Chrome at 390 / 900 /
+  1240 / 1440 / 1920: no horizontal overflow at any width.
 - **Docs: previews embedded in the pages, schema reference rewritten.** Ten
   feature clips (shapes, `tak:`, curves, balance, blend, mask, motion blur,
   keyframes, captions, preview API) now sit next to the text that describes

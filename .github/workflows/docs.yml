@@ -83,7 +83,9 @@ jobs:
           test -f dist/index.html
           pages=$(find dist -name '*.html' | wc -l)
           echo "built $pages pages"
-          test "$pages" -ge 5
+          # 12 routes: the overview, nine guide pages, and two extras. A drop
+          # here means a markdown file stopped being picked up.
+          test "$pages" -ge 12
           # A preview that failed to render leaves no mp4, and the page would
           # silently show an empty box.
           clips=$(find dist/previews -name '*.mp4' 2>/dev/null | wc -l)

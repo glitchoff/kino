@@ -1,8 +1,8 @@
 # Kino
 
-A scripting-first video engine. Write compositions in TypeScript, render them to MP4 via FFmpeg.
+A TypeScript library that compiles video compositions to MP4 through FFmpeg.
 
-- **Scripting-first** — describe scenes, elements (text / image / html / video), and audio in code, with types, loops and computed values.
+- **Code, not JSON** — describe scenes, elements (text / image / video / shape / html) and audio in TypeScript, with types, loops and computed values.
 - **Rich scenes** — 11 built-in transitions, per-element animations, reusable templates, and z-index layering.
 - **Fast by default** — GPU hardware encoding with automatic CPU fallback.
 - **Portable** — compile to a self-contained `.kino` artifact and render offline anywhere.

@@ -1,7 +1,7 @@
 # Kino Documentation
 
-**Kino** is a scripting-first video engine: write compositions in TypeScript and
-compile them to FFmpeg commands that render `.mp4` videos.
+**Kino** is a TypeScript library that compiles video compositions to MP4 through
+FFmpeg.
 
 It is built to be authored by an agent as much as by a person. You can ask a
 composition what is wrong with it before rendering it (`inspect`), measure text
@@ -12,13 +12,16 @@ exactly without a render (`measureText`), and scrub one at ~30 ms a frame
 
 ## Topics
 
-- [Getting Started](./getting-started.md) — install, first video, and a
-  task-by-task tour: content, colour, motion, sound, checking, rendering.
-- [API Reference](./api-reference.md) — every exported function and option.
-- [Composition Reference](./schema-reference.md) — the underlying data shape:
+- [Getting started](./getting-started.md) — install, first video, then the
+  guide in reading order: compositions, content, look, sound, checking,
+  rendering.
+- [Programmatic API](./api-reference.md) — every exported function and option.
+- [Composition shape](./schema-reference.md) — the underlying data shape:
   scenes, elements, compositing, grading, animation, audio.
 - [Kino Studio](./studio.md) — local web studio with an editor and preview
   player.
+- [Previews](https://moviea849w.github.io/kino/previews/) — every transition and
+  animation helper, rendered.
 
 Every feature on this site has a clip beside it, rendered by the engine from a
 real composition. Nothing is a mockup.

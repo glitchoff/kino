@@ -34,7 +34,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 | `scripts/` | install helpers (ffmpeg, browser, obscura), Telegram utilities |
 | `test/` | vitest suites, importing from `src/` |
 | `test-dist/` | vitest suites against the built `dist/` (`pnpm test:dist`) |
-| `docs-site/` | Astro site reading `docs/*.md`, deployed to GitHub Pages; `src/plugins/preview-directive.mjs` embeds clips |
+| `docs-site/` | Astro site reading `docs/*.md`, deployed to GitHub Pages; `src/nav.ts` is the single source of sidebar order and prev/next; `src/plugins/preview-directive.mjs` embeds clips |
 | `.github/workflows/` | `ci.yml`, `docs.yml`, `publish.yml`, `telegram-render.yml` |
 
 ## Health
@@ -86,6 +86,16 @@ the common cases.
 - **Astro's Smartypants runs before remark plugins.** Any plugin matching `"`
   in markdown must also accept `“ ”`, or it silently finds nothing and passes
   the markup through. Cost an hour once; see `preview-directive.mjs`.
+- **Markdown rendered by `<Content />` carries no Astro scope attribute.** A
+  scoped rule like `.doc > :not(.toc)` matches nothing on it, so `order`,
+  layout and spacing rules silently do nothing. Use `:global()` for slot
+  content.
+- **Design direction for the docs site** (unslop, run 2026-11): character
+  `precise, mechanical, a little dry`; world = timeline / render queue;
+  signature = the playhead (wordmark, active sidebar row, section rules, TOC
+  numbers). Ink ramp, sky-blue accent, Geist + Geist Mono self-hosted from
+  `docs-site/public/fonts`. Keep chrome neutral; the preview clips are the only
+  thing carrying colour.
 - **Astro caches rendered markdown** in `docs-site/node_modules/.astro/`, not
   only `.astro/` at the site root. Deleting `dist/` is not enough to see a
   plugin change — clear both, or the old HTML is reused and the plugin looks

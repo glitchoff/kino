@@ -560,7 +560,7 @@ After compilation, an `HtmlElement` is an image asset inside the `.kino` archive
 
 ### GPU acceleration and fallback
 
-With `encoder: "auto"` (the default), Kino probes the host ffmpeg binary and hardware before compiling, and selects the best available GPU encoder for the machine (NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux). If a requested GPU encoder is unavailable or fails mid-render — or no GPU encoder works at all — Kino logs a warning and seamlessly falls back to CPU (`libx264`):
+With `encoder: "auto"` (the default), Kino probes the host ffmpeg binary and hardware before compiling, and selects the best available GPU encoder for the machine (NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux). If a requested GPU encoder is unavailable or fails mid-render — or no GPU encoder works at all — Kino logs a warning and falls back to CPU (`libx264`):
 
 ```typescript
 await render(composition, {
