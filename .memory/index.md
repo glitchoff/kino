@@ -86,10 +86,9 @@ compiles, and what to check before scheduling it.
 time remapping. Real editor features, but they restructure the scene model and
 none of them unblock the common cases above.
 
-- **Takumi as an HTML engine** — see `tickets/022`. `--browser` gains
-  `takumi`, and `auto` tries it first with a browser fallback. Removes the
-  browser dependency for the common case. Needs a spike on layout parity and
-  fonts before the default changes.
+- **`takumi` element** — see `tickets/022`. A separate element type for
+  browserless HTML, alongside `html` rather than behind a flag. No detection,
+  no fallback: `html` needs a browser, `takumi` does not.
 
 ### Everything else
 

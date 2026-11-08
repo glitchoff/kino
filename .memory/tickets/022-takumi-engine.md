@@ -1,13 +1,13 @@
-# 022 — Takumi as an HTML engine, with browser fallback
+# 022 — `takumi` element: browserless HTML
 
 **Status:** open
 **Created:** 2026-11-08
 
 ## Problem
 
-`type: "html"` elements render through a real browser — Chrome via Puppeteer, or
-Obscura over CDP. That costs a browser dependency, a page render per element, and
-a divergence: the same markup lays out slightly differently between the two
+`type: "html"` renders through a real browser — Chrome via Puppeteer, or Obscura
+over CDP. That costs a browser dependency, a page render per element, and a
+divergence: the same markup lays out slightly differently between the two
 engines, so a composition can render differently depending on what is installed.
 
 Most HTML an agent writes in kino is a title card, a chart, a stat panel — boxes
@@ -15,68 +15,61 @@ and text. None of it needs a browser.
 
 ## Proposed
 
-[Takumi](https://takumi.kane.tw/) is a Rust layout engine (text and inline
-layout ported from Blink) that renders JSX/HTML/CSS to PNG without a browser. It
-handles local fonts, SVG and PNG assets natively, which is everything the HTML
-path needs.
+A separate element type. Not an engine behind `html`, not a flag.
 
-`--browser` gains a fourth value:
+```ts
+s.takumi(markup, { width: 800, height: 400 })
+```
 
-| Value | Behaviour |
-| --- | --- |
-| `chrome` | Chrome via Puppeteer (default, unchanged) |
-| `obscura` | Obscura over CDP (unchanged) |
-| **`takumi`** | Takumi, no browser |
-| `auto` | **Takumi, falling back to Obscura/Chrome when it cannot render** |
+- **Never uses a browser.** That is the entire point.
+- **`html` is unchanged** — Chrome or Obscura, full CSS, scripts if you want
+  them.
+- **No detection, no fallback, no `auto`.** The rule is one sentence: `html`
+  needs a browser, `takumi` does not. If Takumi cannot render your markup, use
+  `html`.
 
-`auto` is the one that matters: try Takumi, and if it cannot render the markup,
-switch to a browser for that element. That keeps the speed and determinism for
-the common case without losing the escape hatch.
+[Takumi](https://takumi.kane.tw/) is a Rust layout engine with text and inline
+layout ported from Blink. It renders HTML/CSS/JSX to PNG, handles local fonts,
+and takes SVG and PNG assets natively.
 
-## The hard part: detecting "Takumi can't"
+## Why an element and not a flag
 
-Takumi explicitly supports less CSS than Chrome, and scripts never run. The
-fallback needs a *reliable* signal, not a guess. Options, in order of preference:
+A flag means every `html` element's rendering depends on how the process was
+started. Two runs of the same composition produce different output, and an
+`auto` mode has to guess whether Takumi "can" render a given piece of markup —
+a guess that will drift from Takumi's actual support.
 
-1. **An explicit per-element opt-out** — `html: { engine: "browser" }`. Exact,
-   and the author always knows when they need a browser.
-2. **Detect known-unsupported features** before rendering — `<script>`, exotic
-   selectors, unsupported properties. Fragile: the list will drift from Takumi's
-   actual support.
-3. **Render and inspect** — if Takumi throws, fall back. Only catches hard
-   failures, not silent layout differences.
+An element makes the choice explicit and local, and keeps `html` working exactly
+as it does today.
 
-Doing 1 first and 3 as a safety net is probably right. Doing 2 alone is a
-maintenance trap.
-
-## What must be checked before this is scheduled
+## What must be checked before building
 
 - **Fonts.** Takumi never reads system fonts; they are passed explicitly. kino
-  ships `assets/Inter-Regular.ttf` and already stages it, so this should work —
-  but verify that `@font-face`-less markup picks it up the same way the browser
-  path does.
+  ships `assets/Inter-Regular.ttf` and already stages it. Confirm that markup
+  with no `@font-face` picks it up.
 - **Assets.** Local SVG and PNG, both as `<img src>` and `background-image`.
-- **Layout parity.** Render the same markup through both engines and diff the
-  pixels. "Close" is not good enough for a default.
-- **Speed.** Per-element browser launch is the thing this removes; measure what
-  it is actually worth.
-- **Bundle.** Native binding, prebuilt for linux x64/arm64, macOS, Windows. It
-  sits next to ffmpeg as a second native dependency.
+- **Layout parity.** Render the same markup through Takumi and Chrome and diff
+  the pixels. Not for correctness — they are different engines — but to know
+  what will look different so it can be documented.
+- **Speed.** Per-element browser launch is what this removes; measure the gain.
+- **Bundle.** Native binding, prebuilt for linux x64/arm64, macOS, Windows. A
+  second native dependency next to ffmpeg.
 
 ## Open questions
 
-- **Does Takumi replace `shape`?** It can draw rectangles and ellipses through
-  CSS. But shapes need no layout engine and are cheaper, so they should stay.
-- **Should `auto` ever pick Takumi when a browser is already running?** A live
-  Obscura is nearly free per element; spawning Takumi is also cheap. Probably
-  prefer Takumi unless the element needs a browser.
-- **What about the `--browser-url` flag?** It only means something for Obscura;
-  it should be ignored, not rejected, when the engine is Takumi.
+- **Does it replace `shape`?** Takumi can draw rectangles and ellipses through
+  CSS, but shapes need no layout engine and are cheaper. Shapes stay.
+- **Should `takumi` and `html` share the same options?** `width`, `height`,
+  `fit`, `backgroundColor`, `deviceScaleFactor` all make sense. `deviceScaleFactor`
+  maps to Takumi's scale factor for crisp text.
+- **Is the native binding optional?** A user who never writes `takumi` should not
+  need it. Lazy-require it, so it is only loaded when the element exists.
+- **What is the element called?** `takumi` names the implementation rather than
+  the intent. `layer` or `box` would describe it better but are vaguer. Leaning
+  `takumi` for honesty.
 
 ## Related
 
-- Obscura support landed in `1eda462`; `--browser` and `--browser-url` are in
-  `src/types/render.ts`.
 - Shapes (`013`) exist because agents were reaching for HTML to draw boxes.
-  Takumi makes HTML cheaper, but shapes are still the right tool for a
-  rectangle.
+  Takumi makes HTML cheaper, but a rectangle is still cheaper as a shape.
+- Obscura support landed in `1eda462`.
