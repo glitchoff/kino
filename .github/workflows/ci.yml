@@ -68,6 +68,12 @@ jobs:
 
       # Every example must at least compile. This catches stale or broken
       # example files without paying for a full render.
+      #
+      # Piper is installed first: examples/captions.ts calls voice() at module
+      # load, so a dry run without it fails before reaching the compile check.
+      - name: Install Piper (needed by TTS examples)
+        run: pip install --quiet piper-tts
+
       - name: Compile all examples (dry run)
         run: |
           set -euo pipefail
