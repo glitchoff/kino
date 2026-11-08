@@ -533,6 +533,120 @@ export function composition(options: CompositionOptions = {}): CompositionBuilde
   return new CompositionBuilder(options);
 }
 
+// ---------------------------------------------------------------------------
+// Scenes as values
+// ---------------------------------------------------------------------------
+
+/**
+ * A scene, as a plain value.
+ *
+ * The builder chains scenes onto a composition, which means a scene cannot be
+ * named, reused or tested on its own. This returns the same `KinoScene` the
+ * builder would produce, so a scene can be held in a variable and merged
+ * wherever it is needed — a chorus used three times is written once.
+ *
+ * ```ts
+ * const intro = scene({ for: 5, bg: "#0f172a" }, [text("Hello")]);
+ * const outro = scene({ for: 3, bg: "#111827", transition: "fade" }, [text("Bye")]);
+ *
+ * await render(merge(intro, outro), { output: "out.mp4" });
+ * ```
+ */
+export interface SceneProps {
+  /** How long the scene lasts. Same values the builder's `duration` takes. */
+  for: SceneDuration;
+  /** A colour, or a background config. */
+  bg?: BackgroundInput;
+  /** How this scene arrives. The first scene of a composition cannot have one. */
+  transition?: KinoTransitionType | KinoTransition;
+  id?: string;
+}
+
+export function scene(props: SceneProps, elements: ElementInput[] = []): KinoScene {
+  const { for: duration, bg, transition, id } = props;
+  return {
+    ...(id !== undefined ? { id } : {}),
+    duration,
+    ...(bg !== undefined ? { background: bg } : {}),
+    elements,
+    ...(transition !== undefined
+      ? {
+          transition:
+            typeof transition === "string" ? { type: transition, duration: 0.5 } : transition,
+        }
+      : {}),
+  };
+}
+
+/** Anything `merge()` accepts: a scene, or something holding scenes. */
+export type MergeInput = KinoScene | KinoComposition | CompositionBuilder | MergeInput[];
+
+/**
+ * Join scenes into a composition.
+ *
+ * Accepts scenes, compositions and builders in any nesting, so two videos can
+ * be joined as easily as two scenes. Later arguments play after earlier ones.
+ *
+ * ```ts
+ * merge(intro, chorus, chorus, outro);
+ * merge(partOne, partTwo);              // compositions, flattened
+ * ```
+ *
+ * Options come from the first composition passed; anything after it
+ * contributes scenes only.
+ */
+export function merge(...parts: MergeInput[]): KinoComposition {
+  const scenes: KinoScene[] = [];
+  let base: CompositionOptions | undefined;
+
+  const walk = (part: MergeInput): void => {
+    if (Array.isArray(part)) {
+      for (const inner of part) walk(inner);
+      return;
+    }
+    if (part instanceof CompositionBuilder) {
+      const built = part.build();
+      base ??= {
+        width: built.width,
+        height: built.height,
+        fps: built.fps,
+        audio: built.audio,
+        templates: built.templates,
+        grade: built.grade,
+      };
+      scenes.push(...built.scenes);
+      return;
+    }
+    // A composition has `scenes`; a scene has `duration`. Checking `scenes`
+    // first is what tells them apart, since a scene never has one.
+    if ("scenes" in part) {
+      base ??= {
+        width: part.width,
+        height: part.height,
+        fps: part.fps,
+        audio: part.audio,
+        templates: part.templates,
+        grade: part.grade,
+      };
+      scenes.push(...part.scenes);
+      return;
+    }
+    scenes.push(part);
+  };
+
+  for (const part of parts) walk(part);
+
+  return {
+    ...(base?.width !== undefined ? { width: base.width } : {}),
+    ...(base?.height !== undefined ? { height: base.height } : {}),
+    ...(base?.fps !== undefined ? { fps: base.fps } : {}),
+    scenes,
+    ...(base?.audio !== undefined ? { audio: base.audio } : {}),
+    ...(base?.templates?.length ? { templates: base.templates } : {}),
+    ...(base?.grade !== undefined ? { grade: base.grade } : {}),
+  };
+}
+
 /**
  * Identity helper for plain-object compositions — gives you type checking and
  * autocomplete without the builder.

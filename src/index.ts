@@ -37,6 +37,10 @@ export type { TtsSpec, TtsOptions, VoiceSpec, Voice } from "./tts/piper.js";
 export {
   composition,
   defineComposition,
+  merge,
+  scene,
+  type SceneProps,
+  type MergeInput,
   toComposition,
   text,
   image,
