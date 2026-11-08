@@ -307,3 +307,6 @@ wrangler.local.toml
 out.kino
 *.kino
 .work/
+
+# Rasterised caption frames from examples/lyrics.ts
+.karaoke-frames/

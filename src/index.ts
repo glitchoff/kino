@@ -54,6 +54,7 @@ export {
   captions,
   captionsAsync,
   captionElements,
+  captionImages,
   timeWords,
   evenTimings,
   groupWords,
@@ -68,6 +69,7 @@ export {
 } from "./captions/index.js";
 export type {
   CaptionOptions,
+  CaptionImageOptions,
   CaptionStyle,
   CaptionTiming,
   CaptionLine,

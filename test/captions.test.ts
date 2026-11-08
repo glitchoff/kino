@@ -1,4 +1,7 @@
 import { describe, test, expect } from "vitest";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   splitWords,
   cleanWord,
@@ -6,6 +9,7 @@ import {
   groupWords,
   buildCaptionLines,
   captionElements,
+  captionImages,
   captions,
   captionsAsync,
   timeWords,
@@ -306,5 +310,100 @@ describe("captions: pipeline", () => {
     // The manifest is replayed with the extraction dir as cwd, so the script is
     // referenced by name rather than by an absolute staging path.
     expect(args[idx + 1]).toBe("filtergraph.txt");
+  });
+});
+
+describe("captions: image karaoke", () => {
+  /** Four words across one line, so each state can be checked on its own. */
+  const line = (n = 4) =>
+    Array.from({ length: n }, (_, i) => ({
+      word: `word${i}`,
+      clean: `word${i}`,
+      start: i * 0.5,
+      end: i * 0.5 + 0.4,
+    }));
+
+  test("emits one image per word, each showing for its own span", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-caption-images-"));
+    try {
+      const els = await captionImages(line(), {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 4,
+      });
+
+      expect(els).toHaveLength(4);
+      expect(els.every((e) => e.type === "image")).toBe(true);
+
+      // Each frame starts when its word does and runs until the next word.
+      expect(els.map((e) => e.startAt)).toEqual([0, 0.5, 1, 1.5]);
+      expect(els[0].duration).toBeCloseTo(0.5, 5);
+      expect(els[1].duration).toBeCloseTo(0.5, 5);
+      // The last word holds past the end of its speech by the line hold.
+      expect(els[3].duration).toBeCloseTo(1.9 + 0.35 - 1.5, 5);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("writes a PNG per word and positions the strip", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-caption-images-"));
+    try {
+      const els = await captionImages(line(), {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 4,
+        x: 12,
+        y: 340,
+      });
+
+      for (const el of els) {
+        expect(existsSync(el.src)).toBe(true);
+        expect(el.src.endsWith(".png")).toBe(true);
+        expect(el.x).toBe(12);
+        expect(el.y).toBe(340);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("scales to a whole song's worth of words", async () => {
+    // The text-based highlight stalled past a handful of lines. This is the
+    // property that makes the image path worth having: cost per word stays
+    // flat, so many lines still produce a composition quickly.
+    const words = Array.from({ length: 200 }, (_, i) => ({
+      word: `w${i % 37}`,
+      clean: `w${i % 37}`,
+      start: i * 0.4,
+      end: i * 0.4 + 0.35,
+    }));
+    const dir = mkdtempSync(join(tmpdir(), "kino-caption-images-"));
+    try {
+      const els = await captionImages(words, {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 5,
+      });
+      expect(els).toHaveLength(200);
+
+      const comp = composition({ width: 640, height: 360 })
+        .scene({ duration: 80 }, (s) => s.addAll(els))
+        .build();
+      // Compiling must stay linear: images are timed overlays with one input
+      // each, not a filter chain rebuilt per word the way drawtext was.
+      const { args, filtergraph } = compile(comp, { output: "out.mp4" });
+      const script =
+        filtergraph ??
+        readFileSync(args[args.indexOf("-filter_complex_script") + 1], "utf8");
+      // 200 words, so 200 image inputs — but the graph must stay linear in the
+      // word count rather than exploding the way per-word drawtext did.
+      expect(script.length).toBeLessThan(4_000_000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

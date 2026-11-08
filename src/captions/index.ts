@@ -30,11 +30,14 @@
  * Either way the output is plain `TextElement`s, so captions mix with every
  * other element type and need no special renderer.
  */
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { estimateTextWidth } from "../normalize/element.js";
+import { getFFmpegBinaryPath } from "../encoder/probe.js";
 import { parsePixels } from "../normalize/unit-parser.js";
-import type { TextElement, CaptionWord } from "../types/elements.js";
+import type { ImageElement, TextElement, CaptionWord } from "../types/elements.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -681,4 +684,194 @@ export async function captionsAsync(
 ): Promise<TextElement[]> {
   const timings = await timeWords(voice.text, voice.seconds, voice.path, options);
   return captionElements(timings, options);
+}
+
+// ---------------------------------------------------------------------------
+// Image-based karaoke
+// ---------------------------------------------------------------------------
+
+/**
+ * The vendored Linux ffmpeg, when it exists and can draw text.
+ *
+ * `getFFmpegBinaryPath()` locates `vendor/` relative to the compiled module,
+ * which assumes a fixed `dist/` depth; tsup splits output into hashed chunks,
+ * so the relative path can point outside the package. Walking up to the
+ * package root instead works however the bundle is laid out.
+ */
+function findDrawtextFfmpeg(): string | undefined {
+  if (process.platform !== "linux") return undefined;
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 5; i++) {
+    const bin = join(dir, "vendor", "linux", process.arch, "ffmpeg");
+    if (existsSync(bin)) return bin;
+    dir = dirname(dir);
+  }
+  return undefined;
+}
+
+export interface CaptionImageOptions extends CaptionOptions {
+  /**
+   * Size of the PNG strip. This is the *rendering* size: pass a multiple of the
+   * on-screen size (e.g. 2x) for crisp text, and set `displayWidth` /
+   * `displayHeight` to the size it should occupy.
+   */
+  width: number;
+  /** Height of the PNG strip, in pixels. See `width`. */
+  height: number;
+  /** On-screen width. Defaults to `width`, i.e. 1:1 with the PNG. */
+  displayWidth?: number;
+  /** On-screen height. Defaults to `height`, i.e. 1:1 with the PNG. */
+  displayHeight?: number;
+  /** Where to write the PNGs. */
+  dir: string;
+  /** Font used to draw the line. */
+  fontFile?: string;
+  /** ffmpeg binary used to rasterise. */
+  ffmpegPath?: string;
+  /** Where the strip is placed on the composition frame. Defaults to 0. */
+  x?: number;
+  /** Where the strip is placed on the composition frame. Defaults to 0. */
+  y?: number;
+}
+
+/**
+ * Karaoke captions as pre-rendered images, one per word.
+ *
+ * The text-based highlight draws the line again for every word, and ffmpeg has
+ * to keep a full-frame copy per word alive — with several lines on screen that
+ * collapses and the render never finishes. Here each word's state is
+ * rasterised once to a PNG, and the composition only swaps images on a
+ * timeline, which costs the same per frame no matter how many words there are.
+ *
+ * Returns one image element per word, timed to that word.
+ */
+export async function captionImages(
+  timings: WordTiming[],
+  options: CaptionImageOptions
+): Promise<ImageElement[]> {
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  const { spawnSync } = await import("node:child_process");
+
+  // Same resolution as the renderer, so the bundled binary is used when the
+  // system has no ffmpeg on PATH. `drawtext` is required here, and some
+  // `ffmpeg-static` builds lack it, so the vendored build is preferred when
+  // it exists next to the package.
+  const ffmpeg = options.ffmpegPath ?? findDrawtextFfmpeg() ?? getFFmpegBinaryPath();
+  const fontSize = parsePixels(options.fontSize) ?? 56;
+  const color = options.color ?? "#f8fafc";
+  const highlight = options.highlight ?? "#38bdf8";
+  const at = options.at ?? 0;
+  const width = options.width;
+  const height = options.height;
+  mkdirSync(options.dir, { recursive: true });
+
+  const font = options.fontFile ? `:fontfile='${options.fontFile}'` : "";
+  const out: ImageElement[] = [];
+  let probeCount = 0;
+
+  /**
+   * Rendered advance of `text` at this size, in pixels.
+   *
+   * The character-class estimator is only approximate, and a few pixels of
+   * error per word is enough to close the gaps between words. Rasterising the
+   * text once and finding its ink extent gives the exact advance the layout
+   * needs.
+   */
+  const advance = (text: string): number => {
+    const probe = join(options.dir, `probe-${probeCount++}.txt`);
+    writeFileSync(probe, text, "utf8");
+    const res = spawnSync(
+      ffmpeg,
+      [
+        "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "lavfi", "-i", "color=c=black:s=2400x120:d=1,format=gray",
+        "-vf", `drawtext=textfile='${probe}'${font}:fontsize=${fontSize}:fontcolor=white:x=10:y=10`,
+        "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-",
+      ],
+      { maxBuffer: 64 * 1024 * 1024 }
+    );
+    if (res.status !== 0 || !res.stdout) return estimateTextWidth(text, fontSize);
+    const buf = res.stdout as Buffer;
+    const W = 2400;
+    let hi = -1;
+    for (let x = 0; x < W; x++) {
+      for (let y = 0; y < 120; y++) {
+        if (buf[y * W + x] > 40) {
+          hi = x;
+          break;
+        }
+      }
+    }
+    // The pen origin sits at x=10; ink can start slightly right of it, so the
+    // advance is measured from the pen origin to the rightmost lit column.
+    return hi < 0 ? estimateTextWidth(text, fontSize) : hi - 10 + 1;
+  };
+
+  // Group into lines the same way the other styles do. All timings go in at
+  // once: `buildCaptionLines` trims each line's hold so it cannot run into the
+  // next line, and that only works when it can see the following line. Calling
+  // this per line leaves the holds untrimmed and stacks lines on top of each
+  // other.
+  const lines = buildCaptionLines(groupWords(timings, options.wordsPerLine ?? 4), options);
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const lineEnd = at + line.end;
+
+    // Measure every word once, plus the space that separates them.
+    const widths = line.words.map((w) => advance(w.word));
+    const space = advance("a a") - advance("aa");
+
+    for (let wi = 0; wi < line.words.length; wi++) {
+      const parts = line.words.map((w, j) => ({
+        text: w.word,
+        colour: j === wi ? highlight : color,
+      }));
+
+      const total = widths.reduce((a, b) => a + b, 0) + space * (widths.length - 1);
+      let x = (width - total) / 2;
+
+      const filters: string[] = [];
+      for (let k = 0; k < parts.length; k++) {
+        const txt = join(options.dir, `l${li}-w${wi}-${k}.txt`);
+        writeFileSync(txt, parts[k].text, "utf8");
+        filters.push(
+          `drawtext=textfile='${txt}'${font}:fontsize=${fontSize}:fontcolor=${parts[k].colour}:x=${x.toFixed(2)}:y=${Math.round(height * 0.2)}`
+        );
+        x += widths[k] + space;
+      }
+
+      const png = join(options.dir, `l${li}-w${wi}.png`);
+      const res = spawnSync(
+        ffmpeg,
+        [
+          "-hide_banner", "-loglevel", "error", "-y",
+          "-f", "lavfi", "-i", `color=c=black@0.0:s=${width}x${height}:d=1,format=rgba`,
+          "-vf", filters.join(","),
+          "-frames:v", "1", png,
+        ],
+        { encoding: "utf8" }
+      );
+      if (res.status !== 0) {
+        const detail = res.stderr?.trim() || res.error?.message || `exit code ${res.status}`;
+        throw new Error(`Failed to rasterise caption word ${wi}: ${detail}`);
+      }
+
+      const wordStart = at + line.words[wi].start;
+      const nextStart = wi + 1 < line.words.length ? at + line.words[wi + 1].start : lineEnd;
+      out.push({
+        type: "image",
+        src: png,
+        width: options.displayWidth ?? width,
+        height: options.displayHeight ?? height,
+        startAt: wordStart,
+        duration: Math.max(0.05, Math.min(nextStart, lineEnd) - wordStart),
+        zIndex: options.zIndex ?? 100,
+        x: options.x ?? 0,
+        y: options.y ?? 0,
+      });
+    }
+  }
+
+  return out;
 }

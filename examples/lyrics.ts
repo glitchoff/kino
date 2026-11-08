@@ -15,7 +15,13 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captionElements, composition, type WordTiming, type ElementAnimation } from "@glitchoff/kino";
+import {
+  captionElements,
+  captionImages,
+  composition,
+  type WordTiming,
+  type ElementAnimation,
+} from "@glitchoff/kino";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const audio = join(here, "assets/co2.mp3");
@@ -26,11 +32,12 @@ const words = JSON.parse(readFileSync(timingsPath, "utf8")) as WordTiming[];
 // Both are configurable so a CI run can render a short clip with word
 // highlighting, which is far heavier than whole-line captions.
 //   KINO_LYRICS_SECONDS=30   render only the first 30s
-//   KINO_LYRICS_STYLE=karaoke  highlight each word as it is sung
+//   KINO_LYRICS_STYLE=frames  word-level highlight (image based; scales)
+//   KINO_LYRICS_STYLE=karaoke  word-level highlight (drawtext; stalls past ~6 lines)
 const fullDuration = 163.73;
 const limit = Number(process.env.KINO_LYRICS_SECONDS ?? fullDuration) || fullDuration;
 const duration = Math.min(limit, fullDuration);
-const style = (process.env.KINO_LYRICS_STYLE ?? "block") as "block" | "karaoke";
+const style = (process.env.KINO_LYRICS_STYLE ?? "block") as "block" | "karaoke" | "frames";
 
 const inRange = words.filter((w) => w.start < duration);
 
@@ -79,7 +86,7 @@ const captions = lines.flatMap((line, index) => {
   // returns the same element without them. Animation is applied to whichever
   // comes back, so both styles move the same way.
   const [built] = captionElements(line, {
-    style,
+    style: style === "frames" ? "block" : style,
     wordsPerLine: line.length,
     fontSize: 66,
     y: "center+90",
@@ -95,13 +102,51 @@ const captions = lines.flatMap((line, index) => {
   ];
 });
 
-export default composition({ width: 1280, height: 720, fps: 24 })
-  .scene(
-    {
-      duration,
-      background: { type: "gradient", from: "#141c30", to: "#05060a", direction: "vertical" },
-    },
-    (s) => s.addAll(captions)
-  )
-  .audio({ src: audio, duration })
-  .build();
+/**
+ * Word-level highlight as one pre-rasterised image per word.
+ *
+ * `karaoke` redraws the whole line for every word, so ffmpeg keeps a
+ * full-frame copy per word alive and the render collapses past about six
+ * lines. Here the line is rasterised once per word state and the composition
+ * only swaps images, which costs the same per frame at any length.
+ */
+async function frameCaptions() {
+  // All words at once, so line holds are trimmed against the following line
+  // and no two lines can be on screen together.
+  const wordFrames = await captionImages(inRange, {
+    // Rasterise at 2x and display at 1280x140: drawtext at 1x looks soft next
+    // to native text once the encoder scales it.
+    width: 2560,
+    height: 280,
+    displayWidth: 1280,
+    displayHeight: 140,
+    dir: join(here, ".karaoke-frames"),
+    fontSize: 132,
+    wordsPerLine: 5,
+    color: "#ffffff",
+    highlight: "#f5b544",
+    x: 0,
+    // Where the strip lands on the 720-high frame; matches `center+90` at
+    // this font size so the two styles sit at the same height.
+    y: 290,
+  });
+  // No entrance animation on the word frames: each frame replaces the last, so
+  // a fade or slide would restart on every word and the line would flicker.
+  return wordFrames;
+}
+
+export default async function () {
+  // Image frames need async rasterising, so they are resolved before the
+  // scene is built; the block and karaoke styles are already plain arrays.
+  const elements = style === "frames" ? await frameCaptions() : captions;
+  return composition({ width: 1280, height: 720, fps: 24 })
+    .scene(
+      {
+        duration,
+        background: { type: "gradient", from: "#141c30", to: "#05060a", direction: "vertical" },
+      },
+      (s) => s.addAll(elements)
+    )
+    .audio({ src: audio, duration })
+    .build();
+}
