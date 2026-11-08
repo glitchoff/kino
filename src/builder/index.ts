@@ -114,6 +114,8 @@ export interface ElementOptions {
   blend?: BlendMode;
   /** Limit where the element is visible. */
   mask?: ElementMask;
+  /** Sub-frame samples (number) or `{ samples, shutter }`. Off by default. */
+  motionBlur?: number | { samples?: number; shutter?: number };
 }
 
 /** Options accepted by `text()` — element options plus text styling. */
@@ -174,6 +176,7 @@ function baseFrom(options: ElementOptions): Record<string, unknown> {
   if (options.grade !== undefined) out.grade = options.grade;
   if (options.blend !== undefined) out.blend = options.blend;
   if (options.mask !== undefined) out.mask = options.mask;
+  if (options.motionBlur !== undefined) out.motionBlur = options.motionBlur;
   return out;
 }
 

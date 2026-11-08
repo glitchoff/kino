@@ -119,6 +119,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   const compositing = {
     ...(elem.blend ? { blend: elem.blend } : {}),
     ...(elem.mask ? { mask: { ...elem.mask } } : {}),
+    ...(elem.motionBlur !== undefined ? { motionBlur: elem.motionBlur } : {}),
   };
 
   const rawWidth = parsePixels(elem.width, canvasWidth);

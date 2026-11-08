@@ -85,6 +85,14 @@ export interface BaseElement {
   blend?: BlendMode;
   /** Limit where this element is visible. */
   mask?: ElementMask;
+  /**
+   * Blur fast movement the way a camera does.
+   *
+   * A number is the sub-frame sample count (4 is a good default, 8 is smooth,
+   * 16 is diminishing returns). An object adds a `shutter`, the fraction of a
+   * frame the shutter is open for — `0.5` is the film-standard 180°.
+   */
+  motionBlur?: number | { samples?: number; shutter?: number };
 }
 
 /** One word inside a caption line, timed relative to the element's start. */

@@ -435,6 +435,38 @@ the way in. Omit it to inherit the track's `easing`, defaulting to `easeInOut`.
 
 The overshooting curves intentionally pass the end value before settling.
 
+### Motion blur
+
+Fast movement looks mechanical without it. Any element can be blurred the way a
+camera would:
+
+```typescript
+s.text("Title", {
+  animation: { x: { from: -400, to: 0, duration: 0.6 } },
+  motionBlur: 8,                                   // 8 samples, 180° shutter
+});
+
+s.image("./logo.png", {
+  animation: { scale: { from: 0.6, to: 1, duration: 0.4 } },
+  motionBlur: { samples: 8, shutter: 0.25 },       // a shorter exposure
+});
+```
+
+| Value | Meaning |
+| --- | --- |
+| `4` | A good default when it is on |
+| `8` | Smooth |
+| `16` | Diminishing returns, 16× the cost for that element |
+| `{ samples, shutter }` | `shutter` is the fraction of a frame the shutter is open, 0–1. `0.5` is the film-standard 180° |
+
+Off by default, and only worth turning on for elements that actually move — a
+stationary element costs the same and looks identical.
+
+> **Cost.** Blur samples the element's own layer, not the frame, so the extra
+> work scales with the number of blurred elements rather than the composition.
+> A blurred element also fades in over its first few frames, because the running
+> average needs that many frames to fill.
+
 ### Transitions
 
 Set on the scene that is arriving:

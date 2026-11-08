@@ -16,7 +16,7 @@ losing alpha, the bundled font never being used, `frames` returning t=0 for ever
 still, and four wrong-depth path bugs. The suite went from 201 to 317 tests, and
 now also runs against the built bundle, which is where those bugs lived.
 
-**Shipped:** `exportComposition` · blend modes and masks · audio ducking · keyframes + 5 easings ·
+**Shipped:** `exportComposition` · blend modes and masks · motion blur · audio ducking · keyframes + 5 easings ·
 `inspect()` · font-metric `measureText()` · `test-dist/` · shapes · `s.tak()` ·
 colour grading · `Preview` · `--crf` · docs rewritten task-first
 
@@ -26,6 +26,11 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **Motion blur** — `motionBlur` on every element, via `tmix` on the element's
+  own layer. The ticket's proposed design (N sub-frame renders combined with
+  `blend`) does not work — ffmpeg smears the whole frame past two RGBA inputs —
+  but the tool it dismissed does, because on an isolated layer there is nothing
+  else to blur.
 - **Blend modes and masks** — `blend` (11 modes) and `mask` (rect, ellipse,
   linear gradient, luma matte from a file, feather, invert) on every element,
   including text. Each such element compiles as a subgraph: laid on a

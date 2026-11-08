@@ -185,6 +185,24 @@ a transparent full-frame canvas, masked, then blended or alpha-composited onto
 the frame. An unknown `blend` mode, or a `mask` with neither `shape` nor `src`,
 is rejected by validation rather than reaching ffmpeg.
 
+### Motion blur
+
+`BaseElement.motionBlur` — a sample count, or `{ samples, shutter }` where
+`shutter` is the open fraction of a frame (`0.5` = 180°).
+
+```typescript
+s.text("Title", { animation: { x: { from: -400, to: 0 } }, motionBlur: 8 });
+```
+
+The element is rendered to its own layer as usual and `tmix` averages the last
+N frames of that layer. Sampling N sub-frame positions and combining them with
+`blend` was tried first and abandoned: ffmpeg smears the whole frame past two
+RGBA inputs, and `mix` averages alpha too, making the element translucent
+rather than smeared.
+
+`resolveMotionBlur(value)` and `shutterFromDegrees(deg)` are exported for
+callers that need the same normalisation.
+
 ### Animation helpers
 
 | Helper | Returns | Preview |

@@ -13,6 +13,7 @@ import { buildTextFilter, buildKaraokeFilters, hasCaptionWords } from "./element
 import { escapeFFmpegStr } from "./position.js";
 import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
 import { applyBlendAndMask, needsBlendPass, hasMask } from "./elements/blend.js";
+import { buildMotionBlurLayer, resolveMotionBlur } from "./elements/motion-blur.js";
 import type { ChromaKey } from "./elements/media.js";
 import type { ColorAdjust } from "../types/elements.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
@@ -326,8 +327,22 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             startPad = basePad;
           }
 
-          const elemBlend = (elem as { blend?: any; mask?: any });
-          if (needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask)) {
+          const elemBlend = (elem as { blend?: any; mask?: any; motionBlur?: any });
+          const blur = resolveMotionBlur(elemBlend.motionBlur);
+          if (blur) {
+            // Sample the element's transform across the shutter, average, then
+            // composite once. Only this element's layer is sampled, so cost
+            // scales with blurred elements rather than with the composition.
+            const blurredPad = buildMotionBlurLayer(
+              filterComplex, elemIdx, startPad, lastScenePad, media,
+              ax, hasAnimation, sceneDur, width, height, fps, blur
+            );
+            lastScenePad = applyBlendAndMask(
+              filterComplex, elemIdx, blurredPad, lastScenePad, true,
+              { blend: elemBlend.blend, mask: elemBlend.mask }, {}, false,
+              sceneDur, width, height, fps
+            );
+          } else if (needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask)) {
             const maskInputIdx = elemBlend.mask?.src ? inputIndex++ : undefined;
             if (maskInputIdx !== undefined) {
               // A matte is a still; loop it so it has a frame for the whole
@@ -347,8 +362,9 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           // Text element
           const item = elem as NormalizedTextElement;
           const textOutPad = `[v_layer_${elemIdx}]`;
-          const elemBlend = (elem as { blend?: any; mask?: any });
-          const special = needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask);
+          const elemBlend = (elem as { blend?: any; mask?: any; motionBlur?: any });
+          const textBlur = resolveMotionBlur(elemBlend.motionBlur);
+          const special = needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask) || !!textBlur;
 
           // `drawtext` paints onto its input, so blending or masking text means
           // giving it a blank transparent frame to paint on and compositing the
@@ -390,10 +406,19 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             if (maskInputIdx !== undefined) {
               addFFmpegInput(inputs, stageAsset(elemBlend.mask.src), { loop: true });
             }
-            // The text is already positioned (drawtext places it), so the
-            // element is passed straight to the blend stage with no offset.
+            // Text is painted by drawtext at its final position, so it is
+            // already full-frame and needs no second placement. Motion blur
+            // runs on the painted layer, same as on a media layer.
+            let layerPad = textOutPad;
+            if (textBlur) {
+              const blurPad = `[txt_blur_${elemIdx}]`;
+              filterComplex.push(
+                `${layerPad}tmix=frames=${Math.max(2, Math.round(textBlur.samples * textBlur.shutter * 2))}${blurPad}`
+              );
+              layerPad = blurPad;
+            }
             lastScenePad = applyBlendAndMask(
-              filterComplex, elemIdx, textOutPad, lastScenePad, true,
+              filterComplex, elemIdx, layerPad, lastScenePad, true,
               { blend: elemBlend.blend, mask: elemBlend.mask }, {}, false,
               sceneDur, width, height, fps, maskInputIdx
             );
