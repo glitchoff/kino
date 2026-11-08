@@ -86,6 +86,11 @@ compiles, and what to check before scheduling it.
 time remapping. Real editor features, but they restructure the scene model and
 none of them unblock the common cases above.
 
+- **Takumi as an HTML engine** — see `tickets/022`. `--browser` gains
+  `takumi`, and `auto` tries it first with a browser fallback. Removes the
+  browser dependency for the common case. Needs a spike on layout parity and
+  fonts before the default changes.
+
 ### Everything else
 
 - ~~**Test the bundled build**~~ — **Done 2026-11-08.** `test-dist/` runs
