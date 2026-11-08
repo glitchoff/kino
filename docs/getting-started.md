@@ -340,6 +340,53 @@ Order is fixed — lift/gain, then brightness/contrast/saturation/gamma, then hu
 so the same numbers look the same on every element. A neutral grade adds no
 filter at all.
 
+### Blending and masks
+
+Two options on **every** element, not just images:
+
+```typescript
+s.image("./logo.png", {
+  x: "center", y: "center",
+  blend: "screen",                               // composite onto what's beneath
+  mask: { shape: "ellipse", feather: 20 },       // or a matte from a file
+});
+
+s.text("Long paragraph…", {
+  mask: { shape: "linear", direction: "down" },  // fade out towards the bottom
+});
+
+s.image("./photo.jpg", { mask: { src: "./gradient.png" } });  // luma matte
+```
+
+**Blend modes**
+
+| | | |
+| --- | --- | --- |
+| `normal` (default) | `multiply` | `screen` |
+| `overlay` | `softlight` | `hardlight` |
+| `difference` | `exclusion` | `darken` |
+| `lighten` | `add` | |
+
+**Masks**
+
+| Option | Description |
+| --- | --- |
+| `shape` | `rect`, `ellipse`, or `linear` (a gradient across the frame) |
+| `direction` | For `linear`: `up`, `down` (default), `left`, `right` |
+| `src` | A file whose **luma** becomes the element's alpha |
+| `feather` | Pixels to soften the edge. Blurs the mask, not the element |
+| `invert` | Swap inside and outside |
+
+Masks are applied **after** the element is positioned, so their coordinates are
+frame coordinates: a `linear` mask fades the bottom of the frame wherever the
+element sits.
+
+> **Cost.** A blended or masked element is a subgraph, not a single overlay —
+> it is laid onto a transparent full-frame canvas first, because ffmpeg's
+> `blend` requires both inputs to be the same size. Sequential passes are
+> linear in the number of such elements. Elements without either option keep
+> the fast single-pass path.
+
 ### Animation
 
 | Helper | Produces |

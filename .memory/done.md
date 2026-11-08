@@ -16,7 +16,7 @@ losing alpha, the bundled font never being used, `frames` returning t=0 for ever
 still, and four wrong-depth path bugs. The suite went from 201 to 317 tests, and
 now also runs against the built bundle, which is where those bugs lived.
 
-**Shipped:** `exportComposition` · audio ducking · keyframes + 5 easings ·
+**Shipped:** `exportComposition` · blend modes and masks · audio ducking · keyframes + 5 easings ·
 `inspect()` · font-metric `measureText()` · `test-dist/` · shapes · `s.tak()` ·
 colour grading · `Preview` · `--crf` · docs rewritten task-first
 
@@ -26,6 +26,12 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **Blend modes and masks** — `blend` (11 modes) and `mask` (rect, ellipse,
+  linear gradient, luma matte from a file, feather, invert) on every element,
+  including text. Each such element compiles as a subgraph: laid on a
+  transparent full-frame canvas, masked with `alphamerge`, then blended. The
+  ticket asked whether a blended element needs a background — it does, and that
+  is what makes positioned blending possible without flattening the frame.
 - **Live preview** — `Preview.open(comp)` compiles once, renders a small
   all-keyframe proxy, then serves `frame(t)` on demand at ~30 ms each, with a
   `data:` URL ready for an `<img>` or a vision model. `previewFrames()` is the

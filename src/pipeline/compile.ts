@@ -12,6 +12,7 @@ import { buildSceneBackground } from "./background.js";
 import { buildTextFilter, buildKaraokeFilters, hasCaptionWords } from "./elements/text.js";
 import { escapeFFmpegStr } from "./position.js";
 import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
+import { applyBlendAndMask, needsBlendPass, hasMask } from "./elements/blend.js";
 import type { ChromaKey } from "./elements/media.js";
 import type { ColorAdjust } from "../types/elements.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
@@ -325,14 +326,44 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             startPad = basePad;
           }
 
-          lastScenePad = applyMediaOverlay(
-            filterComplex, elemIdx, startPad, media, ax, hasAnimation, sceneDur, lastScenePad
-          );
+          const elemBlend = (elem as { blend?: any; mask?: any });
+          if (needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask)) {
+            const maskInputIdx = elemBlend.mask?.src ? inputIndex++ : undefined;
+            if (maskInputIdx !== undefined) {
+              // A matte is a still; loop it so it has a frame for the whole
+              // timeline, exactly like any other image input.
+              addFFmpegInput(inputs, stageAsset(elemBlend.mask.src), { loop: true });
+            }
+            lastScenePad = applyBlendAndMask(
+              filterComplex, elemIdx, startPad, lastScenePad, false, media, ax, hasAnimation,
+              sceneDur, width, height, fps, maskInputIdx
+            );
+          } else {
+            lastScenePad = applyMediaOverlay(
+              filterComplex, elemIdx, startPad, media, ax, hasAnimation, sceneDur, lastScenePad
+            );
+          }
         } else {
           // Text element
           const item = elem as NormalizedTextElement;
           const textOutPad = `[v_layer_${elemIdx}]`;
-          const inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
+          const elemBlend = (elem as { blend?: any; mask?: any });
+          const special = needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask);
+
+          // `drawtext` paints onto its input, so blending or masking text means
+          // giving it a blank transparent frame to paint on and compositing the
+          // result — the same treatment media elements get.
+          let inPad: string;
+          if (special) {
+            const canvas = `[txt_canvas_${elemIdx}]`;
+            filterComplex.push(
+              `color=c=black@0.0:s=${width}x${height}:r=${fps}:d=${sceneDur},format=rgba,settb=AVTB${canvas}`
+            );
+            inPad = canvas;
+          } else {
+            inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
+          }
+
           const filter = buildTextFilter(item, elemIdx, stagingDir, sceneDur, useTextFiles, defaultFontRef, stageAsset);
 
           if (hasCaptionWords(item)) {
@@ -353,7 +384,22 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           } else {
             filterComplex.push(`${inPad}${filter}${textOutPad}`);
           }
-          lastScenePad = textOutPad;
+
+          if (special) {
+            const maskInputIdx = elemBlend.mask?.src ? inputIndex++ : undefined;
+            if (maskInputIdx !== undefined) {
+              addFFmpegInput(inputs, stageAsset(elemBlend.mask.src), { loop: true });
+            }
+            // The text is already positioned (drawtext places it), so the
+            // element is passed straight to the blend stage with no offset.
+            lastScenePad = applyBlendAndMask(
+              filterComplex, elemIdx, textOutPad, lastScenePad, true,
+              { blend: elemBlend.blend, mask: elemBlend.mask }, {}, false,
+              sceneDur, width, height, fps, maskInputIdx
+            );
+          } else {
+            lastScenePad = textOutPad;
+          }
         }
       }
 

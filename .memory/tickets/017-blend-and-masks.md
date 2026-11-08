@@ -1,6 +1,27 @@
 # 017 — Blend modes and masks
 
-**Status:** open
+**Status:** done (2026-11-08) — `blend` and `mask` on every element.
+
+The ticket's open question — *does a blended element need a background?* — is
+answered: yes, and that is the design. `blend` fails with "First input link top
+parameters do not match" on any element smaller than the frame, so each blended
+or masked element is laid onto a **transparent full-frame canvas** at its final
+position first. Outside the element the canvas stays transparent, so the base
+passes through untouched — blending does not flatten the frame.
+
+Masks are built as their own grayscale image and merged with `alphamerge`,
+rather than written into the layer's alpha with `geq`. Writing alpha directly
+looks simpler and does not work: `boxblur` blurs luma and alpha together, so
+feathering the edge also smears the element's colour, and converting to gray for
+the blur keeps the *element's* brightness as the mask instead of the shape's.
+
+Text works the same way: `drawtext` paints onto its input, so masked text is
+given a blank transparent frame to paint on and composited afterwards.
+
+One range trap, found by reading pixels rather than by reasoning: **`blend`
+needs `format=rgb24` on its output.** Handed straight to the encoder's yuv420p
+conversion, ffmpeg misreads the levels — multiply of `0x202060` and `0x804020`
+came out `0,67,0` instead of `15,8,11`.
 **Created:** 2026-11-08
 
 ## Problem

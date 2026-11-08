@@ -44,7 +44,7 @@ import type {
   ChromaKeyConfig,
 } from "../types/elements.js";
 import type { AnimationValue, Easing, ElementAnimation } from "../types/animation.js";
-import type { ColorAdjust } from "../types/elements.js";
+import type { ColorAdjust, BlendMode, ElementMask } from "../types/elements.js";
 import type { KinoTemplate } from "../types/template.js";
 import { isVoice, tts, type TtsOptions, type TtsSpec, type Voice } from "../tts/piper.js";
 
@@ -110,6 +110,10 @@ export interface ElementOptions {
   animation?: ElementAnimation;
   /** Brightness, contrast, saturation, hue, gamma, lift and gain. */
   grade?: ColorAdjust;
+  /** Composite onto what is beneath. Default `normal` (plain overlay). */
+  blend?: BlendMode;
+  /** Limit where the element is visible. */
+  mask?: ElementMask;
 }
 
 /** Options accepted by `text()` — element options plus text styling. */
@@ -168,6 +172,8 @@ function baseFrom(options: ElementOptions): Record<string, unknown> {
   if (options.sfx !== undefined) out.sfx = options.sfx;
   if (options.animation !== undefined) out.animation = options.animation;
   if (options.grade !== undefined) out.grade = options.grade;
+  if (options.blend !== undefined) out.blend = options.blend;
+  if (options.mask !== undefined) out.mask = options.mask;
   return out;
 }
 

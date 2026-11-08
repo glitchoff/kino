@@ -162,6 +162,29 @@ s.video("./greenscreen.mp4", {
 | `blend` | `0` | Softens the edge between keyed and kept pixels (0–1). |
 | `despill` | `false` | Removes colour bleed from the key colour on the subject. |
 
+### Blending and masks
+
+Every element accepts `blend` and `mask` (see `BaseElement`).
+
+```typescript
+export type BlendMode =
+  | "normal" | "multiply" | "screen" | "overlay" | "softlight" | "hardlight"
+  | "difference" | "exclusion" | "darken" | "lighten" | "add";
+
+export interface ElementMask {
+  shape?: "rect" | "ellipse" | "linear";
+  src?: string;                                  // luma matte
+  direction?: "up" | "down" | "left" | "right";  // for `linear`
+  feather?: number;                              // pixels
+  invert?: boolean;
+}
+```
+
+An element with either option is compiled as its own subgraph: it is placed on
+a transparent full-frame canvas, masked, then blended or alpha-composited onto
+the frame. An unknown `blend` mode, or a `mask` with neither `shape` nor `src`,
+is rejected by validation rather than reaching ffmpeg.
+
 ### Animation helpers
 
 | Helper | Returns | Preview |

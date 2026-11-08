@@ -17,7 +17,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 | Path | Purpose |
 | --- | --- |
 | `src/pipeline/` | compile → `.kino` artifact → FFmpeg render |
-| `src/pipeline/elements/` | per-element filters: text, media, html, takumi, shapes, color |
+| `src/pipeline/elements/` | per-element filters: text, media, html, takumi, shapes, color, blend |
 | `src/pipeline/preview.ts` | `Preview` — proxy-backed frame scrubbing |
 | `src/normalize/` | raw input → normalized composition (units, templates, animation, ducking) |
 | `src/validate/` | schema validation with `KinoValidationError` |
@@ -39,7 +39,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 
 ## Health
 
-- `pnpm test` — 317 tests passing (21 files)
+- `pnpm test` — 329 tests passing (22 files)
 - `pnpm test:dist` — 9 tests against the built bundle
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
@@ -53,7 +53,6 @@ marked done is closed.
 
 | # | Ticket | What remains |
 | --- | --- | --- |
-| **017** | Blend modes and masks | Nothing beyond chroma key. Needs the element-subgraph work. |
 | **019** | Motion blur | Sub-frame sampling. Needs values as `f(t)`, which keyframes now provide. |
 | **018** | Colour (partly done) | Per-element `grade` shipped. **LUTs (`lut3d`), `curves`, and composition-level grading are not built.** |
 | **009** | Docs rewrite | Rewritten to task-first structure on 2026-11-08. Site polish (search, syntax highlighting) still open. |

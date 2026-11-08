@@ -210,6 +210,51 @@ function validateVideoElement(elem: Record<string, unknown>, elemPath: string, i
   }
 }
 
+const BLEND_MODES = new Set([
+  "normal", "multiply", "screen", "overlay", "softlight", "hardlight",
+  "difference", "exclusion", "darken", "lighten", "add",
+]);
+
+function validateBlend(
+  blend: unknown,
+  elemPath: string,
+  issues: ValidationIssue[]
+): void {
+  const path = `${elemPath}.blend`;
+  if (typeof blend !== "string" || !BLEND_MODES.has(blend)) {
+    // A typo here would otherwise reach ffmpeg as an unknown `all_mode` and fail
+    // with a much less helpful message.
+    issues.push({
+      path,
+      message: `Unknown blend mode ${JSON.stringify(blend)}. Expected one of: ${[...BLEND_MODES].join(", ")}`,
+    });
+  }
+}
+
+function validateMask(
+  mask: unknown,
+  elemPath: string,
+  issues: ValidationIssue[]
+): void {
+  const path = `${elemPath}.mask`;
+  if (!isObject(mask)) {
+    issues.push({ path, message: "Expected a mask object" });
+    return;
+  }
+  if (mask.shape === undefined && mask.src === undefined) {
+    issues.push({ path, message: "A mask needs either `shape` or `src`" });
+  }
+  if (mask.shape !== undefined && !["rect", "ellipse", "linear"].includes(mask.shape as string)) {
+    issues.push({ path: `${path}.shape`, message: `Expected rect, ellipse or linear, received ${JSON.stringify(mask.shape)}` });
+  }
+  if (mask.src !== undefined && typeof mask.src !== "string") {
+    issues.push({ path: `${path}.src`, message: "Expected a file path or URL" });
+  }
+  if (mask.feather !== undefined && (typeof mask.feather !== "number" || mask.feather < 0)) {
+    issues.push({ path: `${path}.feather`, message: "Expected a non-negative number of pixels" });
+  }
+}
+
 function validateColorAdjust(
   color: unknown,
   elemPath: string,
@@ -384,6 +429,12 @@ export function validateElement(
   // Animation
   if (elem.grade !== undefined) {
     validateColorAdjust(elem.grade, elemPath, issues);
+  }
+  if (elem.blend !== undefined) {
+    validateBlend(elem.blend, elemPath, issues);
+  }
+  if (elem.mask !== undefined) {
+    validateMask(elem.mask, elemPath, issues);
   }
 
   if (elem.animation !== undefined) {

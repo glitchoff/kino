@@ -114,6 +114,12 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   // A colour adjustment is carried through as written; the compiler turns it
   // into filters, and validation rejects nonsense before that point.
   const colorAdjust = elem.grade ? { ...elem.grade } : undefined;
+  // Blend and mask are passed through untouched; the compiler owns their
+  // meaning, and validation rejects unknown modes before this point.
+  const compositing = {
+    ...(elem.blend ? { blend: elem.blend } : {}),
+    ...(elem.mask ? { mask: { ...elem.mask } } : {}),
+  };
 
   const rawWidth = parsePixels(elem.width, canvasWidth);
   const rawHeight = parsePixels(elem.height, canvasHeight);
@@ -122,6 +128,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
     const shape: NormalizedShapeElement = {
       type: "shape",
       ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
       shape: elem.shape === "ellipse" || elem.shape === "line" ? elem.shape : "rect",
       width: rawWidth ?? 0,
       height: rawHeight ?? 0,
@@ -156,6 +163,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
     const img: NormalizedImageElement = {
       type: "image",
       ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
       src: elem.src || "",
       x: elem.x,
       y: elem.y,
@@ -179,6 +187,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
     const html: NormalizedHtmlElement = {
       type: "html",
       ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
       html: elem.html || "",
       css: elem.css,
       width: rawWidth ?? 0,
@@ -216,6 +225,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
     const vid: NormalizedVideoElement = {
       type: "video",
       ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
       src: elem.src || "",
       x: elem.x,
       y: elem.y,
@@ -263,6 +273,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   const text: NormalizedTextElement = {
     type: "text",
     ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
     content,
     fontSize,
     fontColor: elem.fontColor,

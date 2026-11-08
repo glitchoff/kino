@@ -25,6 +25,40 @@ export interface ColorAdjust {
   gain?: number | [number, number, number];
 }
 
+/** How an element composites onto what is already beneath it. */
+export type BlendMode =
+  | "normal"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "softlight"
+  | "hardlight"
+  | "difference"
+  | "exclusion"
+  | "darken"
+  | "lighten"
+  | "add";
+
+/**
+ * A matte that limits where an element is visible.
+ *
+ * Masks apply to the element *after* it is positioned, so their coordinates are
+ * frame coordinates: a bottom gradient fades the bottom of the frame wherever
+ * the element happens to sit.
+ */
+export interface ElementMask {
+  /** Built-in shapes. Coordinates are normalised to the frame. */
+  shape?: "rect" | "ellipse" | "linear";
+  /** A gradient matte from a file: its luma becomes the element's alpha. */
+  src?: string;
+  /** Direction of a `linear` gradient. Default `down`. */
+  direction?: "up" | "down" | "left" | "right";
+  /** Softens the mask edge in pixels. Blurs the mask, not the element. */
+  feather?: number;
+  /** Swap inside and outside. */
+  invert?: boolean;
+}
+
 export interface BaseElement {
   id?: string;
   x?: number | string;
@@ -44,6 +78,13 @@ export interface BaseElement {
    * colour on text elements.
    */
   grade?: ColorAdjust;
+  /**
+   * Composite this element onto what is beneath with a blend mode. Default
+   * `normal`, which is a plain alpha overlay.
+   */
+  blend?: BlendMode;
+  /** Limit where this element is visible. */
+  mask?: ElementMask;
 }
 
 /** One word inside a caption line, timed relative to the element's start. */
