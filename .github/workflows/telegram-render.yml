@@ -24,6 +24,7 @@ on:
           - examples/essay-narration.ts
           - examples/tts-narration.ts
           - examples/reusable-components.ts
+          - examples/lyrics.ts
       caption:
         description: Caption for the Telegram message
         required: false

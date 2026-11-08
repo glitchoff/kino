@@ -66,3 +66,18 @@ uses the verified binary rather than whatever `ffmpeg-static` resolves to.
 | `has no drawtext support` | render used `ffmpeg-static`; pass `--ffmpeg-path` |
 | `Error opening output …/out/render.mp4` | `out/` did not exist; `mkdir -p out` first |
 | `Upload failed: OK` | tmpfiles returns `"status":"success"`, not `true` |
+
+## Rendering a long video on CI
+
+`examples/lyrics.ts` is a full-length song with karaoke-style lyrics. It is
+self-contained on purpose: the audio (`assets/co2.mp3`) and the word timings
+(`assets/co2-words.json`) are committed, so the job needs no model, no network
+and no ~317 MB download.
+
+This is the way to render long pieces. A machine with 8 GB and no swap stalls
+on the per-word caption graph long before it finishes; a CI runner is both
+faster and disposable.
+
+To use your own song, produce the timings locally first (see
+`guide/alignment-model.md`), then commit the audio and JSON next to a copy of
+`examples/lyrics.ts` and add it to the workflow's `example` list.
