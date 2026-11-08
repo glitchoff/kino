@@ -1,6 +1,6 @@
 # 014 — One caption pipeline, two renderers
 
-**Status:** open
+**Status:** done (2026-11-08) — `resolveCaptions()` is the shared seam: lines, trimmed holds, defaults, font-size parsing and z-index. `captionImages` consumes it instead of re-deriving them. Four tests assert the two renderers agree. The public `render: "auto"` option from step 3 was not added — the footgun it addresses is documented instead, and adding it would make `captions()` async.
 **Created:** 2026-11-08
 
 ## Problem

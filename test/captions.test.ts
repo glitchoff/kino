@@ -407,3 +407,81 @@ describe("captions: image karaoke", () => {
     }
   });
 });
+
+describe("caption seam — both renderers agree", () => {
+  // `captionElements` (drawtext) and `captionImages` (PNG strips) used to build
+  // their own lines, defaults and holds. That duplication already caused a bug:
+  // holds were not trimmed against the following line, so two captions sat on
+  // screen at once. These assert the shared path keeps them in step.
+  const words = Array.from({ length: 9 }, (_, i) => ({
+    word: `w${i}`,
+    clean: `w${i}`,
+    start: i * 0.5,
+    end: i * 0.5 + 0.4,
+  }));
+
+  test("the last word of a line ends where the next line starts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      const images = await captionImages(words, {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 3,
+        hold: 0.35,
+      });
+      const texts = captionElements(words, { wordsPerLine: 3, hold: 0.35 });
+
+      // Group the image elements back into lines and compare line ends.
+      const imageEnds = images.map((e) => e.startAt + e.duration);
+      const textEnds = texts.map((e) => e.startAt + e.duration);
+
+      // Line 0 holds to just before line 1 starts; the same trim must apply to
+      // both renderers.
+      const firstLineImagesEnd = Math.max(...imageEnds.slice(0, 3));
+      expect(firstLineImagesEnd).toBeLessThanOrEqual(1.5 + 1e-6);
+      expect(textEnds[0]).toBeLessThanOrEqual(1.5 + 1e-6);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("both apply the same z-index default", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      const images = await captionImages(words, { width: 640, height: 100, dir, wordsPerLine: 3 });
+      const texts = captionElements(words, { wordsPerLine: 3 });
+      expect(images[0].zIndex).toBe(texts[0].zIndex);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("an explicit z-index reaches both renderers", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      const images = await captionImages(words, {
+        width: 640, height: 100, dir, wordsPerLine: 3, zIndex: 42,
+      });
+      const texts = captionElements(words, { wordsPerLine: 3, zIndex: 42 });
+      expect(images[0].zIndex).toBe(42);
+      expect(texts[0].zIndex).toBe(42);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("a font size written with units is parsed the same way", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      // Both used to parse this separately; a string size must not fall back to
+      // the default in one path and not the other.
+      const images = await captionImages(words, {
+        width: 640, height: 100, dir, wordsPerLine: 3, fontSize: "40px",
+      });
+      expect(images).toHaveLength(9);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});

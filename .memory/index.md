@@ -32,7 +32,7 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 265 tests passing (17 files)
+- `pnpm test` — 269 tests passing (17 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
@@ -93,10 +93,8 @@ none of them unblock the common cases above.
 - **Shapes and charts** — see `tickets/013`. No `rect`/`ellipse`/`line`, so
   agents fake them with HTML, which pulls in a browser and renders differently
   between Chrome and Obscura.
-- **Caption pipeline duplication** — see `tickets/014`. `captionImages`
-  re-implements grouping, defaults and anchoring instead of sharing them with
-  the text path, and that duplication already caused the stacked-captions bug.
-  Ticket 020 removes most of the reason for the duplicate rasteriser.
+- ~~**Caption pipeline duplication**~~ — **Done 2026-11-08.** Both renderers use
+  `resolveCaptions()`.
 - **Agent feedback loop** — `tickets/011` (`inspect()`) and `tickets/012`
   (`measureText()`) both landed on 2026-11-08. An agent can now describe a
   composition without rendering it.

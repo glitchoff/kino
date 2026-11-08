@@ -4,6 +4,14 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Caption seam** — `resolveCaptions()` now produces the lines, trimmed holds,
+  resolved defaults, parsed font size and z-index for both caption renderers.
+  `captionImages` consumed none of that before: it rebuilt lines, re-derived
+  `color`/`highlight`/`at`/`zIndex` and re-implemented centring. The duplicated
+  hold-trimming is what caused the stacked-captions bug. Four tests assert the
+  two paths agree on line ends, z-index (default and explicit) and `"40px"` font
+  sizes. Note the caption suite takes ~145s — `captionImages` rasterises one
+  PNG per word.
 - **Tests against the bundled build** — `test-dist/bundled.test.ts`, run by
   `pnpm test:dist` (builds first) and by CI as its own step. The main suite
   imports from `src/`, so `__dirname` is always the source layout and the

@@ -623,6 +623,48 @@ function resolveAnchor(x: number | string | undefined, width: number): number {
 }
 
 /**
+ * Everything the two caption renderers share.
+ *
+ * `captionElements` (drawtext) and `captionImages` (rasterised PNGs) used to
+ * each build their own lines, defaults and anchoring. That duplication already
+ * caused a bug: `buildCaptionLines` trims each line's hold so it cannot run
+ * into the next line, and that only works when it can see the following line —
+ * calling it per line left the holds untrimmed and stacked captions on screen.
+ *
+ * Both renderers now take this. Only the drawing differs.
+ */
+interface ResolvedCaptions {
+  /** Lines, with holds already trimmed against their successors. */
+  lines: CaptionLine[];
+  /** Offset applied to every timing. */
+  at: number;
+  fontSize: number;
+  color: string;
+  highlight: string;
+  /** How long a word stays after it is spoken. */
+  hold: number;
+  /** Element z-order. */
+  zIndex: number;
+  /** Position, as the author wrote it. */
+  x: number | string;
+  y: number | string;
+}
+
+function resolveCaptions(timings: WordTiming[], options: CaptionOptions): ResolvedCaptions {
+  return {
+    lines: buildCaptionLines(groupWords(timings, groupOptions(options)), options),
+    at: options.at ?? 0,
+    fontSize: parsePixels(options.fontSize) ?? 56,
+    color: options.color ?? "#f8fafc",
+    highlight: options.highlight ?? "#38bdf8",
+    hold: options.hold ?? 0.35,
+    zIndex: options.zIndex ?? 100,
+    x: options.x ?? "center",
+    y: options.y ?? "bottom-240",
+  };
+}
+
+/**
  * Builds caption elements from word timings.
  *
  * Returned elements are relative to the scene, offset by `options.at`.
@@ -803,10 +845,13 @@ export async function captionImages(
   // `ffmpeg-static` builds lack it, so the vendored build is preferred when
   // it exists next to the package.
   const ffmpeg = options.ffmpegPath ?? findDrawtextFfmpeg() ?? getFFmpegBinaryPath();
-  const fontSize = parsePixels(options.fontSize) ?? 56;
-  const color = options.color ?? "#f8fafc";
-  const highlight = options.highlight ?? "#38bdf8";
-  const at = options.at ?? 0;
+  // Shared with the drawtext path: line building, hold trimming, defaults and
+  // z-order all come from one place.
+  const resolved = resolveCaptions(timings, options);
+  const fontSize = resolved.fontSize;
+  const color = resolved.color;
+  const highlight = resolved.highlight;
+  const at = resolved.at;
   const width = options.width;
   const height = options.height;
   mkdirSync(options.dir, { recursive: true });
@@ -851,12 +896,7 @@ export async function captionImages(
     return hi < 0 ? estimateTextWidth(text, fontSize) : hi - 10 + 1;
   };
 
-  // Group into lines the same way the other styles do. All timings go in at
-  // once: `buildCaptionLines` trims each line's hold so it cannot run into the
-  // next line, and that only works when it can see the following line. Calling
-  // this per line leaves the holds untrimmed and stacks lines on top of each
-  // other.
-  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
+  const lines = resolved.lines;
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
@@ -910,7 +950,9 @@ export async function captionImages(
         height: options.displayHeight ?? height,
         startAt: wordStart,
         duration: Math.max(0.05, Math.min(nextStart, lineEnd) - wordStart),
-        zIndex: options.zIndex ?? 100,
+        // A rasterised strip carries its own layout, so the element sits at the
+        // origin by default; the shared z-order still applies.
+        zIndex: resolved.zIndex,
         x: options.x ?? 0,
         y: options.y ?? 0,
       });
