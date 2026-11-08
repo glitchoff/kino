@@ -17,6 +17,13 @@ export interface RenderOptions {
   verbose?: boolean;
   encoder?: VideoEncoder;
   preset?: string;
+  /**
+   * Encoder quality, 0–51 for libx264 where lower is better. Default 20, which
+   * keeps text crisp; the previous default had no quality target at all and
+   * crushed text-heavy frames. Hardware encoders map this to their own quality
+   * control.
+   */
+  crf?: number;
   kinoPath?: string;
   unsafeInlineText?: boolean;
   browserPath?: string;

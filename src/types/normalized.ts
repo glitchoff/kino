@@ -57,6 +57,8 @@ export interface NormalizedBaseElement {
   sfx?: string | NormalizedAudioTrack;
   zIndex?: number;
   animation?: NormalizedElementAnimation;
+  /** Per-element brightness/contrast/saturation/hue/gamma/lift/gain. */
+  grade?: import("./elements.js").ColorAdjust;
 }
 
 export interface NormalizedCaptionWord {

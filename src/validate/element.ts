@@ -210,6 +210,49 @@ function validateVideoElement(elem: Record<string, unknown>, elemPath: string, i
   }
 }
 
+function validateColorAdjust(
+  color: unknown,
+  elemPath: string,
+  issues: ValidationIssue[]
+): void {
+  const path = `${elemPath}.grade`;
+  if (!isObject(color)) {
+    issues.push({ path, message: "Expected a colour adjustment object" });
+    return;
+  }
+  const num = (key: string, min: number, max: number) => {
+    const v = color[key];
+    if (v === undefined) return;
+    if (typeof v !== "number" || Number.isNaN(v)) {
+      issues.push({ path: `${path}.${key}`, message: `Expected a number, received ${JSON.stringify(v)}` });
+      return;
+    }
+    if (v < min || v > max) {
+      issues.push({ path: `${path}.${key}`, message: `Expected ${min}..${max}, received ${v}` });
+    }
+  };
+  // Ranges follow ffmpeg's `eq`/`hue`, so a value that would be silently
+  // clamped is rejected instead.
+  num("brightness", -1, 1);
+  num("contrast", 0, 3);
+  num("saturation", 0, 3);
+  num("hue", -180, 180);
+  num("gamma", 0.1, 10);
+
+  for (const key of ["lift", "gain"] as const) {
+    const v = color[key];
+    if (v === undefined) continue;
+    const range: [number, number] = key === "lift" ? [-1, 1] : [0, 2];
+    if (Array.isArray(v)) {
+      if (v.length !== 3 || v.some((n) => typeof n !== "number" || n < range[0] || n > range[1])) {
+        issues.push({ path: `${path}.${key}`, message: `Expected three numbers in ${range[0]}..${range[1]}` });
+      }
+    } else if (typeof v !== "number" || v < range[0] || v > range[1]) {
+      issues.push({ path: `${path}.${key}`, message: `Expected a number in ${range[0]}..${range[1]}, received ${JSON.stringify(v)}` });
+    }
+  }
+}
+
 function validateShapeElement(
   elem: Record<string, unknown>,
   elemPath: string,
@@ -339,6 +382,10 @@ export function validateElement(
   }
 
   // Animation
+  if (elem.grade !== undefined) {
+    validateColorAdjust(elem.grade, elemPath, issues);
+  }
+
   if (elem.animation !== undefined) {
     const animPath = `${elemPath}.animation`;
     if (!isObject(elem.animation)) {

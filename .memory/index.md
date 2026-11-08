@@ -12,7 +12,7 @@ the legacy/interop format.
 
 | Path | Purpose |
 | --- | --- |
-| `src/pipeline/` | compile → `.kino` artifact → FFmpeg render |
+| `src/pipeline/` | compile → `.kino` artifact → FFmpeg render; `elements/color.ts` for grades |
 | `src/normalize/` | raw input → normalized composition (units, templates, animation) |
 | `src/validate/` | schema validation with `KinoValidationError` |
 | `src/encoder/` | FFmpeg binary resolution, drawtext probe, hardware encoder detection |

@@ -111,6 +111,9 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   const animation = normalizeAnimation(elem.animation, sceneDuration);
   const offsetX = parsePixels(elem.offsetX, canvasWidth);
   const offsetY = parsePixels(elem.offsetY, canvasHeight);
+  // A colour adjustment is carried through as written; the compiler turns it
+  // into filters, and validation rejects nonsense before that point.
+  const colorAdjust = elem.grade ? { ...elem.grade } : undefined;
 
   const rawWidth = parsePixels(elem.width, canvasWidth);
   const rawHeight = parsePixels(elem.height, canvasHeight);
@@ -118,6 +121,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   if (elem.type === "shape") {
     const shape: NormalizedShapeElement = {
       type: "shape",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
       shape: elem.shape === "ellipse" || elem.shape === "line" ? elem.shape : "rect",
       width: rawWidth ?? 0,
       height: rawHeight ?? 0,
@@ -151,6 +155,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   if (elem.type === "image") {
     const img: NormalizedImageElement = {
       type: "image",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
       src: elem.src || "",
       x: elem.x,
       y: elem.y,
@@ -173,6 +178,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   if (elem.type === "html") {
     const html: NormalizedHtmlElement = {
       type: "html",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
       html: elem.html || "",
       css: elem.css,
       width: rawWidth ?? 0,
@@ -209,6 +215,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
       duration ?? (trimStart !== undefined && trimEnd !== undefined ? trimEnd - trimStart : undefined);
     const vid: NormalizedVideoElement = {
       type: "video",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
       src: elem.src || "",
       x: elem.x,
       y: elem.y,
@@ -255,6 +262,7 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
 
   const text: NormalizedTextElement = {
     type: "text",
+    ...(colorAdjust ? { grade: colorAdjust } : {}),
     content,
     fontSize,
     fontColor: elem.fontColor,

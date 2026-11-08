@@ -178,6 +178,43 @@ and PNG. It does **not** run scripts, and it supports less CSS than Chrome.
 Fonts are passed explicitly — kino ships Inter, so text renders without any
 setup. Takumi never reads system fonts.
 
+### Colour
+
+Any element takes a `grade` — brightness, contrast, saturation, hue, gamma,
+lift and gain:
+
+```typescript
+s.image("./clip.mp4", {
+  width: 1920,
+  height: 1080,
+  grade: {
+    brightness: 0.05,
+    contrast: 1.15,
+    saturation: 1.2,
+    gamma: 1.1,
+    lift: [0.02, 0, -0.01],   // per-channel black point
+    gain: [1.05, 1.0, 0.95],  // per-channel white point
+  },
+});
+```
+
+| Field | Range | Unchanged at | Effect |
+| --- | --- | --- | --- |
+| `brightness` | −1…1 | `0` | Adds to every channel |
+| `contrast` | 0…3 | `1` | Pivots around mid-grey |
+| `saturation` | 0…3 | `1` | `0` is greyscale |
+| `hue` | −180…180 | `0` | Degrees of rotation |
+| `gamma` | 0.1…10 | `1` | Midtone response |
+| `lift` | −1…1 | `0` | Output black point, number or `[r,g,b]` |
+| `gain` | 0…2 | `1` | Output white point, number or `[r,g,b]` |
+
+The option is called `grade`, not `color`, because `color` already means font
+colour on text elements.
+
+Applied order is fixed — lift/gain, then brightness/contrast/saturation/gamma,
+then hue — so the same numbers look the same on every element. A neutral grade
+adds no filter at all.
+
 ### Shapes
 
 Rectangles, ellipses and lines, drawn to a PNG at compile time and overlaid like

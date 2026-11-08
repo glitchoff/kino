@@ -13,9 +13,11 @@ import { buildTextFilter, buildKaraokeFilters, hasCaptionWords } from "./element
 import { escapeFFmpegStr } from "./position.js";
 import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
 import type { ChromaKey } from "./elements/media.js";
+import type { ColorAdjust } from "../types/elements.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
 import { isTakumiMarkup } from "../remote/takumi.js";
 import { rasterRect, rasterEllipse, rasterLine } from "./elements/shapes.js";
+import { buildColorFilter, isNeutralColor } from "./elements/color.js";
 import { buildTransitionPipeline } from "./transitions.js";
 import { buildAudioMix } from "./audio.js";
 import { resolveEncoderSync, buildEncoderFlags } from "./encoder-flags.js";
@@ -270,10 +272,16 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
           // A shape is a PNG with transparency around the drawn region; `media`
           // is already `type: "image"` by here, so the flag has to be passed.
-          const scaleFilter = buildMediaScaleFilter({
-            ...media,
-            preserveAlpha: elem.type === "shape" || undefined,
-          });
+          // Colour adjustment runs after scaling and before any key, so the
+          // numbers mean the same thing regardless of the element's size.
+          const colorFilter = isNeutralColor((elem as { grade?: ColorAdjust }).grade)
+            ? ""
+            : buildColorFilter((elem as { grade?: ColorAdjust }).grade);
+          const scaleFilter =
+            buildMediaScaleFilter({
+              ...media,
+              preserveAlpha: elem.type === "shape" || undefined,
+            }) + (colorFilter ? `,${colorFilter}` : "");
           const ax = buildAnimationExpressions(media, "t");
           const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
           // RGBA from the scale filter onward; never re-format to yuv420p or the
@@ -382,8 +390,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     const encoder = resolveEncoderSync(options);
     const encoderFlags =
       previewHeight !== undefined
-        ? buildEncoderFlags(encoder, options?.preset ?? "ultrafast")
-        : buildEncoderFlags(encoder, options?.preset);
+        ? buildEncoderFlags(encoder, options?.preset ?? "ultrafast", options?.crf)
+        : buildEncoderFlags(encoder, options?.preset, options?.crf);
 
     const args: string[] = ["-y", ...inputs];
     let filtergraphStr: string | undefined;

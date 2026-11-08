@@ -1,6 +1,30 @@
 import type { AudioTrack } from "./audio.js";
 import type { ElementAnimation } from "./animation.js";
 
+/**
+ * Per-element colour adjustment, applied before the element is composited.
+ *
+ * Ranges follow the usual conventions: `brightness` and `saturation` are
+ * relative where 1 is unchanged, `contrast` likewise, `hue` is degrees, and
+ * `gamma` is a multiplier where 1 is unchanged.
+ */
+export interface ColorAdjust {
+  /** -1..1, where 0 is unchanged. Adds to every channel. */
+  brightness?: number;
+  /** 0..3, where 1 is unchanged. */
+  contrast?: number;
+  /** 0..3, where 1 is unchanged. 0 is greyscale. */
+  saturation?: number;
+  /** Degrees, -180..180. */
+  hue?: number;
+  /** 0.1..10, where 1 is unchanged. */
+  gamma?: number;
+  /** Black point lift per channel, -1..1. */
+  lift?: number | [number, number, number];
+  /** White point gain per channel, 0..2, where 1 is unchanged. */
+  gain?: number | [number, number, number];
+}
+
 export interface BaseElement {
   id?: string;
   x?: number | string;
@@ -13,6 +37,13 @@ export interface BaseElement {
   sfx?: string | AudioTrack;
   zIndex?: number | string;
   animation?: ElementAnimation;
+  /**
+   * Brightness, contrast, saturation, hue, gamma, lift and gain.
+   *
+   * Called `grade` rather than `color` because `color` already means font
+   * colour on text elements.
+   */
+  grade?: ColorAdjust;
 }
 
 /** One word inside a caption line, timed relative to the element's start. */

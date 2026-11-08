@@ -1,6 +1,6 @@
 # 018 — Colour: LUTs and basic grading
 
-**Status:** open
+**Status:** partly done (2026-11-08) — per-element `grade` with brightness, contrast, saturation, hue, gamma, lift and gain. LUTs (`lut3d`), `curves`, and composition-level grading are **not** built.
 **Created:** 2026-11-08
 
 ## Problem

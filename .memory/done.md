@@ -4,6 +4,16 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Per-element colour grading** — `grade` on any element: `brightness`,
+  `contrast`, `saturation`, `hue`, `gamma`, `lift` and `gain`, the last two
+  per-channel. Named `grade` because `color` already means font colour on text.
+  Verified by rendering flat colours and reading the centre pixel: brightness
+  ±0.2 moves 128 to 186/64, contrast 2 takes 64 to 0, hue 120 turns red to green,
+  lift 0.3 takes black to 75, gain 0.5 takes white to 128.
+- **Two `colorlevels` traps, both hit** — `rimin`/`rimax` are *input* thresholds
+  that clip rather than lift or darken, so the first version did nothing for
+  `lift` and made `gain` clip more of the image to white. Lifting blacks is
+  `romin`; darkening is `romax`.
 - **`tak:` markup — browserless HTML** — `s.tak(markup, opts)` is sugar for
   `s.html("tak:" + markup, opts)`, mirroring the `yt:` convention. Markup with
   the prefix renders through [Takumi](https://takumi.kane.tw/) (Rust, Blink-ported
