@@ -1,12 +1,21 @@
-// Karaoke lyrics for a full song.
-//
-// Word timings come from forced alignment against the real audio (see
-// .memory/guide/alignment-model.md). They are checked in so the example needs
-// no model, no network and no ~317 MB download to render.
+/**
+ * Lyric video: a whole song with timed, animated lyric lines.
+ *
+ * The word timings come from forced alignment of the full lyric sheet against
+ * the recording, and are committed alongside the audio so this renders with no
+ * model, no network and no ~317 MB download — which is what makes it practical
+ * on a CI runner.
+ *
+ * Each line enters with a different motion (rise, slide, pop) so the video does
+ * not look mechanical. Animations are per LINE rather than per word: animating
+ * every word multiplies the filter count enough to stall the render.
+ *
+ *   npx kino examples/lyrics.ts -o out/lyrics.mp4
+ */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captionElements, composition, type WordTiming } from "@glitchoff/kino";
+import { captionElements, composition, type WordTiming, type ElementAnimation } from "@glitchoff/kino";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const audio = join(here, "assets/co2.mp3");
@@ -15,8 +24,8 @@ const timingsPath = join(here, "assets/co2-words.json");
 const words = JSON.parse(readFileSync(timingsPath, "utf8")) as WordTiming[];
 const duration = 163.73;
 
-// Group words into display lines: break on sentence punctuation, on a musical
-// gap, or once a line reaches five words. Short lines stay readable at 64px.
+// Group into display lines: break on sentence punctuation, on a musical gap, or
+// at five words. Short lines stay readable at this size.
 const lines: WordTiming[][] = [];
 let current: WordTiming[] = [];
 for (let i = 0; i < words.length; i++) {
@@ -30,21 +39,54 @@ for (let i = 0; i < words.length; i++) {
 }
 if (current.length) lines.push(current);
 
-const captions = lines.flatMap((line) =>
-  captionElements(line, {
+/** Entrance motions, rotated so consecutive lines do not look identical. */
+const ENTRIES: ElementAnimation[] = [
+  {
+    opacity: { from: 0, to: 1, duration: 0.4, easing: "easeOut" },
+    y: { from: 46, to: 0, duration: 0.5, easing: "easeOut" },
+    scale: { from: 0.94, to: 1, duration: 0.5, easing: "easeOut" },
+  },
+  {
+    opacity: { from: 0, to: 1, duration: 0.4, easing: "easeOut" },
+    x: { from: -70, to: 0, duration: 0.5, easing: "easeOut" },
+  },
+  {
+    opacity: { from: 0, to: 1, duration: 0.4, easing: "easeOut" },
+    x: { from: 70, to: 0, duration: 0.5, easing: "easeOut" },
+  },
+  {
+    opacity: { from: 0, to: 1, duration: 0.35, easing: "easeOut" },
+    scale: { from: 1.12, to: 1, duration: 0.45, easing: "easeOut" },
+  },
+  {
+    opacity: { from: 0, to: 1, duration: 0.4, easing: "easeOut" },
+    y: { from: -40, to: 0, duration: 0.5, easing: "easeOut" },
+  },
+];
+
+const captions = lines.flatMap((line, index) => {
+  const [built] = captionElements(line, {
     style: "block",
     wordsPerLine: line.length,
-    fontSize: 64,
-    y: "center+100",
+    fontSize: 66,
+    y: "center+90",
     color: "#ffffff",
-  })
-);
+  });
+  return [
+    {
+      ...built,
+      startAt: line[0].start,
+      duration: Math.max(0.2, line[line.length - 1].end - line[0].start),
+      animation: ENTRIES[index % ENTRIES.length],
+    },
+  ];
+});
 
 export default composition({ width: 1280, height: 720, fps: 24 })
   .scene(
     {
       duration,
-      background: { type: "gradient", from: "#101828", to: "#05060a", direction: "vertical" },
+      background: { type: "gradient", from: "#141c30", to: "#05060a", direction: "vertical" },
     },
     (s) => s.addAll(captions)
   )
