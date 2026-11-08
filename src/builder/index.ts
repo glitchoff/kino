@@ -38,6 +38,7 @@ import type {
   TextElement,
   ImageElement,
   HtmlElement,
+  ShapeElement,
   VideoElement,
   ChromaKeyConfig,
 } from "../types/elements.js";
@@ -218,6 +219,55 @@ export function video(src: string, options: VideoOptions = {}): VideoElement {
     ...(chromaKey !== undefined ? { chromaKey } : {}),
     ...baseFrom(options),
   } as VideoElement;
+}
+
+export interface ShapeOptions extends ElementOptions {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number | string;
+  radius?: number | string;
+  x1?: number | string;
+  y1?: number | string;
+  x2?: number | string;
+  y2?: number | string;
+}
+
+/** A rectangle, ellipse or line, drawn to a PNG at compile time. */
+export function shape(
+  kind: "rect" | "ellipse" | "line",
+  options: ShapeOptions & { width: number | string; height: number | string }
+): ShapeElement {
+  const { width, height, fill, stroke, strokeWidth, radius, x1, y1, x2, y2 } = options;
+  return {
+    type: "shape",
+    shape: kind,
+    width,
+    height,
+    ...(fill !== undefined ? { fill } : {}),
+    ...(stroke !== undefined ? { stroke } : {}),
+    ...(strokeWidth !== undefined ? { strokeWidth } : {}),
+    ...(radius !== undefined ? { radius } : {}),
+    ...(x1 !== undefined ? { x1 } : {}),
+    ...(y1 !== undefined ? { y1 } : {}),
+    ...(x2 !== undefined ? { x2 } : {}),
+    ...(y2 !== undefined ? { y2 } : {}),
+    ...baseFrom(options),
+  } as ShapeElement;
+}
+
+/** A filled or outlined rectangle. */
+export function rect(options: ShapeOptions & { width: number | string; height: number | string }): ShapeElement {
+  return shape("rect", options);
+}
+
+/** A filled or outlined ellipse filling its box. */
+export function ellipse(options: ShapeOptions & { width: number | string; height: number | string }): ShapeElement {
+  return shape("ellipse", options);
+}
+
+/** A line between two points inside its box. */
+export function line(options: ShapeOptions & { width: number | string; height: number | string }): ShapeElement {
+  return shape("line", options);
 }
 
 export function html(markup: string, options: HtmlOptions): HtmlElement {

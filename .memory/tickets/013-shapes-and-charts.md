@@ -1,6 +1,6 @@
 # 013 — Shapes and charts as first-class elements
 
-**Status:** open
+**Status:** done (2026-11-08) for primitives — `rect`/`ellipse`/`line`, rasterised to PNG at compile time. The `chart` element was not built; the primitives cover it and a chart is a loop over `rect`s. `group` remains separate, as the ticket suggested.
 **Created:** 2026-11-08
 
 ## Problem

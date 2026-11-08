@@ -14,6 +14,7 @@ import { escapeFFmpegStr } from "./position.js";
 import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
 import type { ChromaKey } from "./elements/media.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
+import { rasterRect, rasterEllipse, rasterLine } from "./elements/shapes.js";
 import { buildTransitionPipeline } from "./transitions.js";
 import { buildAudioMix } from "./audio.js";
 import { resolveEncoderSync, buildEncoderFlags } from "./encoder-flags.js";
@@ -34,6 +35,7 @@ import type {
   NormalizedImageElement,
   NormalizedVideoElement,
   NormalizedTextElement,
+  NormalizedShapeElement,
 } from "../types/index.js";
 
 // Walk up to the package root: unbundled this module sits at `src/pipeline/`,
@@ -143,6 +145,39 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   );
   const htmlPathMap = new Map(htmlElements.map((elem, index) => [elem, htmlPaths[index]]));
 
+  // Shapes are static, so each is drawn once to a PNG and then overlaid by the
+  // image path. No browser, no second rendering model.
+  const shapeElements = norm.elements.filter(
+    (elem): elem is NormalizedShapeElement => elem.type === "shape"
+  );
+  const shapePathMap = new Map<NormalizedShapeElement, string>();
+  shapeElements.forEach((shape, index) => {
+    const out = join(stagingDir, `shape-${index}.png`);
+    const width = Math.max(1, Math.round(shape.width));
+    const height = Math.max(1, Math.round(shape.height));
+    const opts = { out, width, height, workDir: stagingDir, ffmpegPath: options?.ffmpegPath };
+    if (shape.shape === "ellipse") {
+      rasterEllipse(opts, { fill: shape.fill, stroke: shape.stroke, strokeWidth: shape.strokeWidth });
+    } else if (shape.shape === "line") {
+      rasterLine(opts, {
+        x1: shape.x1 ?? 0,
+        y1: shape.y1 ?? 0,
+        x2: shape.x2 ?? width,
+        y2: shape.y2 ?? height,
+        stroke: shape.stroke ?? shape.fill ?? "#ffffff",
+        strokeWidth: shape.strokeWidth ?? 2,
+      });
+    } else {
+      rasterRect(opts, {
+        fill: shape.fill,
+        stroke: shape.stroke,
+        strokeWidth: shape.strokeWidth,
+        radius: shape.radius,
+      });
+    }
+    shapePathMap.set(shape, out);
+  });
+
   try {
     // ── Stage 1: Per-scene backgrounds ──────────────────────────────────────
     const sceneBgPads: string[] = [];
@@ -183,32 +218,46 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
       for (const elem of sceneElems) {
         const elemIdx = ++globalElemIdx;
-        const isImage = elem.type === "image" || elem.type === "html";
+        const isImage = elem.type === "image" || elem.type === "html" || elem.type === "shape";
         const isVideo = elem.type === "video";
 
         if (isImage || isVideo) {
           const media =
             elem.type === "html"
               ? ({ ...elem, type: "image", src: htmlPathMap.get(elem as NormalizedHtmlElement)! } as NormalizedImageElement)
-              : (elem as NormalizedImageElement | NormalizedVideoElement);
+              : elem.type === "shape"
+                ? ({ ...elem, type: "image", src: shapePathMap.get(elem)! } as NormalizedImageElement)
+                : (elem as NormalizedImageElement | NormalizedVideoElement);
           const currInputIdx = inputIndex++;
 
           if (isVideo) {
             const vid = elem as NormalizedVideoElement;
             addFFmpegInput(inputs, stageAsset(vid.src), { seek: vid.trimStart, streamLoop: vid.loop });
           } else {
-            addFFmpegInput(inputs, stageAsset(media.src));
+            // Loop a still so it has a frame for the whole timeline. Without
+            // this the input is a single frame at t=0, and the `fps=` below
+            // resamples that one frame into nothing — the overlay then finds no
+            // image to place and every static image renders invisible.
+            addFFmpegInput(inputs, stageAsset(media.src), { loop: true });
           }
 
-          const scaleFilter = buildMediaScaleFilter(media);
+          // A shape is a PNG with transparency around the drawn region; `media`
+          // is already `type: "image"` by here, so the flag has to be passed.
+          const scaleFilter = buildMediaScaleFilter({
+            ...media,
+            preserveAlpha: elem.type === "shape" || undefined,
+          });
           const ax = buildAnimationExpressions(media, "t");
           const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
-          // Keyed layers are RGBA from the scale filter onward; never re-format to yuv420p.
+          // RGBA from the scale filter onward; never re-format to yuv420p or the
+          // alpha is dropped. Shapes need this without a chroma key, so the two
+          // concerns are separate.
           const keyed = (media as { chromaKey?: unknown }).chromaKey !== undefined;
+          const needsAlpha = keyed || elem.type === "shape";
           const keyFilter = keyed
             ? `,${buildChromaKeyFilter((media as { chromaKey: ChromaKey }).chromaKey)}`
             : "";
-          const outFormat = keyed ? "rgba" : "yuv420p";
+          const outFormat = needsAlpha ? "rgba" : "yuv420p";
 
           let startPad: string;
           if (isVideo) {

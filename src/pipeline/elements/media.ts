@@ -65,8 +65,12 @@ export function buildMediaScaleFilter(elem: ImageElement | VideoElement | Normal
   const w = parsePixels(elem.width) ?? -1;
   const h = parsePixels(elem.height) ?? -1;
   const fit = elem.fit;
-  // Keyed layers must stay RGBA all the way to the overlay or the alpha is lost.
-  const keyed = !!elem.chromaKey;
+  // Keyed layers must stay RGBA all the way to the overlay or the alpha is
+  // lost. The same applies to anything with transparency of its own: a plain
+  // `scale=w:h` outputs yuv420p, which has no alpha channel, so a PNG with
+  // transparent regions becomes a fully transparent overlay and disappears.
+  // Shapes are always transparent around the drawn region.
+  const keyed = !!elem.chromaKey || elem.type === "shape" || !!elem.preserveAlpha;
 
   if (w > 0 && h > 0) {
     if (fit === "cover") {

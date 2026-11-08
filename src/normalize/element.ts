@@ -4,6 +4,7 @@ import type {
   NormalizedImageElement,
   NormalizedHtmlElement,
   NormalizedVideoElement,
+  NormalizedShapeElement,
 } from "../types/normalized.js";
 import { normalizeChromaKey } from "../pipeline/elements/media.js";
 import {
@@ -113,6 +114,39 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
 
   const rawWidth = parsePixels(elem.width, canvasWidth);
   const rawHeight = parsePixels(elem.height, canvasHeight);
+
+  if (elem.type === "shape") {
+    const shape: NormalizedShapeElement = {
+      type: "shape",
+      shape: elem.shape === "ellipse" || elem.shape === "line" ? elem.shape : "rect",
+      width: rawWidth ?? 0,
+      height: rawHeight ?? 0,
+      fill: elem.fill,
+      stroke: elem.stroke,
+      strokeWidth: parsePixels(elem.strokeWidth) ?? 0,
+      radius: parsePixels(elem.radius) ?? 0,
+      x1: parsePixels(elem.x1),
+      y1: parsePixels(elem.y1),
+      x2: parsePixels(elem.x2),
+      y2: parsePixels(elem.y2),
+      x: elem.x,
+      y: elem.y,
+      offsetX,
+      offsetY,
+      startAt,
+      startTime: parseDuration(elem.startTime) ?? 0,
+      duration,
+      sfx: elem.sfx,
+      zIndex,
+      animation,
+    };
+    if (shape.width <= 0 || shape.height <= 0) {
+      throw new Error(
+        `ShapeElement needs a positive width and height (got ${shape.width}x${shape.height}).`
+      );
+    }
+    return shape;
+  }
 
   if (elem.type === "image") {
     const img: NormalizedImageElement = {

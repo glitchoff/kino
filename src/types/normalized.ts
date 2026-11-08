@@ -125,11 +125,33 @@ export interface NormalizedVideoElement extends NormalizedBaseElement {
   chromaKey?: ChromaKey;
 }
 
+/**
+ * A shape. `src` is filled in at compile time with the rasterised PNG, at which
+ * point the element is overlaid exactly like an image.
+ */
+export interface NormalizedShapeElement extends NormalizedBaseElement {
+  type: "shape";
+  shape: "rect" | "ellipse" | "line";
+  width: number;
+  height: number;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  radius?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  /** Set by the compiler once the PNG exists. */
+  src?: string;
+}
+
 export type NormalizedElement =
   | NormalizedTextElement
   | NormalizedImageElement
   | NormalizedHtmlElement
-  | NormalizedVideoElement;
+  | NormalizedVideoElement
+  | NormalizedShapeElement;
 
 export interface NormalizedTransition {
   type: string;

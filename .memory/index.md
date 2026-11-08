@@ -32,7 +32,7 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 269 tests passing (17 files)
+- `pnpm test` — 283 tests passing (18 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
@@ -90,9 +90,8 @@ none of them unblock the common cases above.
 
 - ~~**Test the bundled build**~~ — **Done 2026-11-08.** `test-dist/` runs
   against `dist/` in CI, covering all four historical bugs.
-- **Shapes and charts** — see `tickets/013`. No `rect`/`ellipse`/`line`, so
-  agents fake them with HTML, which pulls in a browser and renders differently
-  between Chrome and Obscura.
+- ~~**Shapes and charts**~~ — **Done 2026-11-08.** `rect`/`ellipse`/`line`.
+  `chart` and `group` are still open; the primitives cover a chart.
 - ~~**Caption pipeline duplication**~~ — **Done 2026-11-08.** Both renderers use
   `resolveCaptions()`.
 - **Agent feedback loop** — `tickets/011` (`inspect()`) and `tickets/012`

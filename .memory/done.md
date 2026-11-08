@@ -4,6 +4,20 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Shapes** — `rect`, `ellipse`, `line` (and `shape(kind, opts)`), rasterised to
+  a PNG at compile time and overlaid by the existing image path. No browser.
+  Rounded corners, strokes and arbitrary-angle lines are drawn with `geq`,
+  because `drawbox` cannot round corners *and* does not write alpha: drawing a
+  fill onto a transparent canvas gave an invisible image with the right colour
+  in it.
+- **Two pre-existing overlay bugs, found while wiring shapes** — both made
+  images silently invisible, and neither had anything to do with shapes:
+  - A still image input was not looped, so it was one frame at t=0 and the
+    `fps=` filter resampled it into nothing. Every static image with an explicit
+    size rendered as nothing at all. Now `-loop 1`.
+  - `scale=w:h` outputs yuv420p, which has no alpha channel, so any PNG with
+    transparency became a fully transparent overlay. Now `format=rgba` whenever
+    alpha matters.
 - **Caption seam** — `resolveCaptions()` now produces the lines, trimmed holds,
   resolved defaults, parsed font size and z-index for both caption renderers.
   `captionImages` consumed none of that before: it rebuilt lines, re-derived

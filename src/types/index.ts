@@ -49,6 +49,7 @@ export type {
   NormalizedTextElement,
   NormalizedImageElement,
   NormalizedHtmlElement,
+  NormalizedShapeElement,
   NormalizedVideoElement,
   NormalizedAudioTrack,
   NormalizedAnimationValue,

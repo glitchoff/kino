@@ -40,6 +40,10 @@ export {
   image,
   video,
   html,
+  shape,
+  rect,
+  ellipse,
+  line,
   animate,
   fadeIn,
   fadeOut,
@@ -58,6 +62,7 @@ export type {
   MediaOptions,
   VideoOptions,
   HtmlOptions,
+  ShapeOptions,
   AnimateOptions,
   Position,
 } from "./builder/index.js";

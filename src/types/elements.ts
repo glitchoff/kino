@@ -59,6 +59,34 @@ export interface TextElement extends BaseElement {
 
 export type MediaFit = "contain" | "cover" | "fill" | "none";
 
+/**
+ * A drawn shape: rectangle, ellipse or line.
+ *
+ * Rasterised to a PNG once at compile time and then overlaid like an image, so
+ * it needs no browser and costs one file. Agents used to fake these with `html`
+ * elements, which drags in Chrome or Obscura and renders slightly differently
+ * between them.
+ */
+export interface ShapeElement extends BaseElement {
+  type: "shape";
+  shape: "rect" | "ellipse" | "line";
+  width: number | string;
+  height: number | string;
+  /** Interior colour. Omit or `"transparent"` for an outline only. */
+  fill?: string;
+  /** Border colour. */
+  stroke?: string;
+  /** Border thickness in pixels. */
+  strokeWidth?: number | string;
+  /** Corner radius for `rect`. Clamped to half the shorter side. */
+  radius?: number | string;
+  /** Line end points, relative to the shape's own box. Only for `shape: "line"`. */
+  x1?: number | string;
+  y1?: number | string;
+  x2?: number | string;
+  y2?: number | string;
+}
+
 // Backward compatible alias
 export type ObjectFit = MediaFit;
 
@@ -117,7 +145,7 @@ export interface VideoElement extends BaseElement {
   chromaKey?: boolean | ChromaKeyConfig;
 }
 
-export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement;
+export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement | ShapeElement;
 
 // Backward compatible alias
 export type TextOverlay = TextElement;

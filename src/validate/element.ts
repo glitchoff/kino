@@ -210,6 +210,42 @@ function validateVideoElement(elem: Record<string, unknown>, elemPath: string, i
   }
 }
 
+function validateShapeElement(
+  elem: Record<string, unknown>,
+  elemPath: string,
+  issues: ValidationIssue[]
+): void {
+  const kind = elem.shape;
+  if (kind !== "rect" && kind !== "ellipse" && kind !== "line") {
+    issues.push({
+      path: `${elemPath}.shape`,
+      message: `Expected "rect", "ellipse", or "line", received ${JSON.stringify(kind)}`,
+    });
+  }
+  if (!isFlexiblePositiveNumber(elem.width)) {
+    issues.push({ path: `${elemPath}.width`, message: `Expected a positive width, received ${elem.width}` });
+  }
+  if (!isFlexiblePositiveNumber(elem.height)) {
+    issues.push({ path: `${elemPath}.height`, message: `Expected a positive height, received ${elem.height}` });
+  }
+  if (elem.strokeWidth !== undefined && !isFlexibleNonNegativeNumber(elem.strokeWidth)) {
+    issues.push({ path: `${elemPath}.strokeWidth`, message: `Expected a non-negative thickness, received ${elem.strokeWidth}` });
+  }
+  if (elem.radius !== undefined && !isFlexibleNonNegativeNumber(elem.radius)) {
+    issues.push({ path: `${elemPath}.radius`, message: `Expected a non-negative radius, received ${elem.radius}` });
+  }
+  // A shape with neither fill nor stroke draws nothing, which is almost always
+  // a mistake rather than an intent.
+  const hasFill = typeof elem.fill === "string" && elem.fill !== "transparent" && elem.fill !== "none";
+  const hasStroke = typeof elem.stroke === "string" && elem.stroke !== "transparent" && elem.stroke !== "none";
+  if (!hasFill && !hasStroke) {
+    issues.push({
+      path: elemPath,
+      message: "Shape has neither a fill nor a stroke, so nothing will be drawn.",
+    });
+  }
+}
+
 function validateHtmlElement(elem: Record<string, unknown>, elemPath: string, issues: ValidationIssue[]): void {
   if (!isNonEmptyString(elem.html)) {
     issues.push({ path: `${elemPath}.html`, message: "Expected a non-empty HTML string" });
@@ -284,8 +320,10 @@ export function validateElement(
     validateVideoElement(elem, elemPath, issues);
   } else if (elemType === "text") {
     validateTextElement(elem, elemPath, issues);
+  } else if (elemType === "shape") {
+    validateShapeElement(elem, elemPath, issues);
   } else {
-    issues.push({ path: `${elemPath}.type`, message: `Expected "text", "image", "html", or "video", received ${JSON.stringify(elem.type)}` });
+    issues.push({ path: `${elemPath}.type`, message: `Expected "text", "image", "html", "video", or "shape", received ${JSON.stringify(elem.type)}` });
   }
 
   // Template reference

@@ -147,6 +147,42 @@ const video = composition({ width: 1080, height: 1920 })
 Inside a scene callback: `.text()`, `.image()`, `.video()`, `.html()`, `.add()`,
 `.addAll()`.
 
+### Shapes
+
+Rectangles, ellipses and lines, drawn to a PNG at compile time and overlaid like
+an image — no browser, one file each:
+
+```typescript
+import { composition, rect, ellipse, line } from "@glitchoff/kino";
+
+composition({ width: 1080, height: 1920 })
+  .scene({ duration: 5, background: "#0f172a" }, (s) =>
+    s
+      .add(rect({ width: 400, height: 120, x: 80, y: 80, fill: "#38bdf8", radius: 24 }))
+      .add(ellipse({ width: 200, height: 200, x: 80, y: 260, fill: "transparent", stroke: "#f8fafc", strokeWidth: 4 }))
+      .add(line({ width: 400, height: 200, x: 80, y: 520, x1: 0, y1: 0, x2: 400, y2: 200, stroke: "#f472b6", strokeWidth: 6 }))
+  )
+  .build();
+```
+
+| Option | Applies to | Description |
+| --- | --- | --- |
+| `width`, `height` | all | The shape's box. Required, and must be positive |
+| `fill` | all | Interior colour. `"transparent"` for an outline only |
+| `stroke`, `strokeWidth` | all | Border colour and thickness |
+| `radius` | `rect` | Corner radius, clamped to half the shorter side |
+| `x1`, `y1`, `x2`, `y2` | `line` | End points, relative to the shape's own box |
+
+`shape("rect" \| "ellipse" \| "line", options)` is the general form; `rect`,
+`ellipse` and `line` are shorthands.
+
+A shape with neither a fill nor a stroke is rejected rather than silently
+drawing nothing.
+
+Shapes exist because the alternative was an `html` element, which drags in
+Chrome or Obscura, costs a page render per element, and lays out slightly
+differently between the two engines.
+
 ### Standalone element helpers
 
 Useful with `map`/`filter` when the content is generated:
