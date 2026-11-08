@@ -82,6 +82,10 @@ export interface CaptionOptions {
   style?: CaptionStyle;
   /** Words per caption for `karaoke` and `block`. Default 4. */
   wordsPerLine?: number;
+  /** Break a line after a pause at least this long, in seconds. */
+  gap?: number;
+  /** Extra break pattern besides sentence endings, e.g. `/,$/`. */
+  breakOn?: RegExp;
   /** Where the caption sits. Default `"bottom-240"`. */
   y?: number | string;
   /** Where the caption starts. Default `"center"`. */
@@ -416,14 +420,54 @@ export async function timeWords(
 // ---------------------------------------------------------------------------
 
 /** Groups words into captions of at most `wordsPerLine`, breaking on sentence ends. */
-export function groupWords(words: WordTiming[], wordsPerLine: number): WordTiming[][] {
-  const size = Math.max(1, Math.floor(wordsPerLine));
+/** Line-grouping options taken from the caption options. */
+function groupOptions(options: CaptionOptions): GroupWordsOptions {
+  return {
+    wordsPerLine: options.wordsPerLine ?? 4,
+    gap: options.gap,
+    breakOn: options.breakOn,
+  };
+}
+
+export interface GroupWordsOptions {
+  /** Maximum words per caption. Default 4. */
+  wordsPerLine?: number;
+  /**
+   * Break after a pause at least this long, in seconds. Songs have gaps between
+   * phrases that punctuation alone does not mark.
+   */
+  gap?: number;
+  /**
+   * Extra break pattern, applied in addition to sentence endings. Pass a comma
+   * pattern to break on clauses too.
+   */
+  breakOn?: RegExp;
+}
+
+export function groupWords(words: WordTiming[], wordsPerLine?: number): WordTiming[][];
+export function groupWords(words: WordTiming[], options: GroupWordsOptions): WordTiming[][];
+export function groupWords(
+  words: WordTiming[],
+  arg: number | GroupWordsOptions = {}
+): WordTiming[][] {
+  const opts: GroupWordsOptions = typeof arg === "number" ? { wordsPerLine: arg } : arg;
+  const size = Math.max(1, Math.floor(opts.wordsPerLine ?? 4));
+  const gap = opts.gap ?? Infinity;
+  const extra = opts.breakOn;
   const groups: WordTiming[][] = [];
   let current: WordTiming[] = [];
 
-  for (const word of words) {
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
     current.push(word);
-    if (current.length >= size || LONG_PAUSE_AFTER.test(word.word)) {
+    const next = words[i + 1];
+    const pause = next ? next.start - word.end : Infinity;
+    if (
+      current.length >= size ||
+      LONG_PAUSE_AFTER.test(word.word) ||
+      (extra?.test(word.word) ?? false) ||
+      pause >= gap
+    ) {
       groups.push(current);
       current = [];
     }
@@ -504,7 +548,7 @@ function revealElements(
 ): TextElement[] {
   const { color, highlight, fade, at } = ctx;
   const fontSize = parsePixels(ctx.fontSize) ?? 56;
-  const lines = buildCaptionLines(groupWords(timings, options.wordsPerLine ?? 4), options);
+  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
   const out: TextElement[] = [];
   const zIndex = options.zIndex ?? 100;
 
@@ -615,7 +659,7 @@ export function captionElements(
     return revealElements(timings, options, { fontSize, color, highlight, fade, at });
   }
 
-  const lines = buildCaptionLines(groupWords(timings, options.wordsPerLine ?? 4), options);
+  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
 
   return lines.map((line) => {
     const lineStart = at + line.start;
@@ -812,7 +856,7 @@ export async function captionImages(
   // next line, and that only works when it can see the following line. Calling
   // this per line leaves the holds untrimmed and stacks lines on top of each
   // other.
-  const lines = buildCaptionLines(groupWords(timings, options.wordsPerLine ?? 4), options);
+  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];

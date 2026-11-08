@@ -41,20 +41,12 @@ const style = (process.env.KINO_LYRICS_STYLE ?? "block") as "block" | "karaoke" 
 
 const inRange = words.filter((w) => w.start < duration);
 
-// Group into display lines: break on sentence punctuation, on a musical gap, or
-// at five words. Short lines stay readable at this size.
-const lines: WordTiming[][] = [];
-let current: WordTiming[] = [];
-for (let i = 0; i < inRange.length; i++) {
-  current.push(inRange[i]);
-  const next = inRange[i + 1];
-  const gap = next ? next.start - inRange[i].end : Infinity;
-  if (/[.?!,]$/.test(inRange[i].word) || current.length >= 5 || gap > 0.8) {
-    lines.push(current);
-    current = [];
-  }
-}
-if (current.length) lines.push(current);
+// Break lines on a musical gap as well as sentence punctuation: songs have
+// pauses between phrases that punctuation alone does not mark. Passing every
+// word at once is what lets `buildCaptionLines` trim each line's hold against
+// the following line — grouping per line leaves holds untrimmed and stacks two
+// captions on screen.
+const lineOptions = { wordsPerLine: 5, gap: 0.8, breakOn: /,$/ };
 
 /** Entrance motions, rotated so consecutive lines do not look identical. */
 const ENTRIES: ElementAnimation[] = [
@@ -81,26 +73,23 @@ const ENTRIES: ElementAnimation[] = [
   },
 ];
 
-const captions = lines.flatMap((line, index) => {
-  // Karaoke returns one element per line carrying per-word timings; block
-  // returns the same element without them. Animation is applied to whichever
-  // comes back, so both styles move the same way.
-  const [built] = captionElements(line, {
-    style: style === "frames" ? "block" : style,
-    wordsPerLine: line.length,
-    fontSize: 66,
-    y: "center+90",
-    color: "#ffffff",
-  });
-  // `captionElements` already sets startAt/duration from the words; overriding
-  // them would desync the per-word timings karaoke relies on.
-  return [
-    {
-      ...built,
-      animation: ENTRIES[index % ENTRIES.length],
-    },
-  ];
+// One call for the whole track: `captionElements` groups the words itself, so
+// the line holds are trimmed against their successors.
+const built = captionElements(inRange, {
+  ...lineOptions,
+  style: style === "frames" ? "block" : style,
+  fontSize: 66,
+  y: "center+90",
+  color: "#ffffff",
 });
+
+// Entrance motion rotates per line so consecutive captions do not look alike.
+// `captionElements` already sets startAt/duration from the words; overriding
+// them would desync the per-word timings karaoke relies on.
+const captions = built.map((element, index) => ({
+  ...element,
+  animation: ENTRIES[index % ENTRIES.length],
+}));
 
 /**
  * Word-level highlight as one pre-rasterised image per word.
@@ -114,6 +103,7 @@ async function frameCaptions() {
   // All words at once, so line holds are trimmed against the following line
   // and no two lines can be on screen together.
   const wordFrames = await captionImages(inRange, {
+    ...lineOptions,
     // Rasterise at 2x and display at 1280x140: drawtext at 1x looks soft next
     // to native text once the encoder scales it.
     width: 2560,
@@ -122,7 +112,6 @@ async function frameCaptions() {
     displayHeight: 140,
     dir: join(here, ".karaoke-frames"),
     fontSize: 132,
-    wordsPerLine: 5,
     color: "#ffffff",
     highlight: "#f5b544",
     x: 0,
