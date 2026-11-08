@@ -22,6 +22,17 @@ async function setupBrowser(): Promise<void> {
   console.log("[kino] HTML elements are ready to render.");
 }
 
+async function setupObscura(): Promise<void> {
+  const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const script = resolve(moduleDir, "../scripts/install-obscura.mjs");
+  console.log("[kino] Setting up Obscura for HTML elements...");
+  const result = spawnSync(process.execPath, [script], { stdio: "inherit", timeout: 900000 });
+  if (result.status !== 0) {
+    console.error("[kino] Obscura setup failed. See the errors above.");
+    process.exit(1);
+  }
+}
+
 async function setupFFmpeg(): Promise<void> {
   const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
   const script = resolve(moduleDir, "../scripts/install-ffmpeg.mjs");
@@ -152,6 +163,8 @@ async function main() {
     const target = args[1] ?? "browser";
     if (target === "browser") {
       await setupBrowser();
+    } else if (target === "obscura") {
+      await setupObscura();
     } else if (target === "ffmpeg") {
       await setupFFmpeg();
     } else if (target === "tts") {
@@ -159,7 +172,7 @@ async function main() {
     } else if (target === "captions") {
       await setupCaptions();
     } else {
-      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|ffmpeg|tts|captions]`);
+      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|obscura|ffmpeg|tts|captions]`);
       process.exit(1);
     }
     return;

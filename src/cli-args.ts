@@ -1,4 +1,4 @@
-import type { RenderOptions, VideoEncoder } from "./types/render.js";
+import type { BrowserEngine, RenderOptions, VideoEncoder } from "./types/render.js";
 import { PREVIEW_DEFAULT_HEIGHT } from "./types/render.js";
 
 /**
@@ -34,6 +34,10 @@ export function parseRenderArgs(argv: string[]): ParsedArgs {
       options.ffmpegPath = argv[++i];
     } else if (arg === "--browser-path") {
       options.browserPath = argv[++i];
+    } else if (arg === "--browser") {
+      options.browser = argv[++i] as BrowserEngine;
+    } else if (arg === "--browser-url") {
+      options.browserUrl = argv[++i];
     } else if (arg === "-e" || arg === "--encoder") {
       options.encoder = argv[++i] as VideoEncoder;
     } else if (arg === "--gpu") {

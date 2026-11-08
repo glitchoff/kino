@@ -120,7 +120,13 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   let inputIndex = 0;
 
   const htmlElements = norm.elements.filter((elem): elem is NormalizedHtmlElement => elem.type === "html");
-  const htmlPaths = renderHtmlBatchSync(htmlElements as any, stagingDir, options?.browserPath);
+  const htmlPaths = renderHtmlBatchSync(
+    htmlElements as any,
+    stagingDir,
+    options?.browserPath,
+    options?.browser,
+    options?.browserUrl
+  );
   const htmlPathMap = new Map(htmlElements.map((elem, index) => [elem, htmlPaths[index]]));
 
   try {

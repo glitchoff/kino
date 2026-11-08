@@ -1,3 +1,6 @@
+/** Engine that rasterises `type: "html"` elements. */
+export type BrowserEngine = "chrome" | "obscura" | "auto";
+
 export type VideoEncoder =
   | "libx264"
   | "h264_nvenc"
@@ -17,6 +20,21 @@ export interface RenderOptions {
   kinoPath?: string;
   unsafeInlineText?: boolean;
   browserPath?: string;
+  /**
+   * Which engine renders `type: "html"` elements.
+   *
+   * - `"chrome"` (default) launches Chrome/Chromium via Puppeteer.
+   * - `"obscura"` connects to a running [Obscura](https://docs.obscura.sh/)
+   *   CDP endpoint. Obscura is a Rust headless browser that speaks the Chrome
+   *   DevTools Protocol, so the same Puppeteer code drives it.
+   * - `"auto"` uses Obscura when an endpoint is configured, Chrome otherwise.
+   */
+  browser?: BrowserEngine;
+  /**
+   * CDP endpoint for Obscura, e.g. `http://127.0.0.1:9222`. Defaults to
+   * `OBSCURA_URL`, then to Obscura's usual port.
+   */
+  browserUrl?: string;
   /**
    * Fast preview mode. When set, the final video is downscaled to this height
    * (width follows the source aspect ratio) and encoded with `ultrafast`/CRF 30.

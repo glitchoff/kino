@@ -255,6 +255,8 @@ async function render(
 - `kinoPath?: string` — Where `compile()` writes the `.kino` artifact. Defaults to `<output>.kino`.
 - `unsafeInlineText?: boolean` — **Dangerous.** When set, text is passed to drawtext inline via the `text=` option instead of a `textfile`, bypassing the `.kino` text mechanism. Text containing apostrophes (or other special characters) may render blank on some platforms with no error. Only use if you cannot write temp files. `render()` prints a warning when enabled.
 - `browserPath?: string` — Custom Chrome/Chromium executable path for `HtmlElement` compilation. If omitted, Puppeteer uses its bundled browser or automatically installs Chrome when needed.
+- `browser?: "chrome" | "obscura" | "auto"` — Which engine rasterises `HtmlElement`s. Defaults to `"chrome"`. `"obscura"` connects to a running [Obscura](https://docs.obscura.sh/) instance; `"auto"` uses Obscura when one is reachable and Chrome otherwise.
+- `browserUrl?: string` — Obscura's CDP endpoint. Defaults to `OBSCURA_URL`, then `http://127.0.0.1:9222`.
 - `preview?: boolean | number` — Fast preview mode. `true` downscales the output to 144p; a number sets the height in pixels (width follows the source aspect). The encoder also switches to `ultrafast` unless `preset` is given. Only the **output stage** changes, so the scene graph a preview shows is identical to a full render.
 - `assetCache?: boolean` — Cache remote assets on disk, keyed by a SHA-256 of the URL, so re-renders skip the download. Defaults to `true`.
 - `assetCacheDir?: string` — Where the asset cache lives. Defaults to `.kino-cache/` in the working directory, falling back to `~/.cache/kino/assets` if that is not writable.

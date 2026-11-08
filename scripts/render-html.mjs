@@ -10,6 +10,10 @@ import { Browser, getInstalledBrowsers } from "@puppeteer/browsers";
 const inputs = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const outputDir = process.argv[3];
 const browserPath = process.argv[4] || undefined;
+// argv[5] is the engine: "chrome" (default), "obscura", or "auto".
+const engine = (process.argv[5] || "chrome").toLowerCase();
+// argv[6] is the Obscura CDP endpoint, when one was configured.
+const browserUrlArg = process.argv[6] || undefined;
 
 const cacheDir = join(homedir(), ".cache", "puppeteer");
 
@@ -60,21 +64,60 @@ async function resolveExecutablePath() {
   return installedPath;
 }
 
-let executablePath;
-try {
-  executablePath = await resolveExecutablePath();
-} catch (err) {
+/**
+ * Where Obscura is listening.
+ *
+ * Obscura serves the Chrome DevTools Protocol, so Puppeteer drives it the same
+ * way it drives Chrome — the page code below is unchanged. Only the launch step
+ * differs: `connect` to an endpoint instead of spawning a binary.
+ */
+const obscuraUrl =
+  browserUrlArg || process.env.OBSCURA_URL || process.env.OBSCURA_CDP_URL || "http://127.0.0.1:9222";
+
+/** True when something is listening at the Obscura endpoint. */
+async function obscuraAvailable() {
+  try {
+    const res = await fetch(`${obscuraUrl.replace(/\/$/, "")}/json/version`, {
+      signal: AbortSignal.timeout(1500),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+const useObscura =
+  engine === "obscura" || (engine === "auto" && (await obscuraAvailable()));
+
+if (engine === "obscura" && !(await obscuraAvailable())) {
   throw new Error(
-    `No browser executable available for HTML elements. Run \`npx kino setup\` to download Chrome, or pass --browser-path. (${err.message})`
+    `browser: "obscura" was requested but nothing is listening at ${obscuraUrl}.\n` +
+      `  Start it with:  obscura serve --port 9222\n` +
+      `  Or point at it with --browser-url / OBSCURA_URL.`
   );
+}
+
+let executablePath;
+if (!useObscura) {
+  try {
+    executablePath = await resolveExecutablePath();
+  } catch (err) {
+    throw new Error(
+      `No browser executable available for HTML elements. Run \`npx kino setup\` to download Chrome, or pass --browser-path. (${err.message})`
+    );
+  }
 }
 
 let browser;
 try {
-  browser = await puppeteer.launch({ headless: true, executablePath });
+  browser = useObscura
+    ? await puppeteer.connect({ browserURL: obscuraUrl, defaultViewport: null })
+    : await puppeteer.launch({ headless: true, executablePath });
 } catch (err) {
   throw new Error(
-    `Failed to launch browser at ${executablePath}. Run \`npx kino setup\` or pass a valid --browser-path. (${err.message})`
+    useObscura
+      ? `Failed to connect to Obscura at ${obscuraUrl}. Is it running? (${err.message})`
+      : `Failed to launch browser at ${executablePath}. Run \`npx kino setup\` or pass a valid --browser-path. (${err.message})`
   );
 }
 
@@ -100,5 +143,7 @@ try {
   }
   process.stdout.write(JSON.stringify(results));
 } finally {
-  await browser.close();
+  // `connect` only owns a session; closing would kill the user's Obscura.
+  if (useObscura) await browser.disconnect();
+  else await browser.close();
 }

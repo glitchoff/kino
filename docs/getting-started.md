@@ -45,6 +45,23 @@ npx kino examples/showcase.ts -o html-showcase.mp4 \
 
 The browser is needed only while compiling HTML into the `.kino` artifact. Once compiled, the artifact contains the rasterized PNG and can render without a browser.
 
+#### Using Obscura instead of Chrome
+
+[Obscura](https://docs.obscura.sh/) is a headless browser engine written in Rust that speaks the Chrome DevTools Protocol. It starts instantly and uses far less memory than Chrome, and — being a single static binary — it does not need Chrome's library chain (`libatk`, `libnss`, and friends) to be present.
+
+Start it, then ask Kino to connect to it:
+
+```bash
+npx kino setup obscura      # downloads it once into ~/.cache/kino/obscura
+obscura serve --port 9222
+
+npx kino examples/showcase.ts -o html-showcase.mp4 --browser obscura
+```
+
+Kino connects over CDP rather than launching a binary, so the rendering code is identical either way. The endpoint defaults to `http://127.0.0.1:9222`; override it with `--browser-url` or `OBSCURA_URL`.
+
+Use `--browser auto` to prefer Obscura when one is reachable and fall back to Chrome when it is not. The default stays `chrome`, so existing setups are unaffected.
+
 > **Note:** Kino includes a built-in FFmpeg binary fallback on every platform, so manual installation of an FFmpeg binary is optional. Windows and macOS use `ffmpeg-static`; Linux ships a pinned drawtext-enabled build (ffmpeg-static's Linux binary predates the FFmpeg 6.1 `libharfbuzz` requirement, so text would otherwise fail silently). Both are installed automatically at package install. To install or verify them manually:
 
 > ```bash
