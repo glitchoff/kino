@@ -18,6 +18,11 @@ const pages = entries
 
 const { pathname } = Astro.url;
 const current = pathname.replace(/\/$/, "").split("/").pop() || "index";
+
+// `BASE_URL` is `/kino` without a trailing slash here, so joining naively gave
+// `/kinogetting-started/`. Normalise instead of assuming the shape.
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+const href = (path = "") => `${base}${path}`;
 ---
 
 <!doctype html>
@@ -27,18 +32,18 @@ const current = pathname.replace(/\/$/, "").split("/").pop() || "index";
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{Astro.props.title ? `${Astro.props.title} — Kino` : "Kino"}</title>
     <meta name="description" content="Kino — scripting-first video engine for TypeScript." />
-    <link rel="icon" href={`${import.meta.env.BASE_URL}favicon.svg`} />
+    <link rel="icon" href={href("favicon.svg")} />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href={`${import.meta.env.BASE_URL}`}>kino</a>
+      <a class="brand" href={href()}>kino</a>
       <span class="tag">scripting-first video engine</span>
     </header>
     <div class="shell">
       <nav class="sidebar">
         {pages.map((page) => (
           <a
-            href={`${import.meta.env.BASE_URL}${page.id === "index" ? "" : page.id + "/"}`}
+            href={href(page.id === "index" ? "" : page.id + "/")}
             aria-current={page.id === current ? "page" : undefined}
           >
             {page.title}
