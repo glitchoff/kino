@@ -21,7 +21,7 @@ the legacy/interop format.
 | `src/builder/` | code-first composition builder (`composition()`, element factories, animation helpers) |
 | `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement, resolution before compile |
 | `src/captions/` | Word timings (even or aligned) and karaoke/subtitle element generation |
-| `src/measure/` | Rasterised text measurement (`measureText`, `measureTexts`, `measureSpace`) |
+| `src/measure/` | Font-metric text measurement (`measureText`, `measureTexts`, `measureSpace`) |
 | `src/inspect/` | `inspect()` — composition geometry and layout issues without rendering |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
 | `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
@@ -31,7 +31,7 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 257 tests passing (17 files)
+- `pnpm test` — 265 tests passing (17 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
@@ -62,11 +62,8 @@ compiles, and what to check before scheduling it.
 
 1. ~~**`tickets/015` — audio ducking.**~~ **Done 2026-11-08.**
 2. ~~**`tickets/016` — keyframed animation with curves.**~~ **Done 2026-11-08.**
-3. **`tickets/020` — replace rasterised text measurement with font parsing.**
-   The rasteriser shipped in `3a938ae` works but shells out per string, measures
-   ink extent rather than advance width, and degrades silently. Parsing
-   `hmtx`/`cmap` is exact, synchronous, and makes `inspect()` sync too. Worth
-   doing before anything depends on the current API.
+3. ~~**`tickets/020` — replace rasterised text measurement with font parsing.**~~
+   **Done 2026-11-08.**
 
 **Then, once 016 lands:**
 

@@ -1,6 +1,6 @@
 # 020 — Replace the rasterised text measurement with font parsing
 
-**Status:** open
+**Status:** done (2026-11-08) — `src/measure/font.ts` parses `head`/`hhea`/`hmtx`/`cmap` (+ `kern` format 0). `measureText()` and `inspect()` are now synchronous. Verified against a render: centred "Title" at 64px predicts ink at 258.9, drawtext puts it at 258.
 **Created:** 2026-11-08
 
 ## Problem

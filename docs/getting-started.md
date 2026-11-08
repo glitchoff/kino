@@ -431,7 +431,7 @@ render, no browser:
 ```typescript
 import { inspect } from "@glitchoff/kino";
 
-const report = await inspect(comp);
+const report = inspect(comp);
 
 for (const issue of report.issues) {
   console.log(`[${issue.severity}] ${issue.code}: ${issue.message}`);
@@ -441,8 +441,9 @@ for (const issue of report.issues) {
 // [error] missing-source: Source not found: ./missing.png
 ```
 
-Text is measured by drawing it, so the widths match the render rather than the
-estimator's guess. For a pure-JS report pass `{ measure: false }`.
+Text width is read from the font's advance tables, so the numbers match what
+drawtext renders. `inspect()` is synchronous and starts nothing — no ffmpeg, no
+browser.
 
 ### Animation helpers
 

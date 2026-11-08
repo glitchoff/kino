@@ -36,10 +36,24 @@ import type {
   NormalizedTextElement,
 } from "../types/index.js";
 
-const DEFAULT_FONT_PATH = resolve(
-  typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url)),
-  "../../assets/inter-regular.ttf"
-);
+// Walk up to the package root: unbundled this module sits at `src/pipeline/`,
+// in the tsup bundle at `dist/`. Assuming either depth misses the other and
+// leaves `defaultFontRef` undefined, which does not fail — drawtext silently
+// uses its own default font instead of the bundled one. The file is
+// `Inter-Regular.ttf`; the old `inter-regular.ttf` never existed.
+const DEFAULT_FONT_PATH = (() => {
+  let dir = resolve(
+    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url))
+  );
+  for (let i = 0; i < 5; i++) {
+    for (const name of ["Inter-Regular.ttf", "inter-regular.ttf"]) {
+      const path = join(dir, "assets", name);
+      if (existsSync(path)) return path;
+    }
+    dir = dirname(dir);
+  }
+  return undefined;
+})();
 
 function addFFmpegInput(
   inputs: string[],
@@ -79,7 +93,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   });
 
   let defaultFontRef: string | undefined;
-  if (existsSync(DEFAULT_FONT_PATH)) {
+  if (DEFAULT_FONT_PATH) {
     defaultFontRef = "inter-regular.ttf";
     copyFileSync(DEFAULT_FONT_PATH, join(stagingDir, defaultFontRef));
   }

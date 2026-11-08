@@ -244,7 +244,7 @@ report.scenes[0].elements[0];
 //   box: { x: 258, y: 142, width: 125, height: 77 },
 //   position: { x: "center", y: "center" },   // what you wrote
 //   start: 0, end: 3, duration: 3,
-//   text: { lines: 1, widestLine: 125, measured: "raster" },
+//   text: { lines: 1, widestLine: 128, measured: "font" },
 // }
 ```
 
@@ -265,9 +265,10 @@ and `y`, and centred text is within the width of the glyph side bearings.
 | `transition-longer-than-scene` | error | A transition cannot complete |
 | `invalid-composition` | error | Schema errors; geometry is not reported |
 
-Text width is measured by rasterising, which needs ffmpeg with `drawtext`. Pass
-`{ measure: false }` for a pure-JS report that never shells out — it uses the
-approximate estimator, and `text.measured` says `"estimate"` so you can tell.
+Text width is read from the font's own advance tables, which is the number
+drawtext uses for `text_w` — so the boxes line up with the render rather than
+approximating it. `inspect()` is synchronous and never starts ffmpeg or a
+browser.
 
 `inspect` never writes a file and never starts a browser.
 
@@ -276,27 +277,31 @@ approximate estimator, and `text.measured` says `"estimate"` so you can tell.
 The measurement behind `inspect`, exposed for laying out text yourself.
 
 ```typescript
-const { width, height, source } = await measureText("Maybe", { fontSize: 64 });
-// { width: 199, height: 49, source: "raster" }
+const { width, height, source } = measureText("Maybe", { fontSize: 64 });
+// { width: 202.9, height: 76.8, source: "font" }
 ```
 
 | Option | Type | Description |
 | --- | --- | --- |
 | `fontSize` | `number` | Pixels. Default 48 |
 | `fontFile` | `string` | Defaults to the bundled Inter, matching the renderer |
-| `ffmpegPath` | `string` | Overrides the ffmpeg binary |
 
-`source` is `"raster"` when the text was drawn and its ink measured, or
-`"estimate"` when ffmpeg was unusable and it fell back to the character-class
-estimator. The estimator is approximate: on `"WWWW"` at 64px it reports 205px
-where the real advance is 253px.
+Synchronous and exact: it sums the glyph advance widths out of the font file,
+so it costs microseconds rather than an ffmpeg process per string. `width` is
+the *advance* drawtext reports as `text_w`, which includes the side bearings —
+not the ink extent, which is a couple of pixels narrower.
 
-Also exported: `measureTexts(texts, options)` for a batch, `measureSpace(options)`
-for the width of a single space, and `defaultFontFile()`.
+`source` is `"font"` when the advance was read from the file, or `"estimate"`
+when the font could not be loaded and it fell back to the character-class
+estimator. The estimator is visibly wrong: on `"WWWW"` at 64px it reports 205px
+where the real advance is 250px.
 
-Each measurement is one ffmpeg invocation (~10–20 ms). That is fine for layout
-code and too slow for wrapping a whole paragraph — use `estimateTextWidth` for
-that.
+Also exported: `measureTexts(texts, options)` for many strings at once,
+`measureSpace(options)` for the width of a single space, and
+`defaultFontFile()`.
+
+Use `estimateTextWidth` when you want a rough number with no font file at hand;
+use `measureText` when the number has to match the render.
 
 ---
 
@@ -342,7 +347,7 @@ const frames = await captionImages(timings, {
 | `displayHeight` | `number` | `height` | On-screen height |
 | `dir` | `string` | — | Where the PNGs are written |
 | `fontFile` | `string` | system font | Font used to draw the line |
-| `ffmpegPath` | `string` | bundled ffmpeg | Binary used to rasterise |
+| `ffmpegPath` | `string` | bundled ffmpeg | Binary used for rendering |
 | `x` | `number` | `0` | Strip position on the frame |
 | `y` | `number` | `0` | Strip position on the frame |
 

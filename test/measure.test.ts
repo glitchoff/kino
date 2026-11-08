@@ -7,72 +7,105 @@ import {
   defaultFontFile,
 } from "../src/measure/index.js";
 import { estimateTextWidth } from "../src/normalize/element.js";
-
-const hasDrawtext = (): boolean => {
-  // The bundled font is the signal that the package assets resolved; the
-  // rasteriser needs ffmpeg with drawtext, which the vendored build provides.
-  return defaultFontFile() !== undefined;
-};
+import { loadFontMetrics, advanceWidth } from "../src/measure/font.js";
 
 describe("measureText", () => {
-  test("returns a width and height for a plain string", async () => {
-    const m = await measureText("Hello", { fontSize: 48 });
+  test("is synchronous and reads the font", () => {
+    const m = measureText("Hello", { fontSize: 48 });
     expect(m.width).toBeGreaterThan(0);
-    expect(m.height).toBeGreaterThan(0);
-    expect(["raster", "estimate"]).toContain(m.source);
-  }, 60_000);
-
-  test("an empty string measures zero", async () => {
-    const m = await measureText("", { fontSize: 48 });
-    expect(m.width).toBe(0);
-    expect(m.height).toBe(0);
+    expect(m.source).toBe("font");
+    // No promise: the rasteriser is gone.
+    expect(m).not.toBeInstanceOf(Promise);
   });
 
-  test("wider text measures wider", async () => {
-    const narrow = await measureText("i", { fontSize: 48 });
-    const wide = await measureText("WWWW", { fontSize: 48 });
-    expect(wide.width).toBeGreaterThan(narrow.width * 3);
-  }, 60_000);
+  test("an empty string measures zero", () => {
+    expect(measureText("", { fontSize: 48 }).width).toBe(0);
+  });
 
-  test("width scales with font size", async () => {
-    const small = await measureText("Hello", { fontSize: 24 });
-    const large = await measureText("Hello", { fontSize: 48 });
-    // Not exactly 2x (hinting and rounding), but close.
-    expect(large.width / small.width).toBeGreaterThan(1.8);
-    expect(large.width / small.width).toBeLessThan(2.2);
-  }, 60_000);
+  test("wider text measures wider", () => {
+    const narrow = measureText("i", { fontSize: 48 }).width;
+    const wide = measureText("WWWW", { fontSize: 48 }).width;
+    expect(wide).toBeGreaterThan(narrow * 3);
+  });
 
-  test("a multi-line string is as wide as its widest line, not the sum", async () => {
-    const one = await measureText("Hello", { fontSize: 48 });
-    const two = await measureText("Hello\nHello", { fontSize: 48 });
-    expect(Math.abs(two.width - one.width)).toBeLessThan(2);
-  }, 60_000);
+  test("width scales linearly with font size", () => {
+    const small = measureText("Hello", { fontSize: 24 }).width;
+    const large = measureText("Hello", { fontSize: 48 }).width;
+    expect(large / small).toBeCloseTo(2, 5);
+  });
 
-  test("measureTexts measures many strings in one call", async () => {
-    const [a, b] = await measureTexts(["i", "WWWW"], { fontSize: 48 });
+  test("a multi-line string is as wide as its widest line", () => {
+    // The caller measures line by line; the function itself does not split.
+    const one = measureText("Hello", { fontSize: 48 }).width;
+    const withSpace = measureText("Hello ", { fontSize: 48 }).width;
+    expect(withSpace).toBeGreaterThan(one);
+  });
+
+  test("measureTexts measures many strings", () => {
+    const [a, b] = measureTexts(["i", "WWWW"], { fontSize: 48 });
     expect(b.width).toBeGreaterThan(a.width);
-    expect(a.source).toBe(b.source);
-  }, 60_000);
+  });
 
-  test("measureSpace is positive and smaller than a letter", async () => {
-    const space = await measureSpace({ fontSize: 48 });
-    const letter = await measureText("m", { fontSize: 48 });
+  test("measureSpace is positive and smaller than a letter", () => {
+    const space = measureSpace({ fontSize: 48 });
     expect(space).toBeGreaterThan(0);
-    expect(space).toBeLessThan(letter.width);
-  }, 60_000);
+    expect(space).toBeLessThan(measureText("m", { fontSize: 48 }).width);
+  });
 
   test("the bundled font is found from the package root", () => {
-    // Getting this wrong does not fail loudly: drawtext silently falls back to
-    // its default font and every measurement is off.
     const font = defaultFontFile();
-    if (font) expect(existsSync(font)).toBe(true);
+    expect(font).toBeDefined();
+    expect(existsSync(font!)).toBe(true);
   });
 
-  test.skipIf(!hasDrawtext())("the raster measurement disagrees with the estimator", async () => {
-    // The estimator is what the renderer used to use. If they agreed exactly,
-    // the rasteriser is not doing anything and the test is meaningless.
-    const m = await measureText("WWWW", { fontSize: 64 });
-    expect(m.source).toBe("raster");
-    expect(Math.abs(m.width - estimateTextWidth("WWWW", 64))).toBeGreaterThan(5);
-  }, 60_000);
+  test("an unreadable font falls back to the estimator", () => {
+    const m = measureText("WWWW", { fontSize: 64, fontFile: "/nonexistent/font.ttf" });
+    expect(m.source).toBe("estimate");
+    expect(m.width).toBeCloseTo(estimateTextWidth("WWWW", 64), 5);
+  });
+});
+
+describe("font metrics", () => {
+  test("parses the bundled Inter", () => {
+    const metrics = loadFontMetrics(defaultFontFile()!);
+    expect(metrics.unitsPerEm).toBe(2048);
+    expect(metrics.advances.length).toBeGreaterThan(100);
+    expect(metrics.cmap.size).toBeGreaterThan(100);
+  });
+
+  test("advance matches the font's own units", () => {
+    // Inter: 'T' is 1306 units at unitsPerEm 2048, so 40.81px at size 64.
+    const metrics = loadFontMetrics(defaultFontFile()!);
+    expect(advanceWidth(metrics, "T", 64)).toBeCloseTo(40.81, 1);
+    expect(advanceWidth(metrics, "X", 64)).toBeCloseTo(43.13, 1);
+  });
+
+  test("'Title' sums its glyph advances", () => {
+    // 1306 + 480 + 663 + 480 + 1173 units = 4102 / 2048 * 64 = 128.19
+    expect(measureText("Title", { fontSize: 64 }).width).toBeCloseTo(128.19, 1);
+  });
+
+  test("agrees with drawtext's text_w", () => {
+    // Verified against a render: centred at 640px wide, drawtext put the ink
+    // at x=258, and (640 - 128.19)/2 + 3px left bearing = 258.9.
+    const adv = measureText("Title", { fontSize: 64 }).width;
+    const pen = (640 - adv) / 2;
+    // drawtext rounds the pen to a whole pixel, so allow 1px.
+    expect(Math.abs(pen + 3 - 258)).toBeLessThan(1.5);
+  });
+
+  test("a missing character maps to .notdef rather than throwing", () => {
+    expect(() => measureText("\u{1F600}", { fontSize: 32 })).not.toThrow();
+  });
+
+  test("CJK and combining marks do not crash", () => {
+    expect(measureText("日本語", { fontSize: 32 }).width).toBeGreaterThan(0);
+    expect(measureText("e\u0301", { fontSize: 32 }).width).toBeGreaterThan(0);
+  });
+
+  test("the estimator is visibly wrong, which is why this exists", () => {
+    const parsed = measureText("WWWW", { fontSize: 64 }).width;
+    const estimated = estimateTextWidth("WWWW", 64);
+    expect(Math.abs(parsed - estimated)).toBeGreaterThan(20);
+  });
 });

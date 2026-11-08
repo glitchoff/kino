@@ -4,6 +4,21 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Font-metric text measurement** — `measureText()` now reads advance widths
+  out of the font file (`head`/`hhea`/`hmtx`/`cmap`, plus `kern` format 0)
+  instead of rasterising with ffmpeg. Synchronous, no subprocess, and it returns
+  the same number drawtext calls `text_w` — verified by rendering: centred
+  "Title" at 64px predicts ink at 258.9, drawtext puts it at 258. `inspect()`
+  became synchronous too and lost its `measure` option. The measure suite went
+  from ~400ms of ffmpeg spawns to 14ms.
+- **The bundled font was never being used** — found while checking the above.
+  `DEFAULT_FONT_PATH` in `compile.ts` assumed `src/pipeline/` depth (wrong from
+  `dist/`) *and* named the file `inter-regular.ttf` when it is
+  `Inter-Regular.ttf`. So `defaultFontRef` was always `undefined` and every
+  render silently fell back to drawtext's default font. Now walks up to the
+  package root and matches the real name; the compiled graph carries
+  `fontfile='inter-regular.ttf'`. This is the fourth depth bug of the same
+  shape — see `tickets/010`.
 - **Keyframed animation** — any animated channel accepts
   `{ keyframes: [{ at, value, easing? }] }` alongside `{ from, to }`. `at` is
   seconds from the element's `startAt`; a keyframe's `easing` describes the

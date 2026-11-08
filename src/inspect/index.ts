@@ -11,7 +11,7 @@ import type {
 import { normalizeComposition } from "../normalize/composition.js";
 import { toComposition, type CompositionBuilder } from "../builder/index.js";
 import { validateComposition, KinoValidationError } from "../validate/index.js";
-import { measureTexts, type MeasureTextOptions } from "../measure/index.js";
+import { measureText, type MeasureSource } from "../measure/index.js";
 import { wrapText, estimateTextWidth } from "../normalize/element.js";
 import {
   formatTextBasePosition,
@@ -53,7 +53,7 @@ export interface InspectedElement {
   /** Absolute end in the composition, in seconds. */
   end: number;
   /** For text: measured width of the widest line, and how many lines it wrapped to. */
-  text?: { lines: number; widestLine: number; measured: "raster" | "estimate" };
+  text?: { lines: number; widestLine: number; measured: MeasureSource };
   /** For media: the source path, and whether it was found on disk. */
   src?: { path: string; exists: boolean | null };
 }
@@ -77,12 +77,15 @@ export interface InspectReport {
 
 export interface InspectOptions {
   /**
-   * Measure text exactly by rasterising it. Needs ffmpeg with `drawtext`.
-   * Default `true`; set `false` for a pure-JS report that never shells out.
+   * Override the font used to measure text. Defaults to the bundled Inter,
+   * which is what the renderer draws with.
+   */
+  fontFile?: string;
+  /**
+   * @deprecated Ignored. Text is measured by reading the font file, which is
+   * synchronous and needs no ffmpeg. Kept so existing calls still typecheck.
    */
   measure?: boolean;
-  /** Passed to the text measurement. */
-  measureOptions?: MeasureTextOptions;
 }
 
 /**
@@ -191,13 +194,13 @@ function textBlock(
  * text that is wider than the frame, transitions longer than the scenes they
  * join, and missing media files.
  *
- * Text is measured by rasterising it, which needs ffmpeg with `drawtext`.
- * Pass `{ measure: false }` for a pure-JS report.
+ * Text is measured by reading advance widths out of the font file — the same
+ * number drawtext uses — so the report is synchronous and needs no ffmpeg.
  */
-export async function inspect(
+export function inspect(
   input: KinoComposition | CompositionBuilder,
   options: InspectOptions = {}
-): Promise<InspectReport> {
+): InspectReport {
   const composition = toComposition(input);
 
   try {
@@ -225,8 +228,7 @@ export async function inspect(
   const norm: NormalizedComposition = normalizeComposition(composition);
   const issues: InspectIssue[] = [];
 
-  // Collect every text line up front so all measurement shares one pass.
-  const measurements = new Map<NormalizedTextElement, { widest: number; lines: number; source: "raster" | "estimate" }>();
+  const measurements = new Map<NormalizedTextElement, { widest: number; lines: number; source: MeasureSource }>();
   const pending: { el: NormalizedTextElement; lines: string[]; fontSize: number; est: number }[] = [];
   for (const scene of norm.scenes) {
     for (const el of scene.elements) {
@@ -236,53 +238,23 @@ export async function inspect(
     }
   }
 
-  if (options.measure !== false && pending.length > 0) {
-    // Measure the widest estimated line of each element; measuring every line
-    // of a long paragraph would cost one ffmpeg run per line for no extra
-    // information about overflow.
-    //
-    // Group by font size: `measureTexts` takes one size for the whole batch,
-    // and elements in a composition routinely differ. Passing the caller's
-    // options straight through silently measured everything at the default.
-    const bySize = new Map<number, { index: number; text: string; est: number }[]>();
-    pending.forEach((p, index) => {
-      let widest = "";
-      let width = -1;
-      for (const line of p.lines) {
-        const w = estimateTextWidth(line, p.fontSize);
-        if (w > width) {
-          width = w;
-          widest = line;
-        }
-      }
-      const group = bySize.get(p.fontSize) ?? [];
-      group.push({ index, text: widest, est: width });
-      bySize.set(p.fontSize, group);
-    });
-
-    const measured = new Array<{ widest: number; source: "raster" | "estimate" } | undefined>(pending.length);
-    for (const [fontSize, group] of bySize) {
-      const results = await measureTexts(
-        group.map((g) => g.text),
-        { ...options.measureOptions, fontSize }
-      );
-      for (let i = 0; i < group.length; i++) {
-        const r = results[i];
-        measured[group[i].index] = {
-          widest: r.source === "raster" ? r.width : group[i].est,
-          source: r.source,
-        };
-      }
+  // Each element's widest line, measured from the font. Cheap enough to do for
+  // every line rather than guessing which one is widest.
+  for (const p of pending) {
+    let widest = 0;
+    let source: MeasureSource = "font";
+    for (const line of p.lines) {
+      const m = measureText(line, { fontSize: p.fontSize, fontFile: options.fontFile });
+      if (m.width > widest) widest = m.width;
+      if (m.source === "estimate") source = "estimate";
     }
-
-    pending.forEach((p, i) => {
-      const m = measured[i]!;
-      measurements.set(p.el, { widest: m.widest, lines: p.lines.length, source: m.source });
+    // An element with no text at all still has a line; fall back to the
+    // estimator's guess only when measurement produced nothing.
+    measurements.set(p.el, {
+      widest: widest || p.est,
+      lines: p.lines.length,
+      source: widest ? source : "estimate",
     });
-  } else {
-    for (const p of pending) {
-      measurements.set(p.el, { widest: p.est, lines: p.lines.length, source: "estimate" });
-    }
   }
 
   const scenes: InspectedScene[] = norm.scenes.map((scene) => {
@@ -357,7 +329,7 @@ function inspectElement(
   el: NormalizedElement,
   scene: { id: string; duration: number; startTime: number },
   norm: NormalizedComposition,
-  measurements: Map<NormalizedTextElement, { widest: number; lines: number; source: "raster" | "estimate" }>,
+  measurements: Map<NormalizedTextElement, { widest: number; lines: number; source: MeasureSource }>,
   issues: InspectIssue[]
 ): InspectedElement {
   const frame = { w: norm.width, h: norm.height };
