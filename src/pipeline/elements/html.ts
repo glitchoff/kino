@@ -1,6 +1,5 @@
 import { existsSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { dirname } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import type { HtmlElement } from "../../types/index.js";
@@ -13,7 +12,7 @@ import type { HtmlElement } from "../../types/index.js";
  * depth breaks the other, so walk up until the file is found.
  */
 function findRenderHelper(startDir: string): string {
-  let dir = startDir;
+  let dir = resolve(startDir);
   for (let i = 0; i < 5; i++) {
     const candidate = join(dir, "scripts", "render-html.mjs");
     if (existsSync(candidate)) return candidate;

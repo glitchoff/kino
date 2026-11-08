@@ -21,15 +21,17 @@ the legacy/interop format.
 | `src/builder/` | code-first composition builder (`composition()`, element factories, animation helpers) |
 | `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement, resolution before compile |
 | `src/captions/` | Word timings (even or aligned) and karaoke/subtitle element generation |
+| `src/measure/` | Rasterised text measurement (`measureText`, `measureTexts`, `measureSpace`) |
+| `src/inspect/` | `inspect()` — composition geometry and layout issues without rendering |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
 | `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
-| `test/` | vitest suites (`timeline`, `units`) |
+| `test/` | vitest suites; imports from `src/`, so the bundled `dist/` layout is never exercised (ticket 010) |
 | `docs/` | published documentation |
 | `.github/workflows/` | `ci.yml` (push/PR checks), `publish.yml` (tag-triggered npm release), `telegram-render.yml` (manual) |
 
 ## Health
 
-- `pnpm test` — 192 tests passing (11 files)
+- `pnpm test` — 223 tests passing (15 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
@@ -55,10 +57,9 @@ the legacy/interop format.
   `__dirname` is always the source layout and the `dist/` layout is never
   exercised. The ffmpeg one failed silently by falling back to a binary without
   drawtext.
-- **Agent feedback loop** — the theme behind `tickets/011` (`inspect()`) and
-  `tickets/012` (real text measurement). An agent currently can only learn what
-  a composition looks like by rendering it; `exportComposition({ frames })` made
-  that ~15× cheaper, but a description with no render at all would be better.
+- **Agent feedback loop** — `tickets/011` (`inspect()`) and `tickets/012`
+  (`measureText()`) both landed on 2026-11-08. An agent can now describe a
+  composition without rendering it.
 - **Shapes and charts** — see `tickets/013`. No `rect`/`ellipse`/`line`, so
   agents fake them with HTML, which pulls in a browser and renders differently
   between Chrome and Obscura.

@@ -173,6 +173,91 @@ seeked by scene.
 
 ---
 
+## Inspecting a composition
+
+### `inspect(composition, options?)`
+
+Describes a composition without rendering it: scene timing, element geometry in
+frame pixels, and the layout problems that would otherwise only show up as a bad
+frame.
+
+```typescript
+import { composition, inspect } from "@glitchoff/kino";
+
+const report = await inspect(comp);
+
+report.width;      // 1920
+report.duration;   // 12.5
+report.scenes;     // [{ id, start, duration, transition?, elements: [...] }]
+report.issues;     // [{ severity, code, message, sceneId?, elementId? }]
+```
+
+Each element reports its resolved bounding box, timing, and — for text — the
+measured width of its widest line and how many lines it wrapped to:
+
+```typescript
+report.scenes[0].elements[0];
+// {
+//   type: "text",
+//   box: { x: 258, y: 142, width: 125, height: 77 },
+//   position: { x: "center", y: "center" },   // what you wrote
+//   start: 0, end: 3, duration: 3,
+//   text: { lines: 1, widestLine: 125, measured: "raster" },
+// }
+```
+
+`position` keeps the value you wrote; `box` is what it resolves to. Boxes are
+checked against a real render: a left-aligned element lands exactly on its `x`
+and `y`, and centred text is within the width of the glyph side bearings.
+
+**Issues reported**
+
+| Code | Severity | Meaning |
+| --- | --- | --- |
+| `text-wider-than-frame` | error | A line is wider than the frame |
+| `text-outside-frame` | warning | The text box crosses a frame edge |
+| `element-outside-frame` | warning | An image, video or HTML box crosses an edge |
+| `element-outlives-scene` | warning | The element ends after its scene and gets cut off |
+| `element-overlap` | warning | Two elements in one scene collide |
+| `missing-source` | error | An image or video path does not exist |
+| `transition-longer-than-scene` | error | A transition cannot complete |
+| `invalid-composition` | error | Schema errors; geometry is not reported |
+
+Text width is measured by rasterising, which needs ffmpeg with `drawtext`. Pass
+`{ measure: false }` for a pure-JS report that never shells out — it uses the
+approximate estimator, and `text.measured` says `"estimate"` so you can tell.
+
+`inspect` never writes a file and never starts a browser.
+
+### `measureText(text, options?)`
+
+The measurement behind `inspect`, exposed for laying out text yourself.
+
+```typescript
+const { width, height, source } = await measureText("Maybe", { fontSize: 64 });
+// { width: 199, height: 49, source: "raster" }
+```
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `fontSize` | `number` | Pixels. Default 48 |
+| `fontFile` | `string` | Defaults to the bundled Inter, matching the renderer |
+| `ffmpegPath` | `string` | Overrides the ffmpeg binary |
+
+`source` is `"raster"` when the text was drawn and its ink measured, or
+`"estimate"` when ffmpeg was unusable and it fell back to the character-class
+estimator. The estimator is approximate: on `"WWWW"` at 64px it reports 205px
+where the real advance is 253px.
+
+Also exported: `measureTexts(texts, options)` for a batch, `measureSpace(options)`
+for the width of a single space, and `defaultFontFile()`.
+
+Each measurement is one ffmpeg invocation (~10–20 ms). That is fine for layout
+code and too slow for wrapping a whole paragraph — use `estimateTextWidth` for
+that.
+
+---
+
 ## Captions
 
 ### `captions(source, options?)`

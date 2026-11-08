@@ -1,6 +1,6 @@
 # 012 — Expose real text measurement
 
-**Status:** open
+**Status:** done (2026-11-08) — `src/measure/index.ts`, documented in `docs/api-reference.md`. `captionImages` still has its own copy of the rasteriser; unifying them is ticket 014.
 **Created:** 2026-11-08
 
 ## Problem

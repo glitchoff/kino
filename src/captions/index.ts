@@ -32,7 +32,7 @@
  */
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { estimateTextWidth } from "../normalize/element.js";
 import { getFFmpegBinaryPath } from "../encoder/probe.js";
@@ -744,7 +744,9 @@ export async function captionsAsync(
  */
 function findDrawtextFfmpeg(): string | undefined {
   if (process.platform !== "linux") return undefined;
-  let dir = dirname(fileURLToPath(import.meta.url));
+  // Resolve absolutely: tsup emits a relative `__dirname`, and spawn() would
+  // look for `vendor/...` relative to the caller's cwd.
+  let dir = resolve(dirname(fileURLToPath(import.meta.url)));
   for (let i = 0; i < 5; i++) {
     const bin = join(dir, "vendor", "linux", process.arch, "ffmpeg");
     if (existsSync(bin)) return bin;
@@ -846,8 +848,6 @@ export async function captionImages(
         }
       }
     }
-    // The pen origin sits at x=10; ink can start slightly right of it, so the
-    // advance is measured from the pen origin to the rightmost lit column.
     return hi < 0 ? estimateTextWidth(text, fontSize) : hi - 10 + 1;
   };
 

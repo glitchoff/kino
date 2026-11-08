@@ -15,8 +15,11 @@ function resolveVendoredFFmpeg(): string | undefined {
   // module sits at `src/encoder/`, in the tsup bundle at `dist/`. Assuming
   // either one silently misses vendor/ in the other and falls back to
   // ffmpeg-static, which has no drawtext.
-  let dir =
-    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  // Resolve absolutely: tsup emits a relative `__dirname`, and spawn() would
+  // look for `vendor/...` relative to the caller's cwd.
+  let dir = resolve(
+    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url))
+  );
   for (let i = 0; i < 5; i++) {
     const path = join(dir, "vendor", "linux", process.arch, "ffmpeg");
     if (existsSync(path)) return path;

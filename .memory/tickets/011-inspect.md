@@ -1,6 +1,6 @@
 # 011 — `inspect()`: describe a composition without rendering it
 
-**Status:** open
+**Status:** done (2026-11-08) — `src/inspect/index.ts`, documented in `docs/api-reference.md`. Grouping by font size was the one real bug: one `measureTexts` batch takes one size, so a 64px title and a 24px caption measured identically until it grouped them.
 **Created:** 2026-11-08
 
 ## Problem

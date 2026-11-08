@@ -4,6 +4,23 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **`inspect()` and `measureText()`** — `inspect(comp)` describes a composition
+  without rendering: scene timing, element boxes in frame pixels, and issues
+  (`text-wider-than-frame`, `element-outlives-scene`, `missing-source`,
+  `element-overlap`, …). `measureText()` exposes the rasterised measurement
+  `captionImages` already used internally. Both live in `src/measure/` and
+  `src/inspect/`. Verified against real renders: left-aligned elements land
+  exactly on their `x`/`y`; centred text is within glyph side bearings; the
+  reported `y` sits ~13px above the ink because drawtext's `text_h` includes
+  ascender leading, which makes the box conservative for overflow checks.
+- **Third and fourth depth bugs, plus a new class of them** — the walk-ups were
+  returning *relative* paths (tsup emits a relative `__dirname`), so `spawn`
+  looked for `vendor/...` from the caller's cwd and failed with `ENOENT` unless
+  you happened to run from the package root. All four now `resolve()` first:
+  `resolveVendoredFFmpeg`, `findDrawtextFfmpeg`, `findRenderHelper`, and the new
+  font lookup. `inspect` also had a real bug: it measured every element at the
+  default 48px because one `measureTexts` batch takes one size — it now groups
+  by font size.
 - **Docs site** — `docs-site/` is an Astro app that reads `docs/*.md` in place
   (no duplicated content) and publishes to GitHub Pages on every push to main.
   Sidebar order is fixed in the layout; `/previews/` is added by hand since it is

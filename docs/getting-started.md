@@ -423,6 +423,27 @@ export default defineComposition({
 });
 ```
 
+### Checking a composition without rendering
+
+`inspect()` reports geometry and layout problems in one call — no ffmpeg
+render, no browser:
+
+```typescript
+import { inspect } from "@glitchoff/kino";
+
+const report = await inspect(comp);
+
+for (const issue of report.issues) {
+  console.log(`[${issue.severity}] ${issue.code}: ${issue.message}`);
+}
+// [error] text-wider-than-frame: Text is 2116px wide, wider than the 640px frame.
+// [warning] element-outlives-scene: Element ends 1.50s after scene 'scene-1' and will be cut off.
+// [error] missing-source: Source not found: ./missing.png
+```
+
+Text is measured by drawing it, so the widths match the render rather than the
+estimator's guess. For a pure-JS report pass `{ measure: false }`.
+
 ### Animation helpers
 
 | Helper | Produces |
