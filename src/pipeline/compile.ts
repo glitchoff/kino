@@ -278,7 +278,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           // numbers mean the same thing regardless of the element's size.
           const colorFilter = isNeutralColor((elem as { grade?: ColorAdjust }).grade)
             ? ""
-            : buildColorFilter((elem as { grade?: ColorAdjust }).grade);
+            : buildColorFilter((elem as { grade?: ColorAdjust }).grade, stageAsset);
           const scaleFilter =
             buildMediaScaleFilter({
               ...media,
@@ -433,6 +433,20 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
     // ── Stage 3: Transitions ─────────────────────────────────────────────────
     let lastVideoPad = buildTransitionPipeline(filterComplex, norm.scenes as any, sceneCompPads, fps);
+
+    // ── Stage 3a: Composition grade ──────────────────────────────────────────
+    // One pass over the finished frame, after every scene and transition, so a
+    // look holds across the whole video. Before the preview downscale: a preview
+    // should show what the grade does, and grading after a downscale would make
+    // the two disagree on fine colour detail.
+    if (norm.grade && !isNeutralColor(norm.grade)) {
+      const gradeFilter = buildColorFilter(norm.grade, stageAsset);
+      if (gradeFilter) {
+        const src = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
+        filterComplex.push(`${src}${gradeFilter}[vgraded]`);
+        lastVideoPad = "[vgraded]";
+      }
+    }
 
     // ── Stage 3b: Preview downscale ──────────────────────────────────────────
     // Only the output stage changes, so the scene graph (and therefore what a

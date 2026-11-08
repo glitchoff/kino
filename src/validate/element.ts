@@ -255,7 +255,52 @@ function validateMask(
   }
 }
 
-function validateColorAdjust(
+function validateCurves(
+  curves: unknown,
+  path: string,
+  issues: ValidationIssue[]
+): void {
+  if (!isObject(curves)) {
+    issues.push({ path, message: "Expected a curves object" });
+    return;
+  }
+  const channels = ["master", "red", "green", "blue"];
+  for (const key of channels) {
+    const points = curves[key];
+    if (points === undefined) continue;
+    if (!Array.isArray(points)) {
+      issues.push({ path: `${path}.${key}`, message: "Expected an array of [input, output] pairs" });
+      continue;
+    }
+    for (const point of points) {
+      if (!Array.isArray(point) || point.length !== 2 || typeof point[0] !== "number" || typeof point[1] !== "number") {
+        issues.push({ path: `${path}.${key}`, message: `Expected [input, output] numbers, received ${JSON.stringify(point)}` });
+      } else if (point[0] < 0 || point[0] > 1 || point[1] < 0 || point[1] > 1) {
+        issues.push({ path: `${path}.${key}`, message: `Points must be within 0..1, received ${JSON.stringify(point)}` });
+      }
+    }
+  }
+}
+
+function validateBalance(
+  balance: unknown,
+  path: string,
+  issues: ValidationIssue[]
+): void {
+  if (!isObject(balance)) {
+    issues.push({ path, message: "Expected a balance object" });
+    return;
+  }
+  for (const key of ["shadows", "midtones", "highlights"]) {
+    const triple = balance[key];
+    if (triple === undefined) continue;
+    if (!Array.isArray(triple) || triple.length !== 3 || triple.some((n) => typeof n !== "number" || n < -1 || n > 1)) {
+      issues.push({ path: `${path}.${key}`, message: "Expected three numbers in -1..1, one per channel" });
+    }
+  }
+}
+
+export function validateColorAdjust(
   color: unknown,
   elemPath: string,
   issues: ValidationIssue[]
@@ -278,6 +323,25 @@ function validateColorAdjust(
   };
   // Ranges follow ffmpeg's `eq`/`hue`, so a value that would be silently
   // clamped is rejected instead.
+  if (color.lut !== undefined) {
+    if (typeof color.lut !== "string" || color.lut.length === 0) {
+      issues.push({ path: `${path}.lut`, message: "Expected a .cube file path or URL" });
+    } else if (!/\.cube$/i.test(color.lut) && !/^https?:/i.test(color.lut)) {
+      issues.push({ path: `${path}.lut`, message: `Expected a .cube file, received ${JSON.stringify(color.lut)}` });
+    }
+  }
+  if (color.lutInterp !== undefined) {
+    const modes = ["nearest", "trilinear", "tetrahedral", "pyramid", "prism"];
+    if (!modes.includes(color.lutInterp as string)) {
+      issues.push({ path: `${path}.lutInterp`, message: `Expected one of: ${modes.join(", ")}` });
+    }
+  }
+  if (color.curves !== undefined) {
+    validateCurves(color.curves, `${path}.curves`, issues);
+  }
+  if (color.balance !== undefined) {
+    validateBalance(color.balance, `${path}.balance`, issues);
+  }
   num("brightness", -1, 1);
   num("contrast", 0, 3);
   num("saturation", 0, 3);

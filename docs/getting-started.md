@@ -310,35 +310,76 @@ Word-level alignment to real audio is optional and cache-based; see
 
 ### Colour
 
-Any element takes a `grade`:
+A grade can go on **any element** — to match one clip to the rest — or on the
+**whole composition**, for a look that holds across the video:
+
+```typescript
+composition({ width: 1920, height: 1080, fps: 30, grade: { lut: "./looks/teal-orange.cube" } })
+
+s.video("./clip.mp4", { grade: { lut: "./looks/log-to-rec709.cube" } });
+```
+
+The two compose: element grades run before the element is composited, the
+composition grade runs once over the finished frame.
+
+#### The controls
 
 ```typescript
 s.image("./clip.mp4", {
   grade: {
+    lut: "./looks/film.cube",                    // .cube 3D LUT
+    lutInterp: "tetrahedral",                    // or nearest, trilinear, pyramid, prism
+    curves: {
+      master: [[0, 0], [0.5, 0.62], [1, 1]],     // all channels
+      blue: [[0, 0.05], [1, 0.95]],              // or one at a time
+    },
+    lift: [0.02, 0, -0.01],                      // per-channel black point
+    gain: [1.05, 1.0, 0.95],                     // per-channel white point
+    balance: {
+      shadows: [0.05, 0, 0],                     // per-channel, -1..1
+      midtones: [0, 0.02, 0],
+      highlights: [0, 0, 0.05],
+    },
     brightness: 0.05,
     contrast: 1.15,
     saturation: 1.2,
     gamma: 1.1,
-    lift: [0.02, 0, -0.01],   // per-channel black point
-    gain: [1.05, 1.0, 0.95],  // per-channel white point
+    hue: -8,
   },
 });
 ```
 
-| Field | Range | Unchanged at | Effect |
+| Control | Range | Unchanged at | Effect |
 | --- | --- | --- | --- |
+| `lut` | `.cube` path or URL | — | A look, applied first |
+| `curves` | points in 0..1 | identity | Tonal shaping, per channel |
+| `lift` | −1…1 | `0` | Output black point |
+| `gain` | 0…2 | `1` | Output white point |
+| `balance` | −1…1 per channel | `0` | Shadows / midtones / highlights colour |
 | `brightness` | −1…1 | `0` | Adds to every channel |
 | `contrast` | 0…3 | `1` | Pivots around mid-grey |
 | `saturation` | 0…3 | `1` | `0` is greyscale |
 | `hue` | −180…180 | `0` | Degrees of rotation |
 | `gamma` | 0.1…10 | `1` | Midtone response |
-| `lift` | −1…1 | `0` | Output black point, number or `[r,g,b]` |
-| `gain` | 0…2 | `1` | Output white point, number or `[r,g,b]` |
+
+**Curve points** are `[input, output]` pairs. Missing endpoints are filled in, so
+`[[0.5, 0.7]]` means "0 stays 0, 0.5 becomes 0.7, 1 stays 1".
+
+**Order is fixed**, and the same for element and composition grades: LUT →
+curves → lift/gain → balance → brightness/contrast/saturation/gamma → hue. The
+same numbers in a different order look different, so the order is the contract.
 
 Called `grade`, not `color`, because `color` already means font colour on text.
-Order is fixed — lift/gain, then brightness/contrast/saturation/gamma, then hue —
-so the same numbers look the same on every element. A neutral grade adds no
-filter at all.
+A neutral grade adds no filter at all.
+
+#### LUTs
+
+Kino ships none — licensing a look is a trap. Where to get them:
+
+- [FreshLUTs](https://freshluts.com/) and [IWLTBAP](https://iwltbap.com/) both
+  have free packs
+- DaVinci Resolve exports `.cube` files directly
+- Any `.cube` works; kino reads only enough of the header to validate it
 
 ### Blending and masks
 

@@ -1,5 +1,5 @@
 import type { AudioTrack } from "./audio.js";
-import type { ElementInput } from "./elements.js";
+import type { ColorAdjust, ElementInput } from "./elements.js";
 import type { BackgroundInput } from "./background.js";
 import type { KinoTemplate } from "./template.js";
 
@@ -57,4 +57,10 @@ export interface KinoComposition {
   scenes: KinoScene[];
   audio?: AudioTrack | AudioTrack[];
   templates?: KinoTemplate[];
+  /**
+   * A grade applied once to the finished frame, after every scene and
+   * transition. Use it for a look that should hold across the whole video;
+   * per-element `grade` is for matching one clip to the rest.
+   */
+  grade?: ColorAdjust;
 }

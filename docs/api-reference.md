@@ -185,6 +185,40 @@ a transparent full-frame canvas, masked, then blended or alpha-composited onto
 the frame. An unknown `blend` mode, or a `mask` with neither `shape` nor `src`,
 is rejected by validation rather than reaching ffmpeg.
 
+### Colour grading
+
+`ColorAdjust` is used by `BaseElement.grade` and by `KinoComposition.grade`.
+`composition({ grade })` and `.grade(color)` set the composition-level one.
+
+```typescript
+export interface ColorAdjust {
+  brightness?: number;      // -1..1
+  contrast?: number;        // 0..3
+  saturation?: number;      // 0..3
+  hue?: number;             // degrees
+  gamma?: number;           // 0.1..10
+  lift?: number | [number, number, number];
+  gain?: number | [number, number, number];
+  lut?: string;             // .cube file or URL
+  lutInterp?: "nearest" | "trilinear" | "tetrahedral" | "pyramid" | "prism";
+  curves?: { master?: CurvePoints; red?: CurvePoints; green?: CurvePoints; blue?: CurvePoints };
+  balance?: {
+    shadows?: [number, number, number];
+    midtones?: [number, number, number];
+    highlights?: [number, number, number];
+    preserveLightness?: boolean;
+  };
+}
+```
+
+Filters are emitted in a fixed order — `lut3d` → `curves` → `colorlevels` →
+`colorbalance` → `eq` → `hue` — so the same numbers look the same wherever they
+are used. `isNeutralColor()` reports whether a grade would change nothing, and
+a neutral grade emits no filter.
+
+`buildColorFilter(grade, stageAsset?)`, `buildCurvesFilter(curves)` and
+`curvePointsExpression(points)` are exported for building graphs by hand.
+
 ### Motion blur
 
 `BaseElement.motionBlur` — a sample count, or `{ samples, shutter }` where

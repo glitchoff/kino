@@ -39,7 +39,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 
 ## Health
 
-- `pnpm test` — 340 tests passing (23 files)
+- `pnpm test` — 362 tests passing (24 files)
 - `pnpm test:dist` — 9 tests against the built bundle
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
@@ -53,7 +53,6 @@ marked done is closed.
 
 | # | Ticket | What remains |
 | --- | --- | --- |
-| **018** | Colour (partly done) | Per-element `grade` shipped. **LUTs (`lut3d`), `curves`, and composition-level grading are not built.** |
 | **009** | Docs rewrite | Rewritten to task-first structure on 2026-11-08. Site polish (search, syntax highlighting) still open. |
 
 Not ticketed, known broken:

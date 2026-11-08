@@ -1,6 +1,7 @@
 import { KinoValidationError, type ValidationIssue } from "./error.js";
 import { isFlexiblePositiveNumber, isNonEmptyString, isObject } from "./helpers.js";
 import { validateScenes } from "./scene.js";
+import { validateColorAdjust } from "./element.js";
 
 function validateTemplates(
   templates: unknown,
@@ -60,6 +61,12 @@ export function validateComposition(comp: unknown): void {
   if (!Array.isArray(comp.scenes) || comp.scenes.length === 0) {
     issues.push({ path: "scenes", message: "Expected a non-empty array of scenes" });
     throw new KinoValidationError(issues);
+  }
+
+  if (comp.grade !== undefined) {
+    // Reuse the element validator: a composition grade is the same object, and
+    // it should reject the same nonsense.
+    validateColorAdjust(comp.grade, "composition", issues);
   }
 
   const templateIds = new Set<string>();

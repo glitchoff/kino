@@ -23,6 +23,53 @@ export interface ColorAdjust {
   lift?: number | [number, number, number];
   /** White point gain per channel, 0..2, where 1 is unchanged. */
   gain?: number | [number, number, number];
+  /**
+   * A `.cube` 3D LUT, applied before everything else in the grade.
+   *
+   * Paths resolve like any other asset, so remote URLs are staged and bundled
+   * into the `.kino` file.
+   */
+  lut?: string;
+  /** Interpolation between LUT lattice points. Default `tetrahedral`. */
+  lutInterp?: "nearest" | "trilinear" | "tetrahedral" | "pyramid" | "prism";
+  /**
+   * Tonal curves, as control points from 0 to 1.
+   *
+   * ```ts
+   * curves: { master: [[0, 0], [0.5, 0.62], [1, 1]] }
+   * ```
+   *
+   * `master` shapes all three channels together; `red`/`green`/`blue` shape one
+   * each and are how a colour cast is fixed or introduced. Points are sorted and
+   * must stay inside 0..1; the curve between them is a spline, not a straight
+   * line.
+   */
+  curves?: CurveSet;
+  /**
+   * Per-channel balance across shadows, midtones and highlights.
+   *
+   * Each is -1..1 and positive pushes towards that channel's primary. This is
+   * the control that turns a neutral shot warm or cool without changing its
+   * contrast.
+   */
+  balance?: {
+    shadows?: [number, number, number];
+    midtones?: [number, number, number];
+    highlights?: [number, number, number];
+    /** Keep brightness unchanged while shifting colour. Default false. */
+    preserveLightness?: boolean;
+  };
+}
+
+/** One curve: control points as `[input, output]` pairs, both 0..1. */
+export type CurvePoints = Array<[number, number]>;
+
+export interface CurveSet {
+  /** All three channels together. */
+  master?: CurvePoints;
+  red?: CurvePoints;
+  green?: CurvePoints;
+  blue?: CurvePoints;
 }
 
 /** How an element composites onto what is already beneath it. */

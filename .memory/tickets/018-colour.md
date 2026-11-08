@@ -1,6 +1,8 @@
 # 018 — Colour: LUTs and basic grading
 
-**Status:** partly done (2026-11-08) — per-element `grade` with brightness, contrast, saturation, hue, gamma, lift and gain. LUTs (`lut3d`), `curves`, and composition-level grading are **not** built.
+**Status:** done (2026-11-08) — `lut`, `curves`, `balance` and a
+composition-level `grade`, on top of the per-element controls that shipped
+earlier.
 **Created:** 2026-11-08
 
 ## Problem
@@ -62,6 +64,43 @@ s.video("./clip.mp4", { grade: { lut: "./looks/log-to-rec709.cube" } });
 - **Does the docs site need a before/after preview?** It would be the most
   persuasive page on the site, and `docs-site/scripts/build-previews.mjs`
   already renders clips.
+
+## What shipped
+
+`ColorAdjust` gained `lut`, `lutInterp`, `curves` and `balance`, and
+`KinoComposition` gained `grade` (with `composition({ grade })` and
+`.grade(color)`).
+
+The order the ticket asked to pin down is now the contract, encoded once in
+`buildColorFilter` and tested: **LUT → curves → lift/gain → balance → eq → hue**.
+Element and composition grades go through the same function, so they cannot
+drift apart.
+
+The composition grade is a single filter after transitions and before the
+preview downscale.
+
+Answers to the open questions:
+
+- **Where in the graph?** Composition grade is one filter at the end; element
+  grades run before overlay. The subgraph work from ticket 017 made the second
+  part straightforward.
+- **Do we ship LUTs?** No, as proposed. The docs point at FreshLUTs, IWLTBAP and
+  Resolve exports instead.
+- **Animatable?** Not built. `colorlevels` and `eq` both accept expressions, so
+  the seam is there; nothing was designed against it.
+- **Before/after on the docs site?** Not built. Still the most persuasive thing
+  the site could show, and `docs-site/scripts/build-previews.mjs` could render
+  it.
+
+Two ffmpeg details worth remembering:
+
+- **`colorbalance` names its options channel-then-band** — `rs` is red-shadows,
+  `bm` is blue-midtones. Band-first (`sr`) is not an option and fails with
+  "Option not found".
+- **`eq=saturation=0` is not exactly neutral.** On `#804020` it gives 77,79,76
+  rather than a flat grey, because ffmpeg uses a luma-weighted desaturation.
+  Close enough to read as greyscale, but a test that demands equality across
+  channels will fail.
 
 ## Related
 

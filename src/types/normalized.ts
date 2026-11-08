@@ -1,4 +1,4 @@
-import type { MediaFit } from "./elements.js";
+import type { ColorAdjust, MediaFit } from "./elements.js";
 import type { ChromaKey } from "../pipeline/elements/media.js";
 import type { BackgroundConfig } from "./background.js";
 import type { Easing } from "./animation.js";
@@ -178,4 +178,6 @@ export interface NormalizedComposition {
   elements: NormalizedElement[];
   scenes: NormalizedScene[];
   audio: NormalizedAudioTrack[];
+  /** A grade applied once to the finished frame. */
+  grade?: ColorAdjust;
 }

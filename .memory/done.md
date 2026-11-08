@@ -16,7 +16,7 @@ losing alpha, the bundled font never being used, `frames` returning t=0 for ever
 still, and four wrong-depth path bugs. The suite went from 201 to 317 tests, and
 now also runs against the built bundle, which is where those bugs lived.
 
-**Shipped:** `exportComposition` · blend modes and masks · motion blur · audio ducking · keyframes + 5 easings ·
+**Shipped:** `exportComposition` · blend modes and masks · motion blur · colour grading · audio ducking · keyframes + 5 easings ·
 `inspect()` · font-metric `measureText()` · `test-dist/` · shapes · `s.tak()` ·
 colour grading · `Preview` · `--crf` · docs rewritten task-first
 
@@ -26,6 +26,9 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **Colour grading** — `lut` (`.cube`), `curves`, `balance` and a
+  composition-level `grade`. The filter order is pinned in one function and
+  tested, so element and composition grades cannot drift.
 - **Motion blur** — `motionBlur` on every element, via `tmix` on the element's
   own layer. The ticket's proposed design (N sub-frame renders combined with
   `blend`) does not work — ffmpeg smears the whole frame past two RGBA inputs —

@@ -283,5 +283,8 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
     // Ducking resolves last: narration and sfx tracks are only appended above,
     // and `duck: true` has to see them to know what to listen to.
     audio: resolveDucking(audioTracks, comp.audio),
+    // Carried through as written; the compiler turns it into filters, and
+    // validation rejects nonsense before that point.
+    ...(comp.grade ? { grade: { ...comp.grade } } : {}),
   };
 }

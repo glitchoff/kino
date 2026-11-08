@@ -437,6 +437,8 @@ export interface CompositionOptions {
   fps?: number | string;
   audio?: AudioTrack | AudioTrack[];
   templates?: KinoTemplate[];
+  /** A grade applied once to the finished frame. */
+  grade?: ColorAdjust;
 }
 
 type SceneCallback = (scene: SceneBuilder) => void | SceneBuilder;
@@ -454,7 +456,10 @@ export class CompositionBuilder {
   private readonly templates: KinoTemplate[] = [];
   private audioTracks: AudioTrack | AudioTrack[] | undefined = undefined;
 
-  constructor(private readonly options: CompositionOptions = {}) {
+  private options: CompositionOptions;
+
+  constructor(options: CompositionOptions = {}) {
+    this.options = options;
     this.templates = options.templates ? [...options.templates] : [];
     this.audioTracks = options.audio;
   }
@@ -504,6 +509,12 @@ export class CompositionBuilder {
     return this;
   }
 
+  /** A grade applied once to the finished frame. Replaces any earlier one. */
+  grade(color: ColorAdjust): this {
+    this.options = { ...this.options, grade: color };
+    return this;
+  }
+
   build(): KinoComposition {
     return {
       ...(this.options.width !== undefined ? { width: this.options.width } : {}),
@@ -512,6 +523,7 @@ export class CompositionBuilder {
       scenes: this.scenes,
       ...(this.audioTracks !== undefined ? { audio: this.audioTracks } : {}),
       ...(this.templates.length ? { templates: this.templates } : {}),
+      ...(this.options.grade !== undefined ? { grade: this.options.grade } : {}),
     };
   }
 }
