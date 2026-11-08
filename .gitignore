@@ -306,3 +306,4 @@ vite.config.ts.timestamp-*
 wrangler.local.toml
 out.kino
 *.kino
+.work/
