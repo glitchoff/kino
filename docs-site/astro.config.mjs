@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import { visit } from "unist-util-visit";
+import { remarkPreviewDirective } from "./src/plugins/preview-directive.mjs";
 
 const BASE = "/kino";
 
@@ -29,6 +30,6 @@ export default defineConfig({
   outDir: "./dist",
   build: { format: "directory" },
   markdown: {
-    remarkPlugins: [remarkDocsLinks],
+    remarkPlugins: [remarkDocsLinks, remarkPreviewDirective],
   },
 });

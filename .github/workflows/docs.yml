@@ -65,6 +65,11 @@ jobs:
       - name: Render docs previews
         run: node docs-site/scripts/build-previews.mjs
 
+      # Every `:::preview` in the docs must have a clip behind it. A missing one
+      # renders as an empty box, which nobody notices until a reader does.
+      - name: Check preview references
+        run: node docs-site/scripts/check-previews.mjs
+
       - name: Build docs
         working-directory: docs-site
         run: pnpm build
@@ -83,7 +88,7 @@ jobs:
           # silently show an empty box.
           clips=$(find dist/previews -name '*.mp4' 2>/dev/null | wc -l)
           echo "rendered $clips previews"
-          test "$clips" -ge 15
+          test "$clips" -ge 25
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

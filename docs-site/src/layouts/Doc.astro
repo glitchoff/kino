@@ -210,6 +210,29 @@ const href = (path = "") => `${base}${path}`;
     color: var(--muted);
   }
 
+  /* A clip embedded in a page by the `:::preview` directive. */
+  main figure.preview {
+    margin: 1.25rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  main figure.preview video {
+    width: 100%;
+    max-width: 34rem;
+    border-radius: 0.4rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    display: block;
+  }
+
+  main figure.preview figcaption {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
   /* Inline previews in the transitions and animation tables. */
   main table video {
     display: block;

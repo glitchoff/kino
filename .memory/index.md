@@ -34,7 +34,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 | `scripts/` | install helpers (ffmpeg, browser, obscura), Telegram utilities |
 | `test/` | vitest suites, importing from `src/` |
 | `test-dist/` | vitest suites against the built `dist/` (`pnpm test:dist`) |
-| `docs-site/` | Astro site reading `docs/*.md`, deployed to GitHub Pages |
+| `docs-site/` | Astro site reading `docs/*.md`, deployed to GitHub Pages; `src/plugins/preview-directive.mjs` embeds clips |
 | `.github/workflows/` | `ci.yml`, `docs.yml`, `publish.yml`, `telegram-render.yml` |
 
 ## Health
@@ -83,3 +83,10 @@ the common cases.
   wrong twice about `colorlevels`; the tests caught it, the reading did not.
 - **`tak:` is opt-in per element**, not a flag. A flag would make output depend
   on how the process was started.
+- **Astro's Smartypants runs before remark plugins.** Any plugin matching `"`
+  in markdown must also accept `“ ”`, or it silently finds nothing and passes
+  the markup through. Cost an hour once; see `preview-directive.mjs`.
+- **Astro caches rendered markdown** in `docs-site/node_modules/.astro/`, not
+  only `.astro/` at the site root. Deleting `dist/` is not enough to see a
+  plugin change — clear both, or the old HTML is reused and the plugin looks
+  broken.

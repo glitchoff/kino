@@ -82,10 +82,15 @@ it has a default export.
 import { composition } from "@glitchoff/kino";
 
 const video = composition({ width: 1080, height: 1920 })
-  .scene({ duration: 8, background: "#0f172a", transition: "fade" }, (s) =>
+  .scene({ duration: 5, background: "#0f172a" }, (s) =>
     s
       .text("The Blue Marble", { fontSize: 84, color: "#fff", x: "center", y: "(h-text_h)/2-400" })
-      .image("https://example.com/earth.jpg", { width: 640, x: "center", startAt: 2 })
+      .image("./earth.jpg", { width: 640, x: "center", startAt: 2 })
+  )
+  // A transition belongs to the scene arriving, so the first scene cannot have
+  // one — hence the separate second scene here.
+  .scene({ duration: 4, background: "#111827", transition: { type: "fade", duration: 0.6 } }, (s) =>
+    s.text("Fin.", { fontSize: 72, color: "#94a3b8", x: "center", y: "center" })
   )
   .build();
 ```
@@ -227,6 +232,9 @@ s.image("./logo.png", { chromaKey: { color: "#00ff00", similarity: 0.1 } });
 
 Rectangles, ellipses and lines, drawn to a PNG at compile time — no browser:
 
+:::preview name="feature-shapes" caption="rect, ellipse and line — no browser"
+:::
+
 ```typescript
 import { rect, ellipse, line } from "@glitchoff/kino";
 
@@ -245,6 +253,18 @@ s.add(line({ width: 400, height: 200, x: 80, y: 520, x1: 0, y1: 0, x2: 400, y2: 
 
 A shape with neither fill nor stroke is rejected rather than drawing nothing.
 
+When the kind is data rather than literal — a list of callouts, say — `shape()`
+takes it as an argument:
+
+```typescript
+import { shape } from "@glitchoff/kino";
+
+const kinds = ["rect", "ellipse", "line"] as const;
+kinds.forEach((kind, i) => {
+  s.add(shape(kind, { width: 120, height: 80, x: 40 + i * 140, y: 60, fill: "#38bdf8" }));
+});
+```
+
 ### HTML
 
 Two engines, same element type. `s.html()` uses a browser; `s.tak()` does not.
@@ -256,6 +276,9 @@ s.tak("<div class='card'>…</div>", { width: 600, height: 300 });   // Takumi, 
 
 `s.tak()` is sugar for `s.html("tak:" + markup, options)`, so the marker travels
 with the markup — `html("tak:…")` works through `.add()` too.
+
+:::preview name="feature-takumi" caption="s.tak() — HTML with no browser"
+:::
 
 **Prefer `tak` unless you need something only a browser can do.**
 
@@ -303,6 +326,9 @@ stacks captions on screen.
 
 Word-level alignment to real audio is optional and cache-based; see
 `captionsAsync`.
+
+:::preview name="feature-captions" caption="karaoke captions"
+:::
 
 ---
 
@@ -372,6 +398,12 @@ same numbers in a different order look different, so the order is the contract.
 Called `grade`, not `color`, because `color` already means font colour on text.
 A neutral grade adds no filter at all.
 
+:::preview name="feature-grade-curves" caption="curves — a contrast S-curve on a grey ramp"
+:::
+
+:::preview name="feature-grade-balance" caption="balance — teal shadows, orange highlights"
+:::
+
 #### LUTs
 
 Kino ships none — licensing a look is a trap. Where to get them:
@@ -428,6 +460,12 @@ element sits.
 > linear in the number of such elements. Elements without either option keep
 > the fast single-pass path.
 
+:::preview name="feature-blend" caption="screen and multiply"
+:::
+
+:::preview name="feature-mask" caption="an ellipse mask and a linear gradient"
+:::
+
 ### Animation
 
 | Helper | Produces |
@@ -476,6 +514,9 @@ the way in. Omit it to inherit the track's `easing`, defaulting to `easeInOut`.
 
 The overshooting curves intentionally pass the end value before settling.
 
+:::preview name="feature-keyframes" caption="keyframes — overshoot, settle, and a bounce"
+:::
+
 ### Motion blur
 
 Fast movement looks mechanical without it. Any element can be blurred the way a
@@ -507,6 +548,9 @@ stationary element costs the same and looks identical.
 > work scales with the number of blurred elements rather than the composition.
 > A blurred element also fades in over its first few frames, because the running
 > average needs that many frames to fill.
+
+:::preview name="feature-motion-blur" caption="motionBlur: 8 on a fast-moving block"
+:::
 
 ### Transitions
 
@@ -659,6 +703,9 @@ preview.close();
 Compiles once and renders a small proxy, so each frame costs ~30 ms instead of
 ~200 ms. The proxy is deliberately small and lossy — for judging layout and
 timing, not colour.
+
+:::preview name="feature-preview-api" caption="Preview.open() — scrubbing a composition"
+:::
 
 ---
 

@@ -26,6 +26,13 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **Docs: previews embedded in the pages, schema reference rewritten.** Ten
+  feature clips (shapes, `tak:`, curves, balance, blend, mask, motion blur,
+  keyframes, captions, preview API) now sit next to the text that describes
+  them, via a `:::preview` directive. `schema-reference.md` was 415 lines of
+  JSON examples covering nothing shipped after the first release; rewritten
+  against the real types. Running the doc examples through `--dry-run` caught
+  two that set a transition on the first scene, which the engine rejects.
 - **`--dry-run` on `tak:` compositions** — the flag called `compile()` directly,
   skipping the Takumi pre-render, so any `s.tak()` composition failed with
   "reached compile() without a pre-rendered PNG". It now renders markup first,

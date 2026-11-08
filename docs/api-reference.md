@@ -36,10 +36,14 @@ distinguishes it from JSON.
 import { composition, text, image, fadeIn } from "@glitchoff/kino";
 
 const video = composition({ width: 1080, height: 1920, fps: 30 })
-  .scene({ duration: 8, background: "#0f172a", transition: "fade" }, (s) =>
+  .scene({ duration: 8, background: "#0f172a" }, (s) =>
     s
       .text("Title", { fontSize: 84, color: "#fff", x: "center", animation: { opacity: fadeIn(0.6) } })
-      .image("https://example.com/a.jpg", { width: 640, x: "center", startAt: 2 })
+      .image("./a.jpg", { width: 640, x: "center", startAt: 2 })
+  )
+  // Transitions belong to the arriving scene; the first scene cannot have one.
+  .scene({ duration: 3, background: "#111827", transition: { type: "fade", duration: 0.6 } }, (s) =>
+    s.text("End", { fontSize: 72, color: "#fff", x: "center", y: "center" })
   )
   .build();
 ```
