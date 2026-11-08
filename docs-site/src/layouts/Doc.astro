@@ -16,6 +16,9 @@ const pages = entries
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
+// `/previews/` is an Astro page, not a markdown doc, so it is added by hand.
+pages.push({ id: "previews", title: "Previews" });
+
 const { pathname } = Astro.url;
 const current = pathname.replace(/\/$/, "").split("/").pop() || "index";
 

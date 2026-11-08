@@ -41,11 +41,29 @@ jobs:
         with:
           node-version: 24
 
-      # The docs app has its own manifest. Installing it separately keeps the
-      # library's lockfile untouched: docs dependencies never reach consumers.
+      # The previews are real renders, so they need the vendored ffmpeg (the
+      # ffmpeg-static build has no drawtext) and a built library to import.
+      - name: Cache bundled ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-ffmpeg.mjs') }}
+          restore-keys: |
+            ffmpeg-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Install docs dependencies
         working-directory: docs-site
         run: pnpm install --no-frozen-lockfile
+
+      # docs-site has its own node_modules, so the library is built in the root
+      # and imported by path rather than resolved as a package.
+      - name: Build library
+        run: |
+          pnpm install --frozen-lockfile --prefer-offline
+          pnpm exec tsup
+
+      - name: Render docs previews
+        run: node docs-site/scripts/build-previews.mjs
 
       - name: Build docs
         working-directory: docs-site
@@ -61,6 +79,11 @@ jobs:
           pages=$(find dist -name '*.html' | wc -l)
           echo "built $pages pages"
           test "$pages" -ge 5
+          # A preview that failed to render leaves no mp4, and the page would
+          # silently show an empty box.
+          clips=$(find dist/previews -name '*.mp4' 2>/dev/null | wc -l)
+          echo "rendered $clips previews"
+          test "$clips" -ge 15
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

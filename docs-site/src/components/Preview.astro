@@ -1,0 +1,55 @@
+---
+/**
+ * A muted looping clip that shows one feature doing its job.
+ *
+ * `src` is resolved against the previews base: by default the clips are served
+ * from the docs-site build output, but CI uploads them to a release, so the
+ * base can be pointed at that instead via PREVIEWS_BASE.
+ */
+interface Props {
+  /** Preview name, e.g. `transition-fade` or `animation-fadeIn`. */
+  name: string;
+  /** Shown under the clip. Defaults to the name. */
+  caption?: string;
+}
+
+const { name, caption } = Astro.props;
+const base = import.meta.env.PREVIEWS_BASE ?? `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}previews/`;
+const src = `${base}${name}.mp4`;
+---
+
+<figure class="preview">
+  <video
+    src={src}
+    muted
+    loop
+    autoplay
+    playsinline
+    preload="metadata"
+    aria-label={caption ?? name}
+  ></video>
+  <figcaption>{caption ?? name}</figcaption>
+</figure>
+
+<style>
+  .preview {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .preview video {
+    width: 100%;
+    border-radius: 0.4rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    display: block;
+  }
+
+  .preview figcaption {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+</style>
