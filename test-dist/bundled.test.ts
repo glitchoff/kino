@@ -89,6 +89,16 @@ describe("bundled build", () => {
     expect(result.filtergraph).toContain("fontfile=");
   });
 
+  test("the CJS build resolves the same paths as ESM", async () => {
+    // The package ships dist/index.cjs too. tsup warns that `import.meta` is
+    // empty in the CJS output; that is fine because the `__dirname` guard
+    // covers it, but nothing proved it until this test.
+    const cjs = (await import(join(DIST, "index.cjs"))) as typeof kino;
+    expect(cjs.getFFmpegBinaryPath()).toBe(kino.getFFmpegBinaryPath());
+    expect(cjs.defaultFontFile()).toBe(kino.defaultFontFile());
+    expect(cjs.measureText("Title", { fontSize: 64 }).width).toBeCloseTo(128.19, 1);
+  });
+
   test("a text composition renders a real frame", async () => {
     // The end-to-end check: if any path is wrong, this fails loudly instead of
     // producing a frame with the wrong font or no text at all.
