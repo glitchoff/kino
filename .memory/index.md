@@ -52,20 +52,66 @@ the legacy/interop format.
 
 ## Open
 
-- **Test the bundled build** — see `tickets/010`. Two bugs shipped today that
-  the suite could not catch by construction: it imports from `src/`, so
+### Pro-editor features (2026-11-08)
+
+Planned as a track toward a professional video editor, ordered by
+value-per-unit-work and by dependency. Each ticket states what it is for, how it
+compiles, and what to check before scheduling it.
+
+**Next, in this order:**
+
+1. **`tickets/015` — audio ducking.** Smallest change with the largest effect on
+   real videos: narration over music is the most common composition there is,
+   and today it needs hand-keyed volume automation. Contained to
+   `src/pipeline/audio.ts`.
+2. **`tickets/016` — keyframed animation with curves.** `animate()` interpolates
+   one segment between two values. `steps` already exists for captions but is a
+   step function, not a curve. Widening the existing expression mechanism, not a
+   new render path. Unlocks everything downstream.
+3. **`tickets/020` — replace rasterised text measurement with font parsing.**
+   The rasteriser shipped in `3a938ae` works but shells out per string, measures
+   ink extent rather than advance width, and degrades silently. Parsing
+   `hmtx`/`cmap` is exact, synchronous, and makes `inspect()` sync too. Worth
+   doing before anything depends on the current API.
+
+**Then, once 016 lands:**
+
+4. **`tickets/017` — blend modes and masks.** No compositing beyond chroma key.
+   Needs the subgraph work that 016's expression model makes natural.
+5. **`tickets/018` — colour: LUTs and grading.** `lut3d` + `colorlevels` + `eq`.
+   Cheap to add, large visual payoff, and the docs site could show before/after.
+6. **`tickets/019` — motion blur.** Sub-frame sampling, averaged. The cheapest
+   thing that stops output looking generated, but it needs values as `f(t)`,
+   which is 016.
+
+**Bigger, not yet scheduled:**
+
+- **`tickets/021` — live preview.** Needs a spike first: the 75 ms still cost
+  includes compile and process start, and it is not established that a live
+  ffmpeg seek is meaningfully cheaper.
+
+**Explicitly out of scope for now:** adjustment layers, nesting, speed ramps and
+time remapping. Real editor features, but they restructure the scene model and
+none of them unblock the common cases above.
+
+### Everything else
+
+- **Test the bundled build** — see `tickets/010`. Three rounds of bugs shipped
+  that the suite could not catch by construction: it imports from `src/`, so
   `__dirname` is always the source layout and the `dist/` layout is never
-  exercised. The ffmpeg one failed silently by falling back to a binary without
-  drawtext.
-- **Agent feedback loop** — `tickets/011` (`inspect()`) and `tickets/012`
-  (`measureText()`) both landed on 2026-11-08. An agent can now describe a
-  composition without rendering it.
+  exercised. The worst one failed silently by falling back to a binary without
+  drawtext; the next three returned relative paths that `spawn` resolved against
+  the caller's cwd.
 - **Shapes and charts** — see `tickets/013`. No `rect`/`ellipse`/`line`, so
   agents fake them with HTML, which pulls in a browser and renders differently
   between Chrome and Obscura.
 - **Caption pipeline duplication** — see `tickets/014`. `captionImages`
   re-implements grouping, defaults and anchoring instead of sharing them with
   the text path, and that duplication already caused the stacked-captions bug.
+  Ticket 020 removes most of the reason for the duplicate rasteriser.
+- **Agent feedback loop** — `tickets/011` (`inspect()`) and `tickets/012`
+  (`measureText()`) both landed on 2026-11-08. An agent can now describe a
+  composition without rendering it.
 
 ## Known issues
 
