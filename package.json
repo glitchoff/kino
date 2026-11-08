@@ -40,7 +40,8 @@
     "studio": "vite build studio && tsx watch studio/server.ts",
     "studio:dev": "vite studio",
     "studio:build": "vite build studio",
-    "postinstall": "node scripts/install-ffmpeg.mjs"
+    "postinstall": "node scripts/install-ffmpeg.mjs",
+    "test:dist": "tsup && vitest run --config vitest.dist.config.ts"
   },
   "keywords": [
     "ffmpeg",

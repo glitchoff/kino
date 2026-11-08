@@ -25,7 +25,8 @@ the legacy/interop format.
 | `src/inspect/` | `inspect()` — composition geometry and layout issues without rendering |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
 | `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
-| `test/` | vitest suites; imports from `src/`, so the bundled `dist/` layout is never exercised (ticket 010) |
+| `test/` | vitest suites, importing from `src/` |
+| `test-dist/` | vitest suites against the built `dist/` (`pnpm test:dist`) |
 | `docs/` | published documentation |
 | `.github/workflows/` | `ci.yml` (push/PR checks), `publish.yml` (tag-triggered npm release), `telegram-render.yml` (manual) |
 
@@ -87,12 +88,8 @@ none of them unblock the common cases above.
 
 ### Everything else
 
-- **Test the bundled build** — see `tickets/010`. Three rounds of bugs shipped
-  that the suite could not catch by construction: it imports from `src/`, so
-  `__dirname` is always the source layout and the `dist/` layout is never
-  exercised. The worst one failed silently by falling back to a binary without
-  drawtext; the next three returned relative paths that `spawn` resolved against
-  the caller's cwd.
+- ~~**Test the bundled build**~~ — **Done 2026-11-08.** `test-dist/` runs
+  against `dist/` in CI, covering all four historical bugs.
 - **Shapes and charts** — see `tickets/013`. No `rect`/`ellipse`/`line`, so
   agents fake them with HTML, which pulls in a browser and renders differently
   between Chrome and Obscura.

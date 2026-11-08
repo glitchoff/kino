@@ -1,6 +1,6 @@
 # 010 — Test the bundled build, not just src
 
-**Status:** open
+**Status:** done (2026-11-08) — `test-dist/bundled.test.ts`, run by `pnpm test:dist` (which builds first) and by CI. Eight tests against `dist/`, not `src/`. Both historical bugs were reintroduced to confirm the suite catches them: the ffmpeg depth bug fails three tests including an end-to-end render (`ffmpeg exited 8`), the font filename bug fails the `fontfile=` assertion.
 **Created:** 2026-11-08
 
 ## Problem

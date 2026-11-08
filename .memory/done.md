@@ -4,6 +4,17 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Tests against the bundled build** — `test-dist/bundled.test.ts`, run by
+  `pnpm test:dist` (builds first) and by CI as its own step. The main suite
+  imports from `src/`, so `__dirname` is always the source layout and the
+  `dist/` layout was never exercised; four bugs shipped that way, all silent.
+  The suite checks that the vendored ffmpeg resolves inside the package and has
+  `drawtext`, that the bundled font is found, that the compiled graph carries
+  `fontfile=`, and renders a real frame. Verified by reintroducing each bug: the
+  depth one fails three tests including the render, the filename one fails the
+  `fontfile=` assertion.
+- **`getFFmpegBinaryPath` exported** — needed by the bundled tests and useful to
+  anyone shelling out to the same binary kino uses.
 - **Font-metric text measurement** — `measureText()` now reads advance widths
   out of the font file (`head`/`hhea`/`hmtx`/`cmap`, plus `kern` format 0)
   instead of rasterising with ffmpeg. Synchronous, no subprocess, and it returns

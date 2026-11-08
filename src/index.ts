@@ -1,4 +1,5 @@
 export { render, compile, exportComposition } from "./pipeline/index.js";
+export { getFFmpegBinaryPath } from "./encoder/probe.js";
 export { inspect } from "./inspect/index.js";
 export type {
   InspectReport,

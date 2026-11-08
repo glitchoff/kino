@@ -66,6 +66,13 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # The suite above imports from src/, so it never sees the dist/ layout.
+      # Four bugs shipped that way, each silent — wrong-depth paths, relative
+      # paths spawn() resolved against cwd, and a font filename that never
+      # matched. This runs against the built bundle.
+      - name: Test the bundled build
+        run: pnpm test:dist
+
       # Every example must at least compile. This catches stale or broken
       # example files without paying for a full render.
       #
