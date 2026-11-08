@@ -1,6 +1,6 @@
 # 009 — Rewrite the docs and finish the docs site
 
-**Status:** deferred
+**Status:** done (2026-11-08) — `docs/getting-started.md` rewritten task-first (Install → First video → Compositions → Content → Look → Sound → Checking → Rendering), `api-reference.md` reordered so rendering is contiguous and a contents table was added, and a script checked every internal anchor. Site polish (search, syntax highlighting) is still open.
 **Created:** 2026-11-08
 
 ## Why deferred

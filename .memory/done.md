@@ -1,8 +1,30 @@
 # Done
 
-Newest first. One line per item; link the ticket for detail.
+Newest first. Detail lives below each summary; the summaries are what to read if
+you only want the shape of a day.
 
 ## 2026-11-08
+
+**In one paragraph.** Kino became something an agent can author against without
+guessing. It can now describe a composition before rendering (`inspect`), measure
+text exactly and synchronously (`measureText`, from font tables rather than a
+render), and scrub a composition at ~30 ms a frame (`Preview`). Authoring gained
+shapes, browserless HTML via Takumi (`s.tak()`), per-element colour grading, keyframed
+animation with curves, and audio ducking. Five silent bugs that had shipped for
+days were found and fixed — still images rendering as nothing, transparent PNGs
+losing alpha, the bundled font never being used, `frames` returning t=0 for every
+still, and four wrong-depth path bugs. The suite went from 201 to 317 tests, and
+now also runs against the built bundle, which is where those bugs lived.
+
+**Shipped:** `exportComposition` · audio ducking · keyframes + 5 easings ·
+`inspect()` · font-metric `measureText()` · `test-dist/` · shapes · `s.tak()` ·
+colour grading · `Preview` · `--crf` · docs rewritten task-first
+
+**Serious bugs found:** still images invisible (no `-loop`) · transparent PNGs
+losing alpha through `scale=` · bundled font never loaded (wrong depth *and*
+wrong filename) · `frames` returning t=0 always · four relative-path bugs from
+`dist/`
+
 
 - **Live preview** — `Preview.open(comp)` compiles once, renders a small
   all-keyframe proxy, then serves `frame(t)` on demand at ~30 ms each, with a

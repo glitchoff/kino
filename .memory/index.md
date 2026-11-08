@@ -8,108 +8,87 @@ Scripting-first video engine: TypeScript compositions compiled to MP4 via
 FFmpeg. Published as `@glitchoff/kino`. JSON compositions are still accepted as
 the legacy/interop format.
 
+Agents are the primary author. That shapes the design: `inspect()` and
+`measureText()` answer questions without rendering, `Preview` scrubs at ~30 ms a
+frame, and `s.tak()` renders HTML with no browser to install.
+
 ## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `src/pipeline/` | compile → `.kino` artifact → FFmpeg render; `elements/color.ts` for grades |
-| `src/normalize/` | raw input → normalized composition (units, templates, animation) |
+| `src/pipeline/` | compile → `.kino` artifact → FFmpeg render |
+| `src/pipeline/elements/` | per-element filters: text, media, html, takumi, shapes, color |
+| `src/pipeline/preview.ts` | `Preview` — proxy-backed frame scrubbing |
+| `src/normalize/` | raw input → normalized composition (units, templates, animation, ducking) |
 | `src/validate/` | schema validation with `KinoValidationError` |
-| `src/encoder/` | FFmpeg binary resolution, drawtext probe, hardware encoder detection |
+| `src/encoder/` | FFmpeg binary resolution, drawtext probe, hardware encoders, `--crf` flags |
 | `src/artifact/` | `.kino` zip read/write |
-| `src/remote/` | remote asset downloader |
-| `src/builder/` | code-first composition builder (`composition()`, element factories, animation helpers) |
-| `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement, resolution before compile |
-| `src/captions/` | Word timings (even or aligned) and karaoke/subtitle element generation |
-| `src/measure/` | Font-metric text measurement (`measureText`, `measureTexts`, `measureSpace`) |
-| `src/inspect/` | `inspect()` — composition geometry and layout issues without rendering |
+| `src/remote/` | remote asset downloader; `ytdlp.ts` and `takumi.ts` prefix helpers |
+| `src/builder/` | code-first builder (`composition()`, element factories, animation helpers) |
+| `src/animation/` | easing curves and keyframe → ffmpeg expression compilation |
+| `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement |
+| `src/captions/` | Word timings, karaoke/subtitle generation, `resolveCaptions()` seam |
+| `src/measure/` | Font-metric text measurement (`font.ts` parses hmtx/cmap) |
+| `src/inspect/` | `inspect()` — geometry and layout issues without rendering |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
-| `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
+| `scripts/` | install helpers (ffmpeg, browser, obscura), Telegram utilities |
 | `test/` | vitest suites, importing from `src/` |
 | `test-dist/` | vitest suites against the built `dist/` (`pnpm test:dist`) |
-| `docs/` | published documentation |
-| `.github/workflows/` | `ci.yml` (push/PR checks), `publish.yml` (tag-triggered npm release), `telegram-render.yml` (manual) |
+| `docs-site/` | Astro site reading `docs/*.md`, deployed to GitHub Pages |
+| `.github/workflows/` | `ci.yml`, `docs.yml`, `publish.yml`, `telegram-render.yml` |
 
 ## Health
 
-- `pnpm test` — 290 tests passing (19 files)
+- `pnpm test` — 317 tests passing (21 files)
+- `pnpm test:dist` — 9 tests against the built bundle
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
-- all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
-- TTS verified by real render on 2026-11-07 (Piper on PATH here)
-
-## Uncommitted
-
-- Nothing. `trimEnd` + `mm:ss` landed on 2026-11-07 (see `done.md`).
-  `package-lock.json` is untracked — this repo uses pnpm, so it should probably
-  not be committed.
-
-## Deferred
-
-- **Docs rewrite and site polish** — see `tickets/009`. The content is
-  chronological rather than task-based and the site is a thin skin over the
-  markdown (no search, no highlighting). Deliberately held until the caption
-  seam and HTML fallback settle, so it is not rewritten twice.
+- all 17 `examples/*.ts` compile via `--dry-run`
+- docs site builds 6 pages; CI runs `test:dist` as its own step
 
 ## Open
 
-### Pro-editor features (2026-11-08)
+Only what is genuinely still to do. Completed work lives in `done.md`; a ticket
+marked done is closed.
 
-Planned as a track toward a professional video editor, ordered by
-value-per-unit-work and by dependency. Each ticket states what it is for, how it
-compiles, and what to check before scheduling it.
+| # | Ticket | What remains |
+| --- | --- | --- |
+| **017** | Blend modes and masks | Nothing beyond chroma key. Needs the element-subgraph work. |
+| **019** | Motion blur | Sub-frame sampling. Needs values as `f(t)`, which keyframes now provide. |
+| **018** | Colour (partly done) | Per-element `grade` shipped. **LUTs (`lut3d`), `curves`, and composition-level grading are not built.** |
+| **009** | Docs rewrite | Rewritten to task-first structure on 2026-11-08. Site polish (search, syntax highlighting) still open. |
 
-**Next, in this order:**
+Not ticketed, known broken:
 
-1. ~~**`tickets/015` — audio ducking.**~~ **Done 2026-11-08.**
-2. ~~**`tickets/016` — keyframed animation with curves.**~~ **Done 2026-11-08.**
-3. ~~**`tickets/020` — replace rasterised text measurement with font parsing.**~~
-   **Done 2026-11-08.**
+- **`--dry-run` fails on `tak:` compositions.** It goes straight to `compile()`,
+  which needs pre-rendered PNGs from Takumi. The error is clear but the flag
+  should work.
 
-**Then, once 016 lands:**
-
-4. **`tickets/017` — blend modes and masks.** No compositing beyond chroma key.
-   Needs the subgraph work that 016's expression model makes natural.
-5. **`tickets/018` — colour: LUTs and grading.** `lut3d` + `colorlevels` + `eq`.
-   Cheap to add, large visual payoff, and the docs site could show before/after.
-6. **`tickets/019` — motion blur.** Sub-frame sampling, averaged. The cheapest
-   thing that stops output looking generated, but it needs values as `f(t)`,
-   which is 016.
-
-**Bigger, not yet scheduled:**
-
-- ~~**`tickets/021` — live preview.**~~ **Done 2026-11-08.** `Preview.open()` at
-  ~30 ms per frame via a proxy.
-
-**Explicitly out of scope for now:** adjustment layers, nesting, speed ramps and
-time remapping. Real editor features, but they restructure the scene model and
-none of them unblock the common cases above.
-
-- ~~**`tak:` markup**~~ — **Done 2026-11-08.** `s.tak()` renders through Takumi
-  with no browser; `s.html()` is unchanged.
-
-### Everything else
-
-- ~~**Test the bundled build**~~ — **Done 2026-11-08.** `test-dist/` runs
-  against `dist/` in CI, covering all four historical bugs.
-- ~~**Shapes and charts**~~ — **Done 2026-11-08.** `rect`/`ellipse`/`line`.
-  `chart` and `group` are still open; the primitives cover a chart.
-- ~~**Caption pipeline duplication**~~ — **Done 2026-11-08.** Both renderers use
-  `resolveCaptions()`.
-- **Agent feedback loop** — `tickets/011` (`inspect()`) and `tickets/012`
-  (`measureText()`) both landed on 2026-11-08. An agent can now describe a
-  composition without rendering it.
+Deliberately out of scope: adjustment layers, nesting, speed ramps, time
+remapping. Real editor features that restructure the scene model; none unblock
+the common cases.
 
 ## Known issues
 
 - **CI workflow dispatch needs a `workflow`-scoped token.** A `ghu_` App token
-  can push but returns 403 "Resource not accessible by integration" on
-  `/actions/workflows/*/dispatches`. Use a classic `ghp_` token with `workflow`.
+  can push but returns 403 on `/actions/workflows/*/dispatches`. Use a classic
+  `ghp_` token with `workflow`.
 - **Telegram chat is a supergroup.** The ID is `-1004377515630`; the older
-  `-5371873302` now returns "group chat was upgraded to a supergroup".
-
-- `publish.yml` only verifies the bundled FFmpeg on `v*` tags, so a broken
+  `-5371873302` returns "group chat was upgraded to a supergroup".
+- **`publish.yml` only verifies the bundled FFmpeg on `v*` tags**, so a broken
   upstream asset is not caught until release day.
-- Fresh `pnpm install` on Linux previously failed because the pinned FFmpeg
-  release tag was pruned upstream. Fixed in `scripts/install-ffmpeg.mjs`
-  (now tracks the rolling `n8.1` assets) — see `tickets/003`.
+- **Chrome cannot launch in this dev container** (`libatk-1.0.so.0` missing).
+  Obscura works; `s.tak()` needs neither.
+- **The caption suite takes ~145 s** — `captionImages` rasterises one PNG per
+  word. It dominates `pnpm test`.
+
+## Conventions worth knowing
+
+- **Paths are found by walking up to the package root.** Four bugs shipped from
+  assuming a fixed depth, all silent, because the suite imports from `src/` and
+  never sees `dist/`. `test-dist/` exists to catch the next one.
+- **Measure, don't assume.** Several fixes this week came from rendering a flat
+  colour and reading the pixel, or from timing a real run. The ffmpeg docs were
+  wrong twice about `colorlevels`; the tests caught it, the reading did not.
+- **`tak:` is opt-in per element**, not a flag. A flag would make output depend
+  on how the process was started.

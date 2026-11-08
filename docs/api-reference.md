@@ -1,15 +1,29 @@
 # Programmatic API Reference
 
-Kino exports core compiler and renderer functions for Node.js and TypeScript applications.
-
 ```typescript
-import { render, compile } from "@glitchoff/kino";
+import {
+  composition, render, compile, exportComposition,
+  inspect, measureText, Preview,
+} from "@glitchoff/kino";
 import type { KinoComposition, RenderOptions, CompileResult, VideoEncoder } from "@glitchoff/kino";
 ```
 
 `render()` and `compile()` accept a plain `KinoComposition` — whether parsed from
 JSON, built with `composition()`, or wrapped in `defineComposition()`. They all
 produce the same data shape.
+
+**Contents**
+
+| Section | What it covers |
+| --- | --- |
+| [Builder](#builder) | `composition()`, scenes, element factories, animation |
+| [Rendering](#rendering) | `render()`, `compile()`, `exportComposition()`, `RenderOptions` |
+| [Checking a composition](#checking-a-composition) | `inspect()`, `measureText()` — no render |
+| [Live preview](#live-preview) | `Preview.open()` — scrubbing at ~30 ms/frame |
+| [Captions](#captions) | `captions()`, `captionElements()`, `captionImages()` |
+| [Audio tracks](#audio-tracks) | Tracks, ducking, narration |
+| [Artifacts](#the-kino-artifact-format) | The `.kino` zip format |
+| [Validation](#validatecompositioncomposition) | `validateComposition()`, errors |
 
 ---
 
@@ -176,45 +190,6 @@ export default defineComposition({
 Accepts a builder or a plain object and always returns a `KinoComposition`
 (calling `.build()` when needed).
 
-### `exportComposition(composition, options)`
-
-Exports a composition in whichever forms you ask for. Each output is
-independent, so asking for stills never encodes a video.
-
-```typescript
-import { composition, exportComposition } from "@glitchoff/kino";
-
-const { frames, video, preview } = await exportComposition(comp, {
-  frames: [0, 1.5, { at: 3, name: "title" }],  // stills, by seek
-  video: "out.mp4",                             // full quality
-  preview: 144,                                 // 144p, `previewOutput` names it
-});
-```
-
-| Option | Type | Description |
-| --- | --- | --- |
-| `video` | `string` | Output path for the full-quality render |
-| `preview` | `boolean \| number` | Fast downscaled render, by height |
-| `previewOutput` | `string` | Preview path. Default `preview.mp4` |
-| `frames` | `(number \| { at, name?, format? })[]` | Stills to write |
-| `frameDir` | `string` | Where stills go. Default the working directory |
-
-Returns `{ video?, preview?, frames? }` — only what you asked for.
-
-Each still comes back as `{ at, path, data }`. `data` is a
-`data:image/png;base64,…` URL, ready to pass to a vision model or an upload
-without reading the file again.
-
-**Stills are cheap.** A frame costs a seek, not a render: on a 20-second
-640×360 composition, one frame took ~75–190 ms against ~1.1 s for the video.
-The cost is compiling, not seeking, so ask for several timestamps in one call
-rather than calling repeatedly.
-
-`frames` needs a composition, not a `.kino` path — a compiled artifact cannot be
-seeked by scene.
-
----
-
 ## Live preview
 
 ### `Preview.open(composition, options?)`
@@ -256,7 +231,7 @@ close.
 
 ---
 
-## Inspecting a composition
+## Checking a composition
 
 ### `inspect(composition, options?)`
 
@@ -401,7 +376,48 @@ against the following line, so calling this per line stacks captions on screen.
 
 ---
 
-## `compile(composition, options?)`
+## Rendering
+
+### `exportComposition(composition, options)`
+
+Exports a composition in whichever forms you ask for. Each output is
+independent, so asking for stills never encodes a video.
+
+```typescript
+import { composition, exportComposition } from "@glitchoff/kino";
+
+const { frames, video, preview } = await exportComposition(comp, {
+  frames: [0, 1.5, { at: 3, name: "title" }],  // stills, by seek
+  video: "out.mp4",                             // full quality
+  preview: 144,                                 // 144p, `previewOutput` names it
+});
+```
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `video` | `string` | Output path for the full-quality render |
+| `preview` | `boolean \| number` | Fast downscaled render, by height |
+| `previewOutput` | `string` | Preview path. Default `preview.mp4` |
+| `frames` | `(number \| { at, name?, format? })[]` | Stills to write |
+| `frameDir` | `string` | Where stills go. Default the working directory |
+
+Returns `{ video?, preview?, frames? }` — only what you asked for.
+
+Each still comes back as `{ at, path, data }`. `data` is a
+`data:image/png;base64,…` URL, ready to pass to a vision model or an upload
+without reading the file again.
+
+**Stills are cheap.** A frame costs a seek, not a render: on a 20-second
+640×360 composition, one frame took ~75–190 ms against ~1.1 s for the video.
+The cost is compiling, not seeking, so ask for several timestamps in one call
+rather than calling repeatedly.
+
+`frames` needs a composition, not a `.kino` path — a compiled artifact cannot be
+seeked by scene.
+
+---
+
+### `compile(composition, options?)`
 
 Compiles a `KinoComposition` object into a portable **`.kino` artifact** (a zip archive) containing the full FFmpeg command, all text files, and every asset file the composition references — using relative paths only.
 
@@ -424,27 +440,7 @@ function compile(
 
 ---
 
-## The `.kino` Artifact Format
-
-A `.kino` file is a self-contained zip archive:
-
-```
-manifest.json       — { ffmpegArgs: string[], output: string, kinoVersion: string }
-text-1.txt, ...     — one file per text element (verbatim UTF-8 content)
-asset-1.<ext>, ...  — local image/video/audio/font assets referenced by the composition
-remote-1.<ext>, ... — remote http(s) assets downloaded into the archive at compile time (extension from Content-Type)
-```
-
-- **Relative paths only.** All `textfile=` and `-i` references inside `manifest.json` are relative filenames (e.g. `text-1.txt`, `asset-1.jpg`, `remote-1.jpg`). No absolute paths, temp-dir names, machine-specific strings, or live URLs live inside the archive, so a `.kino` can be copied across machines and OSes and re-rendered as-is — and renders never touch the network.
-- `manifest.ffmpegArgs` ends with a portable output placeholder (e.g. `out.mp4`); `render()` substitutes the real destination when spawning.
-
-### Text Delivery
-
-Text elements are delivered to drawtext via a **textfile** (`textfile='text-N.txt'`) baked into the `.kino` archive. This avoids all drawtext escaping pitfalls — apostrophes, colons, backslashes, and newlines are passed through verbatim and survive platform changes. Only `unsafeInlineText` reverts to inline `text=` delivery.
-
----
-
-## `render(compositionOrKinoPath, options)`
+### `render(compositionOrKinoPath, options)`
 
 Accepts either a `KinoComposition` object (compiles it to a `.kino` first) or a path to an existing `.kino` file (extracts and renders without recompiling). Extracts the artifact to a fresh temp directory, spawns `ffmpeg` with that directory as the child process's **cwd** (so the relative paths resolve with zero rewriting), and cleans up afterward. Automatically falls back to CPU `libx264` if a requested GPU hardware encoder is unavailable.
 
@@ -483,7 +479,7 @@ After compilation, an `HtmlElement` is an image asset inside the `.kino` archive
 
 ---
 
-## GPU Acceleration & Automatic Fallback
+### GPU acceleration and fallback
 
 With `encoder: "auto"` (the default), Kino probes the host ffmpeg binary and hardware before compiling, and selects the best available GPU encoder for the machine (NVENC → QSV → AMF on Windows, VideoToolbox on macOS, NVENC → QSV → VAAPI on Linux). If a requested GPU encoder is unavailable or fails mid-render — or no GPU encoder works at all — Kino logs a warning and seamlessly falls back to CPU (`libx264`):
 
@@ -493,6 +489,26 @@ await render(composition, {
   encoder: "auto" // picks NVENC on NVIDIA machines, falls back to libx264 on CPU-only machines
 });
 ```
+
+---
+
+## The `.kino` artifact format
+
+A `.kino` file is a self-contained zip archive:
+
+```
+manifest.json       — { ffmpegArgs: string[], output: string, kinoVersion: string }
+text-1.txt, ...     — one file per text element (verbatim UTF-8 content)
+asset-1.<ext>, ...  — local image/video/audio/font assets referenced by the composition
+remote-1.<ext>, ... — remote http(s) assets downloaded into the archive at compile time (extension from Content-Type)
+```
+
+- **Relative paths only.** All `textfile=` and `-i` references inside `manifest.json` are relative filenames (e.g. `text-1.txt`, `asset-1.jpg`, `remote-1.jpg`). No absolute paths, temp-dir names, machine-specific strings, or live URLs live inside the archive, so a `.kino` can be copied across machines and OSes and re-rendered as-is — and renders never touch the network.
+- `manifest.ffmpegArgs` ends with a portable output placeholder (e.g. `out.mp4`); `render()` substitutes the real destination when spawning.
+
+### Text Delivery
+
+Text elements are delivered to drawtext via a **textfile** (`textfile='text-N.txt'`) baked into the `.kino` archive. This avoids all drawtext escaping pitfalls — apostrophes, colons, backslashes, and newlines are passed through verbatim and survive platform changes. Only `unsafeInlineText` reverts to inline `text=` delivery.
 
 ---
 
@@ -516,7 +532,7 @@ try {
 
 ---
 
-## Error Handling & Schema Validation
+### Error handling and schema validation
 
 `normalizeComposition()`, `compile()`, and `render()` run `validateComposition()` at the entry of the pipeline (**unknown JSON → validate → normalize → compile → FFmpeg**). Malformed inputs throw `KinoValidationError` immediately with path-indexed issues without spawning FFmpeg:
 
