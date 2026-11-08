@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { render, compile } from "./pipeline/index.js";
+import { renderTakumiElements } from "./pipeline/elements/takumi-elements.js";
 import { parseRenderArgs, RENDER_FLAGS } from "./cli-args.js";
 import { replaceTtsWithPlaceholders } from "./tts/resolve.js";
 import { startStudio } from "../studio/server.js";
@@ -264,7 +265,11 @@ async function main() {
       // Dry runs must not download voices or spawn piper, so TTS sources are
       // shown as a placeholder in the command instead of being synthesised.
       const dryComposition = replaceTtsWithPlaceholders(composition);
-      const { args: ffmpegArgs, kinoFilePath } = compile(dryComposition, opts);
+      // `tak:` elements are rendered by Takumi before `compile()` runs, because
+      // compile() is synchronous and Takumi is not. A dry run has to do the same
+      // work or it fails on any composition using `s.tak()`.
+      const takumiRenders = await renderTakumiElements(dryComposition);
+      const { args: ffmpegArgs, kinoFilePath } = compile(dryComposition, { ...opts, takumiRenders });
       console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
       console.log(`[kino dry-run] FFmpeg command (relative paths, cwd = extraction dir):\nffmpeg ${ffmpegArgs.join(" ")}`);
       return;

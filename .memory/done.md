@@ -26,6 +26,10 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **`--dry-run` on `tak:` compositions** — the flag called `compile()` directly,
+  skipping the Takumi pre-render, so any `s.tak()` composition failed with
+  "reached compile() without a pre-rendered PNG". It now renders markup first,
+  as `render()` does. The test was checked by re-introducing the bug.
 - **Colour grading** — `lut` (`.cube`), `curves`, `balance` and a
   composition-level `grade`. The filter order is pinned in one function and
   tested, so element and composition grades cannot drift.

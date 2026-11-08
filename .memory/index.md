@@ -39,11 +39,11 @@ frame, and `s.tak()` renders HTML with no browser to install.
 
 ## Health
 
-- `pnpm test` — 362 tests passing (24 files)
+- `pnpm test` — 365 tests passing (25 files)
 - `pnpm test:dist` — 9 tests against the built bundle
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
-- all 17 `examples/*.ts` compile via `--dry-run`
+- all 18 `examples/*.ts` compile via `--dry-run`
 - docs site builds 6 pages; CI runs `test:dist` as its own step
 
 ## Open
@@ -54,12 +54,6 @@ marked done is closed.
 | # | Ticket | What remains |
 | --- | --- | --- |
 | **009** | Docs rewrite | Rewritten to task-first structure on 2026-11-08. Site polish (search, syntax highlighting) still open. |
-
-Not ticketed, known broken:
-
-- **`--dry-run` fails on `tak:` compositions.** It goes straight to `compile()`,
-  which needs pre-rendered PNGs from Takumi. The error is clear but the flag
-  should work.
 
 Deliberately out of scope: adjustment layers, nesting, speed ramps, time
 remapping. Real editor features that restructure the scene model; none unblock
