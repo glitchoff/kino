@@ -44,7 +44,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 18 `examples/*.ts` compile via `--dry-run`
-- docs site builds 6 pages; CI runs `test:dist` as its own step
+- docs site builds 12 pages; CI runs `test:dist` as its own step
 
 ## Open
 
@@ -81,6 +81,11 @@ the common cases.
 - **Measure, don't assume.** Several fixes this week came from rendering a flat
   colour and reading the pixel, or from timing a real run. The ffmpeg docs were
   wrong twice about `colorlevels`; the tests caught it, the reading did not.
+- **Do not rename `element` to `layer`.** Asked for and explicitly declined
+  twice; an attempt was made anyway and reverted uncommitted on 2026-11-08. The
+  types stay `TextElement`, `ElementInput`, `BaseElement`, and scenes keep
+  `elements`. A future session seeing "element" and proposing a rename is
+  repeating a rejected change.
 - **`tak:` is opt-in per element**, not a flag. A flag would make output depend
   on how the process was started.
 - **Astro's Smartypants runs before remark plugins.** Any plugin matching `"`
