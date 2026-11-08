@@ -32,7 +32,7 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 283 tests passing (18 files)
+- `pnpm test` — 290 tests passing (19 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
@@ -86,9 +86,8 @@ compiles, and what to check before scheduling it.
 time remapping. Real editor features, but they restructure the scene model and
 none of them unblock the common cases above.
 
-- **`takumi` element** — see `tickets/022`. A separate element type for
-  browserless HTML, alongside `html` rather than behind a flag. No detection,
-  no fallback: `html` needs a browser, `takumi` does not.
+- ~~**`tak:` markup**~~ — **Done 2026-11-08.** `s.tak()` renders through Takumi
+  with no browser; `s.html()` is unchanged.
 
 ### Everything else
 

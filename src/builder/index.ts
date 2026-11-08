@@ -33,6 +33,7 @@ import type {
   AudioTrack,
 } from "../types/audio.js";
 import type { BackgroundInput } from "../types/background.js";
+import { TAKUMI_PREFIX } from "../remote/takumi.js";
 import type {
   ElementInput,
   TextElement,
@@ -270,6 +271,11 @@ export function line(options: ShapeOptions & { width: number | string; height: n
   return shape("line", options);
 }
 
+/** HTML rendered by Takumi, with no browser. See `SceneBuilder.tak()`. */
+export function takumi(markup: string, options: HtmlOptions): HtmlElement {
+  return html(TAKUMI_PREFIX + markup, options);
+}
+
 export function html(markup: string, options: HtmlOptions): HtmlElement {
   const { width, height, css, fit, backgroundColor, deviceScaleFactor } = options;
   return {
@@ -352,6 +358,16 @@ export class SceneBuilder {
 
   html(markup: string, options: HtmlOptions): this {
     return this.add(html(markup, options));
+  }
+
+  /**
+   * HTML rendered by Takumi, with no browser.
+   *
+   * Sugar for `html("tak:" + markup, options)`. Takumi supports less CSS than
+   * Chrome and never runs scripts; use `html()` when you need either.
+   */
+  tak(markup: string, options: HtmlOptions): this {
+    return this.add(takumi(markup, options));
   }
 
   /**

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { compile } from "./compile.js";
 import { resolveTtsTracks, compositionHasTts } from "../tts/resolve.js";
+import { renderTakumiElements } from "./elements/takumi-elements.js";
 import { extractKino, readKinoManifest } from "../artifact/index.js";
 import {
   getFFmpegBinaryPath,
@@ -75,6 +76,11 @@ export async function render(
     }
     resolvedComposition = composition;
     await assertDrawtextSupport(ffmpegBin, composition);
+
+    // `tak:` markup is rendered here because compile() is synchronous and
+    // Takumi is not. Elements without the prefix still go to a browser inside
+    // compile().
+    const takumiRenders = await renderTakumiElements(composition);
     if (options.unsafeInlineText) {
       console.warn(
         "[kino] Warning: unsafeInlineText disables textfile delivery; text with apostrophes may render blank on some platforms."
@@ -84,7 +90,7 @@ export async function render(
     kinoPath = join(kinoDir, "composition.kino");
     ownsKinoFile = true;
     try {
-      compile(composition, { ...renderOptions, kinoPath });
+      compile(composition, { ...renderOptions, kinoPath, takumiRenders });
     } catch (err) {
       rmSync(kinoDir, { recursive: true, force: true });
       throw err;

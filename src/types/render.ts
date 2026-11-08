@@ -21,6 +21,14 @@ export interface RenderOptions {
   unsafeInlineText?: boolean;
   browserPath?: string;
   /**
+   * Pre-rendered PNGs for `tak:` markup, keyed by element.
+   *
+   * `compile()` is synchronous and Takumi is async, so the caller renders those
+   * elements first (`renderTakumiBatch`) and passes the result in. `render()`
+   * and `exportComposition()` do this automatically.
+   */
+  takumiRenders?: Map<unknown, string>;
+  /**
    * Which engine renders `type: "html"` elements.
    *
    * - `"chrome"` (default) launches Chrome/Chromium via Puppeteer.

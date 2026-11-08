@@ -147,6 +147,37 @@ const video = composition({ width: 1080, height: 1920 })
 Inside a scene callback: `.text()`, `.image()`, `.video()`, `.html()`, `.add()`,
 `.addAll()`.
 
+### HTML without a browser
+
+`s.html()` renders through Chrome or Obscura — a real browser, one page render
+per element. `s.tak()` renders the same markup with
+[Takumi](https://takumi.kane.tw/), a Rust layout engine: no browser, and the
+same output on every machine.
+
+```typescript
+s.html("<div class='card'>…</div>", { width: 600, height: 300 });  // browser
+s.tak("<div class='card'>…</div>", { width: 600, height: 300 });   // Takumi
+```
+
+`s.tak()` is sugar for `s.html("tak:" + markup, options)`, so the marker travels
+with the markup — `html("tak:…")` also works through `.add()`.
+
+**Use `tak` unless you need something only a browser can do.** Takumi supports
+Flexbox, Grid, block, inline, table and float layout, gradients, masks, filters,
+blend modes, `@keyframes` and Tailwind utilities, and it reads local fonts, SVG
+and PNG. It does **not** run scripts, and it supports less CSS than Chrome.
+
+| | `s.html()` | `s.tak()` |
+| --- | --- | --- |
+| Engine | Chrome or Obscura | Takumi (Rust) |
+| Needs a browser | yes | **no** |
+| Scripts | yes | no |
+| CSS coverage | complete | Flexbox/Grid/block/inline/table/float |
+| Same output everywhere | no (Chrome vs Obscura differ) | yes |
+
+Fonts are passed explicitly — kino ships Inter, so text renders without any
+setup. Takumi never reads system fonts.
+
 ### Shapes
 
 Rectangles, ellipses and lines, drawn to a PNG at compile time and overlaid like

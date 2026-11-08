@@ -4,6 +4,15 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **`tak:` markup — browserless HTML** — `s.tak(markup, opts)` is sugar for
+  `s.html("tak:" + markup, opts)`, mirroring the `yt:` convention. Markup with
+  the prefix renders through [Takumi](https://takumi.kane.tw/) (Rust, Blink-ported
+  text layout); everything else takes the existing Chrome/Obscura path. `tak` and
+  `html` coexist in the same scene. Verified by render: a panel plus its
+  Inter-set text drew 1,562 text-coloured pixels with no browser. `compile()` is
+  synchronous and Takumi is not, so `render()`/`exportComposition()` pre-render
+  the elements and pass a map keyed by index in `norm.elements` — identity cannot
+  be used because compile normalizes independently.
 - **Shapes** — `rect`, `ellipse`, `line` (and `shape(kind, opts)`), rasterised to
   a PNG at compile time and overlaid by the existing image path. No browser.
   Rounded corners, strokes and arbitrary-angle lines are drawn with `geq`,

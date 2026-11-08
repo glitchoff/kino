@@ -14,6 +14,7 @@ import { escapeFFmpegStr } from "./position.js";
 import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
 import type { ChromaKey } from "./elements/media.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
+import { isTakumiMarkup } from "../remote/takumi.js";
 import { rasterRect, rasterEllipse, rasterLine } from "./elements/shapes.js";
 import { buildTransitionPipeline } from "./transitions.js";
 import { buildAudioMix } from "./audio.js";
@@ -135,7 +136,12 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const filterComplex: string[] = [];
   let inputIndex = 0;
 
-  const htmlElements = norm.elements.filter((elem): elem is NormalizedHtmlElement => elem.type === "html");
+  const allHtmlElements = norm.elements.filter(
+    (elem): elem is NormalizedHtmlElement => elem.type === "html"
+  );
+  // `tak:` markup goes to Takumi and never touches a browser; everything else
+  // takes the existing Chrome/Obscura path unchanged.
+  const htmlElements = allHtmlElements.filter((elem) => !isTakumiMarkup(elem.html));
   const htmlPaths = renderHtmlBatchSync(
     htmlElements as any,
     stagingDir,
@@ -144,6 +150,15 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     options?.browserUrl
   );
   const htmlPathMap = new Map(htmlElements.map((elem, index) => [elem, htmlPaths[index]]));
+  // Takumi is async; compile() is sync, so this is resolved by the caller before
+  // compile runs. See `renderTakumiBatch`.
+  // Keyed by index in `norm.elements`, not by element identity: the caller
+  // normalized separately and built its own objects.
+  const takumiPathMap = (options?.takumiRenders ?? new Map<number, string>()) as Map<number, string>;
+  const takumiIndexByElement = new Map<NormalizedHtmlElement, number>();
+  norm.elements.forEach((el, index) => {
+    if (el.type === "html" && isTakumiMarkup(el.html)) takumiIndexByElement.set(el, index);
+  });
 
   // Shapes are static, so each is drawn once to a PNG and then overlaid by the
   // image path. No browser, no second rendering model.
@@ -224,7 +239,19 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
         if (isImage || isVideo) {
           const media =
             elem.type === "html"
-              ? ({ ...elem, type: "image", src: htmlPathMap.get(elem as NormalizedHtmlElement)! } as NormalizedImageElement)
+              ? ({
+                  ...elem,
+                  type: "image",
+                  src:
+                    htmlPathMap.get(elem as NormalizedHtmlElement) ??
+                    takumiPathMap.get(takumiIndexByElement.get(elem as NormalizedHtmlElement)!) ??
+                    (() => {
+                      throw new Error(
+                        "`tak:` markup reached compile() without a pre-rendered PNG. " +
+                          "Render through render() or exportComposition(), which run Takumi first."
+                      );
+                    })(),
+                } as NormalizedImageElement)
               : elem.type === "shape"
                 ? ({ ...elem, type: "image", src: shapePathMap.get(elem)! } as NormalizedImageElement)
                 : (elem as NormalizedImageElement | NormalizedVideoElement);

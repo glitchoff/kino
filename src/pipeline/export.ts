@@ -7,6 +7,7 @@ import { extractKino, readKinoManifest } from "../artifact/kino.js";
 import { getFFmpegBinaryPath } from "../encoder/probe.js";
 import type { KinoComposition } from "../types/index.js";
 import { normalizeComposition } from "../normalize/composition.js";
+import { renderTakumiElements } from "./elements/takumi-elements.js";
 import type { FrameRequest, FrameResult, ExportOptions, ExportResult } from "../types/export.js";
 
 /** Runs ffmpeg and rejects with its stderr on a non-zero exit. */
@@ -69,7 +70,11 @@ export async function exportComposition(
   // Compile once for everything. The full-quality build is reused for frames
   // and for the video; only the preview needs its own compile, because its
   // downscale is baked into the filtergraph.
+  // `tak:` markup must be rendered before compile(), which is synchronous.
+  const takumiRenders = await renderTakumiElements(compositionOrKinoPath as KinoComposition);
+
   const sharedKino = compile(compositionOrKinoPath as KinoComposition, {
+    takumiRenders,
     ...options,
     preview: false,
   }).kinoFilePath;
@@ -93,6 +98,7 @@ export async function exportComposition(
     if (wantsPreview) {
       // Its own compile: the preview scale lives in the graph.
       const previewKino = compile(compositionOrKinoPath as KinoComposition, {
+        takumiRenders,
         ...options,
         preview: options.preview,
       }).kinoFilePath;

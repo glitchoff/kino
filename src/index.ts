@@ -40,6 +40,7 @@ export {
   image,
   video,
   html,
+  takumi,
   shape,
   rect,
   ellipse,
