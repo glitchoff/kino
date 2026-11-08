@@ -36,12 +36,13 @@ on:
         default: ""
         type: string
       lyrics_style:
-        description: For examples/lyrics.ts — block (fast) or karaoke (word highlight, slower)
+        description: For examples/lyrics.ts — block (fast), frames (word highlight, scales), or karaoke (drawtext, stalls)
         required: false
         default: block
         type: choice
         options:
           - block
+          - frames
           - karaoke
       delivery:
         description: How to deliver the video
