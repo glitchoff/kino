@@ -26,21 +26,23 @@ Newest first. One line per item; link the ticket for detail.
   24s windows with 4s overlap and stitch. Each window must also be given only
   ~3.2 words/second of transcript, or the model reports "no valid alignment
   path exists". A 2:43 track aligns in ~8 windows.
-- **Karaoke highlight is slow on long videos** — the highlight drew the whole
-  line again per word and cropped afterwards, so each word cost a
-  full-resolution drawtext. A minute of captions (171 words) was ~550 full-frame
-  passes and ffmpeg sat at `frame=0` indefinitely. Fixed by cropping to the word
-  box *before* drawing: a word box is a few hundred pixels, so per-word cost
-  drops ~50x. Inside a crop `w`/`h` are the crop's size, so the frame dimensions
-  are substituted back in and the crop offset subtracted. Verified by frame
-  inspection (the spoken word lights up in the right place).
-  Still true: `karaoke` over a whole minute is slow, and `block` remains much
-  faster — a 60s `block` render of Co2 was delivered and looked right.
+- **Karaoke highlight renders at ~2.6x realtime** — the highlight used to draw
+  the whole line again per word and crop afterwards, so each word cost a
+  full-resolution drawtext; a minute of captions was ~550 full-frame passes and
+  ffmpeg sat at `frame=0` indefinitely. Now each word is cropped to its box
+  *first* and the highlight is drawn into that small region, which drops
+  per-word cost ~50x. Measured: 10s of captions with 23 words renders in 3.8s.
+  Verified by frame inspection (the spoken word lights up in the right place).
+  Still true: cost scales with line count, so a 72-line song takes several
+  minutes. `block` remains much faster when the highlight is not needed.
 - **Long filtergraphs are passed as a script file** — past 100 KB the graph is
   written into the `.kino` staging dir and handed to ffmpeg with
   `-filter_complex_script`, so graph size no longer hits `E2BIG` at spawn. The
   script travels inside the artifact and is referenced by basename, matching the
   extraction dir ffmpeg runs in.
+- **Scratch files live in `.work/`, not `/tmp`** — a machine restart wiped
+  `/tmp` mid-task and lost a full alignment pass plus both source tracks.
+  `.work/` is gitignored and survives restarts.
 - **Word-level captions** — `captions()` (even timing, no deps) and
   `captionsAsync()` (forced alignment when `mms-forced-align` is present, even
   timing otherwise). Styles: `karaoke` (default), `word`, `block`. Timing
