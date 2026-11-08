@@ -4,6 +4,17 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Live preview** — `Preview.open(comp)` compiles once, renders a small
+  all-keyframe proxy, then serves `frame(t)` on demand at ~30 ms each, with a
+  `data:` URL ready for an `<img>` or a vision model. `previewFrames()` is the
+  one-shot form. The ticket asked for a spike first and it changed the design:
+  the 60–200 ms per-still cost was almost all process spawn, so the fix is a
+  **proxy file**, not a persistent process — a long-lived ffmpeg only reaches
+  ~10 ms and is not worth the lifetime complexity.
+- **`-vf` cannot be added to a compiled graph** — the args already use
+  `-filter_complex`, and ffmpeg refuses simple and complex filtering on one
+  stream. The proxy scale uses the existing `preview` compile option, which bakes
+  it into the graph.
 - **Per-element colour grading** — `grade` on any element: `brightness`,
   `contrast`, `saturation`, `hue`, `gamma`, `lift` and `gain`, the last two
   per-channel. Named `grade` because `color` already means font colour on text.

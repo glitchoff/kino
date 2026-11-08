@@ -78,9 +78,8 @@ compiles, and what to check before scheduling it.
 
 **Bigger, not yet scheduled:**
 
-- **`tickets/021` — live preview.** Needs a spike first: the 75 ms still cost
-  includes compile and process start, and it is not established that a live
-  ffmpeg seek is meaningfully cheaper.
+- ~~**`tickets/021` — live preview.**~~ **Done 2026-11-08.** `Preview.open()` at
+  ~30 ms per frame via a proxy.
 
 **Explicitly out of scope for now:** adjustment layers, nesting, speed ramps and
 time remapping. Real editor features, but they restructure the scene model and

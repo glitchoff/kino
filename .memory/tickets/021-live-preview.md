@@ -1,6 +1,6 @@
 # 021 — Live preview: scrub without rendering
 
-**Status:** open
+**Status:** done (2026-11-08) — `Preview.open()` / `previewFrames()`. The spike answered the ticket's open question: spawn-per-frame cost was almost entirely process start, so a **proxy file** is the win, not a persistent process. A 640×360 proxy makes each seek ~30 ms against ~200 ms for a full-size frame — 5× cheaper from the second frame on. A persistent ffmpeg would only reach ~10 ms and was not worth the lifetime complexity.
 **Created:** 2026-11-08
 
 ## Problem

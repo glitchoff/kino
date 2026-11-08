@@ -215,6 +215,47 @@ seeked by scene.
 
 ---
 
+## Live preview
+
+### `Preview.open(composition, options?)`
+
+Compiles once and renders a small proxy, so frames can be pulled one at a time
+without paying for a compile or a full-size decode each time. This is the
+scrubbing API.
+
+```typescript
+import { Preview } from "@glitchoff/kino";
+
+const preview = await Preview.open(comp, { height: 360 });
+
+const frame = await preview.frame(3.2);
+frame.url;   // data:image/png;base64,… — drop straight into an <img>
+frame.data;  // the same bytes as a Buffer
+frame.ms;    // how long that frame took
+
+await preview.frames([1, 2, 3]);  // several, reusing the session
+preview.close();
+```
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `height` | `number` | Proxy height in pixels. Default 360 |
+| `format` | `"png" \| "jpg"` | Default `png` |
+| `ffmpegPath` | `string` | Override the binary |
+
+**Cost.** Measured on a 10-second 640×360 composition: opening a session is
+~570 ms (compile plus proxy render), then each frame is ~30 ms. `exportComposition({ frames })`
+costs ~200 ms per frame for the same composition, so a session is roughly 5×
+cheaper from the second frame onward.
+
+The proxy is deliberately small and lossy — a preview is for judging layout and
+timing, not colour. Render with `render()` when it looks right.
+
+`previewFrames(comp, timestamps, options)` is the one-shot form: open, sample,
+close.
+
+---
+
 ## Inspecting a composition
 
 ### `inspect(composition, options?)`

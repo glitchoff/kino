@@ -1,5 +1,7 @@
 export { render, compile, exportComposition } from "./pipeline/index.js";
 export { getFFmpegBinaryPath } from "./encoder/probe.js";
+export { Preview, previewFrames } from "./pipeline/preview.js";
+export type { PreviewOptions, PreviewFrame } from "./pipeline/preview.js";
 export { inspect } from "./inspect/index.js";
 export type {
   InspectReport,
