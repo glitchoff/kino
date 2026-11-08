@@ -134,6 +134,43 @@ export default defineComposition({
 Accepts a builder or a plain object and always returns a `KinoComposition`
 (calling `.build()` when needed).
 
+### `exportComposition(composition, options)`
+
+Exports a composition in whichever forms you ask for. Each output is
+independent, so asking for stills never encodes a video.
+
+```typescript
+import { composition, exportComposition } from "@glitchoff/kino";
+
+const { frames, video, preview } = await exportComposition(comp, {
+  frames: [0, 1.5, { at: 3, name: "title" }],  // stills, by seek
+  video: "out.mp4",                             // full quality
+  preview: 144,                                 // 144p, `previewOutput` names it
+});
+```
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `video` | `string` | Output path for the full-quality render |
+| `preview` | `boolean \| number` | Fast downscaled render, by height |
+| `previewOutput` | `string` | Preview path. Default `preview.mp4` |
+| `frames` | `(number \| { at, name?, format? })[]` | Stills to write |
+| `frameDir` | `string` | Where stills go. Default the working directory |
+
+Returns `{ video?, preview?, frames? }` — only what you asked for.
+
+Each still comes back as `{ at, path, data }`. `data` is a
+`data:image/png;base64,…` URL, ready to pass to a vision model or an upload
+without reading the file again.
+
+**Stills are cheap.** A frame costs a seek, not a render: on a 20-second
+640×360 composition, one frame took ~75–190 ms against ~1.1 s for the video.
+The cost is compiling, not seeking, so ask for several timestamps in one call
+rather than calling repeatedly.
+
+`frames` needs a composition, not a `.kino` path — a compiled artifact cannot be
+seeked by scene.
+
 ---
 
 ## Captions

@@ -11,10 +11,18 @@ function resolveVendoredFFmpeg(): string | undefined {
   if (process.platform !== "linux" || (process.arch !== "x64" && process.arch !== "arm64")) {
     return undefined;
   }
-  const currentDir =
+  // Walk up to the package root rather than assuming a depth: unbundled this
+  // module sits at `src/encoder/`, in the tsup bundle at `dist/`. Assuming
+  // either one silently misses vendor/ in the other and falls back to
+  // ffmpeg-static, which has no drawtext.
+  let dir =
     typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
-  const path = join(currentDir, "..", "..", "vendor", "linux", process.arch, "ffmpeg");
-  return existsSync(path) ? path : undefined;
+  for (let i = 0; i < 5; i++) {
+    const path = join(dir, "vendor", "linux", process.arch, "ffmpeg");
+    if (existsSync(path)) return path;
+    dir = dirname(dir);
+  }
+  return undefined;
 }
 
 export function getFFmpegBinaryPath(customPath?: string): string {
