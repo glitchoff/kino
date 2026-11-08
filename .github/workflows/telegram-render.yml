@@ -30,6 +30,19 @@ on:
         required: false
         default: ""
         type: string
+      seconds:
+        description: Render only the first N seconds (blank = whole video)
+        required: false
+        default: ""
+        type: string
+      lyrics_style:
+        description: For examples/lyrics.ts — block (fast) or karaoke (word highlight, slower)
+        required: false
+        default: block
+        type: choice
+        options:
+          - block
+          - karaoke
       delivery:
         description: How to deliver the video
         required: true
@@ -113,6 +126,9 @@ jobs:
         run: pnpm exec tsup
 
       - name: Render composition
+        env:
+          KINO_LYRICS_SECONDS: ${{ inputs.seconds }}
+          KINO_LYRICS_STYLE: ${{ inputs.lyrics_style }}
         run: |
           mkdir -p out
           node dist/cli.js "${{ inputs.example }}" -o out/render.mp4 --ffmpeg-path "$FFMPEG_PATH"

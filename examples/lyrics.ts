@@ -22,17 +22,27 @@ const audio = join(here, "assets/co2.mp3");
 const timingsPath = join(here, "assets/co2-words.json");
 
 const words = JSON.parse(readFileSync(timingsPath, "utf8")) as WordTiming[];
-const duration = 163.73;
+
+// Both are configurable so a CI run can render a short clip with word
+// highlighting, which is far heavier than whole-line captions.
+//   KINO_LYRICS_SECONDS=30   render only the first 30s
+//   KINO_LYRICS_STYLE=karaoke  highlight each word as it is sung
+const fullDuration = 163.73;
+const limit = Number(process.env.KINO_LYRICS_SECONDS ?? fullDuration) || fullDuration;
+const duration = Math.min(limit, fullDuration);
+const style = (process.env.KINO_LYRICS_STYLE ?? "block") as "block" | "karaoke";
+
+const inRange = words.filter((w) => w.start < duration);
 
 // Group into display lines: break on sentence punctuation, on a musical gap, or
 // at five words. Short lines stay readable at this size.
 const lines: WordTiming[][] = [];
 let current: WordTiming[] = [];
-for (let i = 0; i < words.length; i++) {
-  current.push(words[i]);
-  const next = words[i + 1];
-  const gap = next ? next.start - words[i].end : Infinity;
-  if (/[.?!,]$/.test(words[i].word) || current.length >= 5 || gap > 0.8) {
+for (let i = 0; i < inRange.length; i++) {
+  current.push(inRange[i]);
+  const next = inRange[i + 1];
+  const gap = next ? next.start - inRange[i].end : Infinity;
+  if (/[.?!,]$/.test(inRange[i].word) || current.length >= 5 || gap > 0.8) {
     lines.push(current);
     current = [];
   }
@@ -65,18 +75,21 @@ const ENTRIES: ElementAnimation[] = [
 ];
 
 const captions = lines.flatMap((line, index) => {
+  // Karaoke returns one element per line carrying per-word timings; block
+  // returns the same element without them. Animation is applied to whichever
+  // comes back, so both styles move the same way.
   const [built] = captionElements(line, {
-    style: "block",
+    style,
     wordsPerLine: line.length,
     fontSize: 66,
     y: "center+90",
     color: "#ffffff",
   });
+  // `captionElements` already sets startAt/duration from the words; overriding
+  // them would desync the per-word timings karaoke relies on.
   return [
     {
       ...built,
-      startAt: line[0].start,
-      duration: Math.max(0.2, line[line.length - 1].end - line[0].start),
       animation: ENTRIES[index % ENTRIES.length],
     },
   ];
