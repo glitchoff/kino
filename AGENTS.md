@@ -1,2 +1,3 @@
 - kino is see readme.md for more information
 - well our wokring is test based, and on finishing some updates, we update our  docs to keep aligned.
+- rendered frames: do not read screenshots to check renders. Every image stays in the conversation, and the provider rejects requests past 32, which kills the session. Verify output by inspecting pixels instead, e.g. `ffmpeg -f rawvideo -pix_fmt rgba -` piped into a small node script that counts opaque/coloured pixels or prints the bounding box. Read an image only when a pixel check cannot answer the question, and never more than a few per session.
