@@ -210,6 +210,15 @@ const href = (path = "") => `${base}${path}`;
     color: var(--muted);
   }
 
+  /* Inline previews in the transitions and animation tables. */
+  main table video {
+    display: block;
+    border-radius: 0.3rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    max-width: 100%;
+  }
+
   @media (max-width: 50rem) {
     .shell {
       grid-template-columns: 1fr;

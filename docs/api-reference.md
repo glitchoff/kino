@@ -108,13 +108,13 @@ s.video("./greenscreen.mp4", {
 
 ### Animation helpers
 
-| Helper | Returns |
-| --- | --- |
-| `animate({ from, to, duration, delay?, easing? })` | `AnimationValue` |
-| `fadeIn(duration = 0.5, easing = "easeOut")` | opacity 0 → 1 |
-| `fadeOut(duration = 0.5, easing = "easeIn")` | opacity 1 → 0 |
-| `slideIn(axis, distance, duration = 0.5, easing = "easeOut")` | position offset → 0 |
-| `popIn(duration = 0.4, easing = "easeOut")` | scale 0.8 → 1 |
+| Helper | Returns | Preview |
+| --- | --- | --- |
+| `animate({ from, to, duration, delay?, easing? })` | `AnimationValue` | — |
+| `fadeIn(duration = 0.5, easing = "easeOut")` | opacity 0 → 1 | <video src="/kino/previews/animation-fadeIn.mp4" muted loop autoplay playsinline width="160"></video> |
+| `fadeOut(duration = 0.5, easing = "easeIn")` | opacity 1 → 0 | <video src="/kino/previews/animation-fadeOut.mp4" muted loop autoplay playsinline width="160"></video> |
+| `slideIn(axis, distance, duration = 0.5, easing = "easeOut")` | position offset → 0 | <video src="/kino/previews/animation-slideIn.mp4" muted loop autoplay playsinline width="160"></video> |
+| `popIn(duration = 0.4, easing = "easeOut")` | scale 0.8 → 1 | <video src="/kino/previews/animation-popIn.mp4" muted loop autoplay playsinline width="160"></video> |
 
 ### `defineComposition(composition)`
 

@@ -588,19 +588,19 @@ Scenes play sequentially and can transition into each other with 11 built-in tra
 
 ### Supported Transition Types
 
-| Type | Description |
-| :--- | :--- |
-| `fade` | Cross-fade between scenes. |
-| `slideLeft` | New scene slides in from the left. |
-| `slideRight` | New scene slides in from the right. |
-| `slideUp` | New scene slides in from the bottom. |
-| `slideDown` | New scene slides in from the top. |
-| `wipeLeft` | New scene wipes from left to right. |
-| `wipeRight` | New scene wipes from right to left. |
-| `wipeUp` | New scene wipes from bottom to top. |
-| `wipeDown` | New scene wipes from top to bottom. |
-| `zoomIn` | New scene zooms in from center. |
-| `zoomOut` | New scene zooms out to center. |
+| Type | Description | Preview |
+| :--- | :--- | :--- |
+| `fade` | Cross-fade between scenes. | <video src="/kino/previews/transition-fade.mp4" muted loop autoplay playsinline width="160"></video> |
+| `slideLeft` | New scene slides in from the left. | <video src="/kino/previews/transition-slideLeft.mp4" muted loop autoplay playsinline width="160"></video> |
+| `slideRight` | New scene slides in from the right. | <video src="/kino/previews/transition-slideRight.mp4" muted loop autoplay playsinline width="160"></video> |
+| `slideUp` | New scene slides in from the bottom. | <video src="/kino/previews/transition-slideUp.mp4" muted loop autoplay playsinline width="160"></video> |
+| `slideDown` | New scene slides in from the top. | <video src="/kino/previews/transition-slideDown.mp4" muted loop autoplay playsinline width="160"></video> |
+| `wipeLeft` | New scene wipes from left to right. | <video src="/kino/previews/transition-wipeLeft.mp4" muted loop autoplay playsinline width="160"></video> |
+| `wipeRight` | New scene wipes from right to left. | <video src="/kino/previews/transition-wipeRight.mp4" muted loop autoplay playsinline width="160"></video> |
+| `wipeUp` | New scene wipes from bottom to top. | <video src="/kino/previews/transition-wipeUp.mp4" muted loop autoplay playsinline width="160"></video> |
+| `wipeDown` | New scene wipes from top to bottom. | <video src="/kino/previews/transition-wipeDown.mp4" muted loop autoplay playsinline width="160"></video> |
+| `zoomIn` | New scene zooms in from center. | <video src="/kino/previews/transition-zoomIn.mp4" muted loop autoplay playsinline width="160"></video> |
+| `zoomOut` | New scene zooms out to center. | <video src="/kino/previews/transition-zoomOut.mp4" muted loop autoplay playsinline width="160"></video> |
 
 The transition `duration` must not exceed the duration of either adjacent scene. Total composition duration equals `sum(scene.duration) - sum(transition.duration)`.
 
