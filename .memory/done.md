@@ -2,6 +2,29 @@
 
 Newest first. One line per item; link the ticket for detail.
 
+## 2026-11-08
+
+- **Word highlight as pre-rasterised images** — `captionImages()` renders each
+  word state to a PNG once and returns one `ImageElement` per word timed to its
+  span, so the composition only swaps images instead of rebuilding a drawtext
+  chain per word. A 163s song with word-level highlight renders in ~2 minutes;
+  the `karaoke` style never finished at 12 lines. Widths come from the
+  rasterised ink extent, not the character estimator, so gaps stay even
+  ("Maybe" 411px at fontsize 132 vs the old ~194 estimate at 64 — roughly 2x,
+  as expected). All timings must be passed at once: `buildCaptionLines` trims
+  each line's hold against the *following* line, and calling it per line stacked
+  captions on screen. `examples/lyrics.ts` gains a `frames` style rasterising at
+  2x and displaying at 1x (`displayWidth`/`displayHeight`); no entrance
+  animation on word frames or the line flickers on every swap. 36 caption tests,
+  192 total. `karaoke` kept for compatibility.
+- **`telegram-render.yml` offers `frames`** — the manual workflow's `lyrics_style`
+  choice list only had `block` and `karaoke`, so a dispatch asking for word
+  highlight failed validation with a 422 before it could run.
+- **Token scope notes** — a `ghu_` App token can push but cannot dispatch
+  workflows ("Resource not accessible by integration"); a classic `ghp_` token
+  with the `workflow` scope can. The Telegram group was upgraded to a
+  supergroup, so the chat ID is now `-1004377515630`, not the old `-5371873302`.
+
 ## 2026-11-07
 
 - **Word-by-word `reveal` caption style** — each word is its own element,

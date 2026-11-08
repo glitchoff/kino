@@ -78,6 +78,52 @@ crop and an overlay, so a minute of captions is hundreds of full-resolution
 passes. If a render sits at `frame=0` for tens of seconds, that is why. `block`
 style renders the same minute in seconds.
 
+## Image-based highlight: `captionImages()`
+
+For a full song, use `captionImages()` instead of `karaoke`. It rasterises each
+word state to a PNG once and returns one `ImageElement` per word, timed to that
+word's span. The composition only swaps images on a timeline, so per-frame cost
+does not grow with the word count: a 163 s song with word-level highlight
+renders in about two minutes, where `karaoke` never finished at 12 lines.
+
+```ts
+import { captionImages } from "@glitchoff/kino";
+
+const frames = await captionImages(timings, {
+  width: 2560, height: 280,        // render size (2x)
+  displayWidth: 1280, displayHeight: 140,  // on-screen size
+  dir: "/tmp/karaoke-frames",
+  fontSize: 132,
+  wordsPerLine: 5,
+  color: "#ffffff",
+  highlight: "#f5b544",
+  x: 0,
+  y: 290,
+});
+```
+
+Points that are easy to get wrong:
+
+- **Pass every timing at once.** `buildCaptionLines` trims each line's hold so it
+  cannot run into the next line, and it can only do that if it sees the
+  following line. Calling `captionImages()` per line leaves holds untrimmed and
+  stacks two lines on screen.
+- **`width`/`height` are the PNG size, not the screen size.** Set
+  `displayWidth`/`displayHeight` to the size the strip should occupy. Rasterise
+  at 2x for crisp text; 1x looks soft next to drawtext once the encoder scales it.
+- **Do not animate the word frames.** Each frame replaces the last, so a fade or
+  slide restarts on every word and the line flickers.
+- **Word widths come from the rasterised ink extent**, not
+  `estimateTextWidth`. The estimator under-measures by a few pixels per word,
+  which is enough to close the gaps between words.
+
+### Verifying a render without burning images
+
+Every image read stays in the conversation, and the provider rejects a request
+past 32, which kills the session. Check renders by pixel inspection instead:
+extract a frame and count opaque or coloured pixels, or print the ink bounding
+box. Reading a frame is a last resort, not a first check.
+
 ## Testing
 
 `test/captions.test.ts` covers timing, grouping and every style. Rendering

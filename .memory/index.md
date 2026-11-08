@@ -1,6 +1,6 @@
 # Current state
 
-Last updated: 2026-11-07
+Last updated: 2026-11-08
 
 ## What kino is
 
@@ -29,7 +29,7 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 175 tests passing (11 files)
+- `pnpm test` — 192 tests passing (11 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
@@ -37,12 +37,21 @@ the legacy/interop format.
 
 ## Uncommitted
 
-- `trimEnd` + `mm:ss` parsing is **in progress**: types, builder, normalizer and
-  validator are edited, but there are no tests or docs yet. See `tickets/006`
-  ("Related work this unlocks"). `package-lock.json` is untracked — this repo
-  uses pnpm, so it should probably not be committed.
+- Nothing. `trimEnd` + `mm:ss` landed on 2026-11-07 (see `done.md`).
+  `package-lock.json` is untracked — this repo uses pnpm, so it should probably
+  not be committed.
 
 ## Known issues
+
+- **Word-level highlight is documented in memory only.** `captionImages()` ships
+  in `src/captions/`, but `docs/` (the published site) still describes only the
+  drawtext `karaoke` path. The `guide/word-captions.md` entry is the reference
+  until the docs page catches up.
+- **CI workflow dispatch needs a `workflow`-scoped token.** A `ghu_` App token
+  can push but returns 403 "Resource not accessible by integration" on
+  `/actions/workflows/*/dispatches`. Use a classic `ghp_` token with `workflow`.
+- **Telegram chat is a supergroup.** The ID is `-1004377515630`; the older
+  `-5371873302` now returns "group chat was upgraded to a supergroup".
 
 - `publish.yml` only verifies the bundled FFmpeg on `v*` tags, so a broken
   upstream asset is not caught until release day.
