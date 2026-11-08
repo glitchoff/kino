@@ -212,6 +212,33 @@ const FEATURE_PREVIEWS = [
         .scene({ duration: 2, background: BG_A }, (s) => label(s, "Preview.open()", { fontSize: 30 }))
         .build(),
   },
+  {
+    // Built with `scene()` and `merge()` rather than the chained builder, so
+    // the clip is the thing the docs page claims: one scene value, merged
+    // twice.
+    name: "feature-scene-values",
+    build: (k) => {
+      const card = (heading, sub, bg) =>
+        k.scene({ for: 1.5, bg }, [
+          k.text(heading, { fontSize: 30, color: "#e2e8f0", x: "center", y: "center-24" }),
+          k.text(sub, { fontSize: 16, color: "#94a3b8", x: "center", y: "center+28" }),
+        ]);
+
+      const chorus = card("chorus", "merged twice", BG_B);
+
+      return {
+        width: WIDTH,
+        height: HEIGHT,
+        fps: FPS,
+        ...k.merge(
+          card("intro", "scene({ for, bg }, [...])", BG_A),
+          chorus,
+          chorus,
+          card("outro", "merge(intro, chorus, chorus)", BG_A)
+        ),
+      };
+    },
+  },
 ];
 
 async function main() {

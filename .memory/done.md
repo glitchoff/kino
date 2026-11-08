@@ -26,6 +26,14 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **Scenes as values.** `scene()` and `merge()` (2026-11-08). The chained
+  builder could not reuse a scene: `.scene()` appends and returns the
+  composition, so a chorus used three times had to be written three times or
+  wrapped in a `SceneBuilder` and `.build()`ed. `scene()` returns a plain
+  `KinoScene`, so a scene is a variable, and `merge()` flattens scenes,
+  compositions, builders and arrays. Verified two ways: the merged form
+  compiles to the identical filtergraph as the chained one, and the preview
+  clip shows the chorus background at 2.2s and 3.7s.
 - **Docs site responsive + unslop redesign.** `getting-started.md` (787 lines)
   split into five topic pages — compositions, content, look, sound, checking,
   rendering — with `docs-site/src/nav.ts` owning sidebar order and prev/next so

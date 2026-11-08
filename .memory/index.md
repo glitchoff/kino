@@ -24,7 +24,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 | `src/encoder/` | FFmpeg binary resolution, drawtext probe, hardware encoders, `--crf` flags |
 | `src/artifact/` | `.kino` zip read/write |
 | `src/remote/` | remote asset downloader; `ytdlp.ts` and `takumi.ts` prefix helpers |
-| `src/builder/` | code-first builder (`composition()`, element factories, animation helpers) |
+| `src/builder/` | code-first builder (`composition()`, element factories, animation helpers) and the scene-as-value API (`scene()`, `merge()`) |
 | `src/animation/` | easing curves and keyframe → ffmpeg expression compilation |
 | `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement |
 | `src/captions/` | Word timings, karaoke/subtitle generation, `resolveCaptions()` seam |
@@ -39,12 +39,12 @@ frame, and `s.tak()` renders HTML with no browser to install.
 
 ## Health
 
-- `pnpm test` — 365 tests passing (25 files)
+- `pnpm test` — 380 tests passing (26 files)
 - `pnpm test:dist` — 9 tests against the built bundle
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 18 `examples/*.ts` compile via `--dry-run`
-- docs site builds 12 pages; CI runs `test:dist` as its own step
+- docs site builds 12 pages, 26 preview clips; CI runs `test:dist` as its own step
 
 ## Open
 
@@ -81,6 +81,15 @@ the common cases.
 - **Measure, don't assume.** Several fixes this week came from rendering a flat
   colour and reading the pixel, or from timing a real run. The ffmpeg docs were
   wrong twice about `colorlevels`; the tests caught it, the reading did not.
+- **Scenes are values.** `scene({ for, bg }, elements)` returns the same
+  `KinoScene` the builder makes, and `merge(...)` joins scenes, compositions,
+  builders and nested arrays into one `KinoComposition`. The builder cannot
+  express a reusable scene — `.scene()` returns the composition, so the scene
+  never has a name — which is why `merge(chorus, chorus)` exists. Both are thin
+  functions over the existing types; a merged composition compiles to the same
+  filtergraph as the chained form, asserted in `test/scene-value.test.ts`.
+- **`scene()` has no `say()`.** Narration is scene-shaped (it sizes the scene),
+  so a scene value cannot currently hold speech. Unresolved, not an oversight.
 - **Do not rename `element` to `layer`.** Asked for and explicitly declined
   twice; an attempt was made anyway and reverted uncommitted on 2026-11-08. The
   types stay `TextElement`, `ElementInput`, `BaseElement`, and scenes keep
