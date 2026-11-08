@@ -48,6 +48,14 @@ the legacy/interop format.
   markdown (no search, no highlighting). Deliberately held until the caption
   seam and HTML fallback settle, so it is not rewritten twice.
 
+## Open
+
+- **Test the bundled build** — see `tickets/010`. Two bugs shipped today that
+  the suite could not catch by construction: it imports from `src/`, so
+  `__dirname` is always the source layout and the `dist/` layout is never
+  exercised. The ffmpeg one failed silently by falling back to a binary without
+  drawtext.
+
 ## Known issues
 
 - **CI workflow dispatch needs a `workflow`-scoped token.** A `ghu_` App token
