@@ -21,6 +21,8 @@ export interface NormalizedElementAnimation {
 export interface NormalizedAudioTrack {
   /** Always a real file path or URL: `tts()` specs are resolved before compile. */
   src: string;
+  /** Names this track so another can duck under it. */
+  id?: string;
   startTime: number;
   offset?: number;
   duration?: number;
@@ -28,6 +30,19 @@ export interface NormalizedAudioTrack {
   loop?: boolean;
   fadeIn?: number;
   fadeOut?: number;
+  /** Resolved ducking config; `undefined` when the track is not ducked. */
+  duck?: {
+    by: string[];
+    amount: number;
+    attack: number;
+    release: number;
+    threshold: number;
+  };
+  /**
+   * True when this track is speech — a `tts()` track or `s.say()`. Set during
+   * normalization so `duck: true` knows what to listen to.
+   */
+  speech?: boolean;
 }
 
 export interface NormalizedBaseElement {

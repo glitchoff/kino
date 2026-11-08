@@ -31,7 +31,7 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 223 tests passing (15 files)
+- `pnpm test` — 239 tests passing (16 files)
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
@@ -60,10 +60,7 @@ compiles, and what to check before scheduling it.
 
 **Next, in this order:**
 
-1. **`tickets/015` — audio ducking.** Smallest change with the largest effect on
-   real videos: narration over music is the most common composition there is,
-   and today it needs hand-keyed volume automation. Contained to
-   `src/pipeline/audio.ts`.
+1. ~~**`tickets/015` — audio ducking.**~~ **Done 2026-11-08.**
 2. **`tickets/016` — keyframed animation with curves.** `animate()` interpolates
    one segment between two values. `steps` already exists for captions but is a
    step function, not a curve. Widening the existing expression mechanism, not a

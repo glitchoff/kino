@@ -1,6 +1,6 @@
 # 015 — Audio ducking
 
-**Status:** open
+**Status:** done (2026-11-08) — `duck` on `AudioTrack`, resolved in `resolveDucking()` and rendered by `buildAudioMix()`. `duck: true` listens to speech tracks; `duck: { by, amount, attack, release, threshold }` is explicit.
 **Created:** 2026-11-08
 
 ## Problem

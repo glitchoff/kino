@@ -4,6 +4,17 @@ Newest first. One line per item; link the ticket for detail.
 
 ## 2026-11-08
 
+- **Audio ducking** — `duck` on an audio track lowers it under speech, via
+  `sidechaincompress`. `duck: true` listens to every `tts()`/`s.say()` track;
+  `duck: { by, amount, attack, release, threshold }` names them. Two things
+  about the filter cost time to find: it ends when the **sidechain** ends (a
+  1.5s voice truncated a 4s bed until the key was `apad`ed), and it attenuates
+  by a level ratio rather than to a target, so depth is driven by sidechain
+  gain. That curve was measured (gain 0.3 → 73%, 1.0 → 25%, 8.0 → 3.5%) and
+  fitted to a power law, `duckGain()`. Also: a pad can only be consumed once, so
+  a sidechain track is `asplit` — without it ffmpeg fails with "Invalid
+  argument". Ducking resolves *last* in normalization, because narration and sfx
+  tracks are appended after `normalizeAudio()`.
 - **`inspect()` and `measureText()`** — `inspect(comp)` describes a composition
   without rendering: scene timing, element boxes in frame pixels, and issues
   (`text-wider-than-frame`, `element-outlives-scene`, `missing-source`,

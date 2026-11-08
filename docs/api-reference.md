@@ -57,6 +57,48 @@ Returns a `CompositionBuilder`.
 `KinoTransitionType` string, which expands to `{ type, duration: 0.5 }`, or a full
 `KinoTransition` object).
 
+### Audio tracks
+
+```typescript
+composition()
+  .audio([
+    { src: "./music.mp3", id: "music", volume: 0.6, loop: true, duck: true },
+    { src: "./voice.wav", id: "voice" },
+  ]);
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `src` | `string \| TtsSpec` | File, URL, `yt:` source, or `tts()` spec |
+| `id` | `string` | Names the track so another can duck under it |
+| `startTime` | `number \| string` | When it begins in the composition |
+| `offset` | `number \| string` | Where to start inside the source |
+| `duration` | `number \| string` | How much of the source to use |
+| `volume` | `number \| string` | Gain. `1` is unchanged |
+| `loop` | `boolean` | Repeat the source to fill the composition |
+| `fadeIn` / `fadeOut` | `number \| string` | Seconds |
+| `duck` | `boolean \| DuckConfig` | Drop this track under speech |
+
+**Ducking.** `duck: true` lowers a track whenever a speech track — anything from
+`tts()` or `s.say()` — is audible. Name specific tracks instead:
+
+```typescript
+{ src: "./music.mp3", id: "music", duck: { by: "voice", amount: 0.25 } }
+```
+
+| `DuckConfig` | Default | Description |
+| --- | --- | --- |
+| `by` | every speech track | Track id, or an array of them |
+| `amount` | `0.3` | Level to drop **to**, so `0.3` means 30% |
+| `attack` | `0.02` | Seconds to ramp down when speech starts |
+| `release` | `0.4` | Seconds to ramp back up. Longer stops it pumping between sentences |
+| `threshold` | `0.02` | Sidechain level that counts as speech |
+
+It uses `sidechaincompress`, so it follows the actual speech envelope and needs
+no word timings. `amount` is a target, not a guarantee: the achieved depth
+depends on how loud the speech is relative to the bed. The curve was measured
+and is monotonic, so deeper `amount` always ducks further.
+
 ### `SceneBuilder`
 
 | Method | Description |

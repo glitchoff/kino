@@ -13,7 +13,7 @@ import type {
 } from "../types/index.js";
 import { normalizeBackground } from "./background.js";
 import { normalizeElement } from "./element.js";
-import { normalizeAudio } from "./audio.js";
+import { normalizeAudio, resolveDucking } from "./audio.js";
 import { parseDuration, parseFps, parsePixels, parseVolume } from "./unit-parser.js";
 
 function resolveTemplate(
@@ -198,6 +198,7 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
           src: spec as NormalizedAudioTrack["src"],
           startTime: sceneStart,
           volume: 1,
+          speech: true,
         });
       }
     }
@@ -279,6 +280,8 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
     background: normalizedScenes[0].background,
     elements: sortedElements,
     scenes: normalizedScenes,
-    audio: audioTracks,
+    // Ducking resolves last: narration and sfx tracks are only appended above,
+    // and `duck: true` has to see them to know what to listen to.
+    audio: resolveDucking(audioTracks, comp.audio),
   };
 }
