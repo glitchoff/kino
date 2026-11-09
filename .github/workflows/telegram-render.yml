@@ -25,6 +25,7 @@ on:
           - examples/tts-narration.ts
           - examples/reusable-components.ts
           - examples/lyrics.ts
+          - examples/gk-quiz.ts
       caption:
         description: Caption for the Telegram message
         required: false
@@ -125,6 +126,12 @@ jobs:
       # Only the library + CLI are needed to render; skip the studio Vite build.
       - name: Build library + CLI
         run: pnpm exec tsup
+
+      # Photos and Devanagari fonts are fetched rather than committed: they are
+      # tens of megabytes of binary for one demo. Every set is idempotent, so
+      # this is a no-op for examples that need none.
+      - name: Fetch example assets
+        run: node scripts/fetch-example-assets.mjs gk-quiz
 
       - name: Render composition
         env:

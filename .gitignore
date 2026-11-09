@@ -315,3 +315,12 @@ out.kino
 /docs-site/dist/
 /docs-site/.astro/
 /docs-site/public/previews/
+
+# Example assets fetched by scripts/fetch-example-assets.mjs. Kept out of git
+# because they are tens of megabytes of third-party binary for one demo; the
+# script re-downloads them on demand and CI calls it before rendering.
+examples/assets/NotoSans-*.ttf
+examples/assets/NotoSansDevanagari-*.ttf
+examples/assets/q1-copper.jpg
+examples/assets/q2-gandhi.jpg
+examples/assets/q3-train.jpg
