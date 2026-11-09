@@ -30,9 +30,14 @@
  * Either way the output is plain `TextElement`s, so captions mix with every
  * other element type and need no special renderer.
  */
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
-import type { TextElement, CaptionWord } from "../types/elements.js";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { estimateTextWidth } from "../normalize/element.js";
+import { getFFmpegBinaryPath } from "../encoder/probe.js";
+import { parsePixels } from "../normalize/unit-parser.js";
+import type { ImageElement, TextElement, CaptionWord } from "../types/elements.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,6 +63,8 @@ export type CaptionTiming = "auto" | "align" | "even";
 export type CaptionStyle =
   /** Words appear in groups; the spoken word is highlighted. */
   | "karaoke"
+  /** Words pop in one at a time and stay, so the line builds up as it is sung. */
+  | "reveal"
   /** One word at a time, replacing the last. */
   | "word"
   /** A group appears together and stays; no per-word emphasis. */
@@ -75,6 +82,10 @@ export interface CaptionOptions {
   style?: CaptionStyle;
   /** Words per caption for `karaoke` and `block`. Default 4. */
   wordsPerLine?: number;
+  /** Break a line after a pause at least this long, in seconds. */
+  gap?: number;
+  /** Extra break pattern besides sentence endings, e.g. `/,$/`. */
+  breakOn?: RegExp;
   /** Where the caption sits. Default `"bottom-240"`. */
   y?: number | string;
   /** Where the caption starts. Default `"center"`. */
@@ -409,14 +420,54 @@ export async function timeWords(
 // ---------------------------------------------------------------------------
 
 /** Groups words into captions of at most `wordsPerLine`, breaking on sentence ends. */
-export function groupWords(words: WordTiming[], wordsPerLine: number): WordTiming[][] {
-  const size = Math.max(1, Math.floor(wordsPerLine));
+/** Line-grouping options taken from the caption options. */
+function groupOptions(options: CaptionOptions): GroupWordsOptions {
+  return {
+    wordsPerLine: options.wordsPerLine ?? 4,
+    gap: options.gap,
+    breakOn: options.breakOn,
+  };
+}
+
+export interface GroupWordsOptions {
+  /** Maximum words per caption. Default 4. */
+  wordsPerLine?: number;
+  /**
+   * Break after a pause at least this long, in seconds. Songs have gaps between
+   * phrases that punctuation alone does not mark.
+   */
+  gap?: number;
+  /**
+   * Extra break pattern, applied in addition to sentence endings. Pass a comma
+   * pattern to break on clauses too.
+   */
+  breakOn?: RegExp;
+}
+
+export function groupWords(words: WordTiming[], wordsPerLine?: number): WordTiming[][];
+export function groupWords(words: WordTiming[], options: GroupWordsOptions): WordTiming[][];
+export function groupWords(
+  words: WordTiming[],
+  arg: number | GroupWordsOptions = {}
+): WordTiming[][] {
+  const opts: GroupWordsOptions = typeof arg === "number" ? { wordsPerLine: arg } : arg;
+  const size = Math.max(1, Math.floor(opts.wordsPerLine ?? 4));
+  const gap = opts.gap ?? Infinity;
+  const extra = opts.breakOn;
   const groups: WordTiming[][] = [];
   let current: WordTiming[] = [];
 
-  for (const word of words) {
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
     current.push(word);
-    if (current.length >= size || LONG_PAUSE_AFTER.test(word.word)) {
+    const next = words[i + 1];
+    const pause = next ? next.start - word.end : Infinity;
+    if (
+      current.length >= size ||
+      LONG_PAUSE_AFTER.test(word.word) ||
+      (extra?.test(word.word) ?? false) ||
+      pause >= gap
+    ) {
       groups.push(current);
       current = [];
     }
@@ -472,6 +523,147 @@ function baseOptions(
   };
 }
 
+/** Rendered width of `text` at `fontSize`, using the renderer's estimator. */
+function measure(text: string, fontSize: number): number {
+  return estimateTextWidth(text, fontSize);
+}
+
+/**
+ * Word-by-word reveal: each word is its own element, appearing when it is sung
+ * and staying until the line ends, so the sentence builds up as it is heard.
+ *
+ * Two things make this work with drawtext:
+ *
+ * - Each element is placed at an explicit pixel `x`, computed from the width of
+ *   the words before it. Centring every element would stack them on top of each
+ *   other, since each one holds only a single word.
+ * - The word being sung is drawn in `highlight`; once the next word starts, an
+ *   overlapping element redraws it in `color` until the line ends. That keeps
+ *   the current word standing out without needing per-glyph colouring.
+ */
+function revealElements(
+  timings: WordTiming[],
+  options: CaptionOptions,
+  ctx: { fontSize: number | string; color: string; highlight: string; fade: number; at: number }
+): TextElement[] {
+  const { color, highlight, fade, at } = ctx;
+  const fontSize = parsePixels(ctx.fontSize) ?? 56;
+  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
+  const out: TextElement[] = [];
+  const zIndex = options.zIndex ?? 100;
+
+  for (const line of lines) {
+    const lineStart = at + line.start;
+    const lineEnd = lineStart + (line.end - line.start);
+    const lineLeft = resolveAnchor(options.x, measure(line.text, fontSize));
+
+    let before = 0;
+    for (let i = 0; i < line.words.length; i++) {
+      const word = line.words[i];
+      const wordStart = at + word.start;
+      const next = line.words[i + 1];
+      const nextStart = next ? at + next.start : lineEnd;
+      const wordX = lineLeft + before;
+
+      const base = {
+        type: "text" as const,
+        content: word.word,
+        fontSize,
+        // Positioned from the frame centre, not from `w` directly: drawtext
+        // resolves `w-210` to 960-210 measured from the right edge, which
+        // pushed every word off-screen. `w/2 +/- n` is unambiguous.
+        x: `w/2${wordX < 0 ? "-" : "+"}${Math.abs(wordX).toFixed(3)}`,
+        y: options.y ?? "bottom-240",
+        textAlign: "left" as const,
+        zIndex,
+        ...options.text,
+      };
+
+      // While this word is being sung it is highlighted...
+      out.push({
+        ...base,
+        fontColor: highlight,
+        startAt: wordStart,
+        duration: Math.max(0.05, Math.min(nextStart, lineEnd) - wordStart),
+        animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
+      } as TextElement);
+
+      // ...then it settles into the resting colour for the rest of the line.
+      const settledFor = lineEnd - nextStart;
+      if (settledFor > 0.05) {
+        out.push({
+          ...base,
+          fontColor: color,
+          startAt: Math.max(wordStart, nextStart),
+          duration: settledFor,
+        } as TextElement);
+      }
+
+      // Advance by this word plus the space that separates it from the next.
+      // The space is added explicitly: measuring "word " would count a trailing
+      // space drawtext never draws, drifting the line right by a space per word.
+      before += measure(word.word, fontSize) + measure(" ", fontSize);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Turns a caption `x` option into a left-edge pixel offset for a line of
+ * `width`, so reveal elements can be positioned individually.
+ */
+function resolveAnchor(x: number | string | undefined, width: number): number {
+  if (typeof x === "number") return x;
+  const value = (x ?? "center").trim();
+  if (value === "center" || value === "c") return -width / 2;
+  if (value === "left") return 0;
+  if (value === "right") return -width;
+  return parsePixels(value) ?? -width / 2;
+}
+
+/**
+ * Everything the two caption renderers share.
+ *
+ * `captionElements` (drawtext) and `captionImages` (rasterised PNGs) used to
+ * each build their own lines, defaults and anchoring. That duplication already
+ * caused a bug: `buildCaptionLines` trims each line's hold so it cannot run
+ * into the next line, and that only works when it can see the following line —
+ * calling it per line left the holds untrimmed and stacked captions on screen.
+ *
+ * Both renderers now take this. Only the drawing differs.
+ */
+interface ResolvedCaptions {
+  /** Lines, with holds already trimmed against their successors. */
+  lines: CaptionLine[];
+  /** Offset applied to every timing. */
+  at: number;
+  fontSize: number;
+  color: string;
+  highlight: string;
+  /** How long a word stays after it is spoken. */
+  hold: number;
+  /** Element z-order. */
+  zIndex: number;
+  /** Position, as the author wrote it. */
+  x: number | string;
+  y: number | string;
+}
+
+function resolveCaptions(timings: WordTiming[], options: CaptionOptions): ResolvedCaptions {
+  return {
+    lines: buildCaptionLines(groupWords(timings, groupOptions(options)), options),
+    at: options.at ?? 0,
+    fontSize: parsePixels(options.fontSize) ?? 56,
+    color: options.color ?? "#f8fafc",
+    highlight: options.highlight ?? "#38bdf8",
+    hold: options.hold ?? 0.35,
+    zIndex: options.zIndex ?? 100,
+    x: options.x ?? "center",
+    y: options.y ?? "bottom-240",
+  };
+}
+
 /**
  * Builds caption elements from word timings.
  *
@@ -505,7 +697,11 @@ export function captionElements(
     );
   }
 
-  const lines = buildCaptionLines(groupWords(timings, options.wordsPerLine ?? 4), options);
+  if (style === "reveal") {
+    return revealElements(timings, options, { fontSize, color, highlight, fade, at });
+  }
+
+  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
 
   return lines.map((line) => {
     const lineStart = at + line.start;
@@ -574,4 +770,194 @@ export async function captionsAsync(
 ): Promise<TextElement[]> {
   const timings = await timeWords(voice.text, voice.seconds, voice.path, options);
   return captionElements(timings, options);
+}
+
+// ---------------------------------------------------------------------------
+// Image-based karaoke
+// ---------------------------------------------------------------------------
+
+/**
+ * The vendored Linux ffmpeg, when it exists and can draw text.
+ *
+ * `getFFmpegBinaryPath()` locates `vendor/` relative to the compiled module,
+ * which assumes a fixed `dist/` depth; tsup splits output into hashed chunks,
+ * so the relative path can point outside the package. Walking up to the
+ * package root instead works however the bundle is laid out.
+ */
+function findDrawtextFfmpeg(): string | undefined {
+  if (process.platform !== "linux") return undefined;
+  // Resolve absolutely: tsup emits a relative `__dirname`, and spawn() would
+  // look for `vendor/...` relative to the caller's cwd.
+  let dir = resolve(dirname(fileURLToPath(import.meta.url)));
+  for (let i = 0; i < 5; i++) {
+    const bin = join(dir, "vendor", "linux", process.arch, "ffmpeg");
+    if (existsSync(bin)) return bin;
+    dir = dirname(dir);
+  }
+  return undefined;
+}
+
+export interface CaptionImageOptions extends CaptionOptions {
+  /**
+   * Size of the PNG strip. This is the *rendering* size: pass a multiple of the
+   * on-screen size (e.g. 2x) for crisp text, and set `displayWidth` /
+   * `displayHeight` to the size it should occupy.
+   */
+  width: number;
+  /** Height of the PNG strip, in pixels. See `width`. */
+  height: number;
+  /** On-screen width. Defaults to `width`, i.e. 1:1 with the PNG. */
+  displayWidth?: number;
+  /** On-screen height. Defaults to `height`, i.e. 1:1 with the PNG. */
+  displayHeight?: number;
+  /** Where to write the PNGs. */
+  dir: string;
+  /** Font used to draw the line. */
+  fontFile?: string;
+  /** ffmpeg binary used to rasterise. */
+  ffmpegPath?: string;
+  /** Where the strip is placed on the composition frame. Defaults to 0. */
+  x?: number;
+  /** Where the strip is placed on the composition frame. Defaults to 0. */
+  y?: number;
+}
+
+/**
+ * Karaoke captions as pre-rendered images, one per word.
+ *
+ * The text-based highlight draws the line again for every word, and ffmpeg has
+ * to keep a full-frame copy per word alive — with several lines on screen that
+ * collapses and the render never finishes. Here each word's state is
+ * rasterised once to a PNG, and the composition only swaps images on a
+ * timeline, which costs the same per frame no matter how many words there are.
+ *
+ * Returns one image element per word, timed to that word.
+ */
+export async function captionImages(
+  timings: WordTiming[],
+  options: CaptionImageOptions
+): Promise<ImageElement[]> {
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  const { spawnSync } = await import("node:child_process");
+
+  // Same resolution as the renderer, so the bundled binary is used when the
+  // system has no ffmpeg on PATH. `drawtext` is required here, and some
+  // `ffmpeg-static` builds lack it, so the vendored build is preferred when
+  // it exists next to the package.
+  const ffmpeg = options.ffmpegPath ?? findDrawtextFfmpeg() ?? getFFmpegBinaryPath();
+  // Shared with the drawtext path: line building, hold trimming, defaults and
+  // z-order all come from one place.
+  const resolved = resolveCaptions(timings, options);
+  const fontSize = resolved.fontSize;
+  const color = resolved.color;
+  const highlight = resolved.highlight;
+  const at = resolved.at;
+  const width = options.width;
+  const height = options.height;
+  mkdirSync(options.dir, { recursive: true });
+
+  const font = options.fontFile ? `:fontfile='${options.fontFile}'` : "";
+  const out: ImageElement[] = [];
+  let probeCount = 0;
+
+  /**
+   * Rendered advance of `text` at this size, in pixels.
+   *
+   * The character-class estimator is only approximate, and a few pixels of
+   * error per word is enough to close the gaps between words. Rasterising the
+   * text once and finding its ink extent gives the exact advance the layout
+   * needs.
+   */
+  const advance = (text: string): number => {
+    const probe = join(options.dir, `probe-${probeCount++}.txt`);
+    writeFileSync(probe, text, "utf8");
+    const res = spawnSync(
+      ffmpeg,
+      [
+        "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "lavfi", "-i", "color=c=black:s=2400x120:d=1,format=gray",
+        "-vf", `drawtext=textfile='${probe}'${font}:fontsize=${fontSize}:fontcolor=white:x=10:y=10`,
+        "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-",
+      ],
+      { maxBuffer: 64 * 1024 * 1024 }
+    );
+    if (res.status !== 0 || !res.stdout) return estimateTextWidth(text, fontSize);
+    const buf = res.stdout as Buffer;
+    const W = 2400;
+    let hi = -1;
+    for (let x = 0; x < W; x++) {
+      for (let y = 0; y < 120; y++) {
+        if (buf[y * W + x] > 40) {
+          hi = x;
+          break;
+        }
+      }
+    }
+    return hi < 0 ? estimateTextWidth(text, fontSize) : hi - 10 + 1;
+  };
+
+  const lines = resolved.lines;
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const lineEnd = at + line.end;
+
+    // Measure every word once, plus the space that separates them.
+    const widths = line.words.map((w) => advance(w.word));
+    const space = advance("a a") - advance("aa");
+
+    for (let wi = 0; wi < line.words.length; wi++) {
+      const parts = line.words.map((w, j) => ({
+        text: w.word,
+        colour: j === wi ? highlight : color,
+      }));
+
+      const total = widths.reduce((a, b) => a + b, 0) + space * (widths.length - 1);
+      let x = (width - total) / 2;
+
+      const filters: string[] = [];
+      for (let k = 0; k < parts.length; k++) {
+        const txt = join(options.dir, `l${li}-w${wi}-${k}.txt`);
+        writeFileSync(txt, parts[k].text, "utf8");
+        filters.push(
+          `drawtext=textfile='${txt}'${font}:fontsize=${fontSize}:fontcolor=${parts[k].colour}:x=${x.toFixed(2)}:y=${Math.round(height * 0.2)}`
+        );
+        x += widths[k] + space;
+      }
+
+      const png = join(options.dir, `l${li}-w${wi}.png`);
+      const res = spawnSync(
+        ffmpeg,
+        [
+          "-hide_banner", "-loglevel", "error", "-y",
+          "-f", "lavfi", "-i", `color=c=black@0.0:s=${width}x${height}:d=1,format=rgba`,
+          "-vf", filters.join(","),
+          "-frames:v", "1", png,
+        ],
+        { encoding: "utf8" }
+      );
+      if (res.status !== 0) {
+        const detail = res.stderr?.trim() || res.error?.message || `exit code ${res.status}`;
+        throw new Error(`Failed to rasterise caption word ${wi}: ${detail}`);
+      }
+
+      const wordStart = at + line.words[wi].start;
+      const nextStart = wi + 1 < line.words.length ? at + line.words[wi + 1].start : lineEnd;
+      out.push({
+        type: "image",
+        src: png,
+        width: options.displayWidth ?? width,
+        height: options.displayHeight ?? height,
+        startAt: wordStart,
+        duration: Math.max(0.05, Math.min(nextStart, lineEnd) - wordStart),
+        // A rasterised strip carries its own layout, so the element sits at the
+        // origin by default; the shared z-order still applies.
+        zIndex: resolved.zIndex,
+        x: options.x ?? 0,
+        y: options.y ?? 0,
+      });
+    }
+  }
+
+  return out;
 }

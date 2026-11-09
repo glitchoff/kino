@@ -11,7 +11,12 @@ export type Easing =
   | "easeInOutExpo"
   | "easeInCirc"
   | "easeOutCirc"
-  | "easeInOutCirc";
+  | "easeInOutCirc"
+  | "easeInBack"
+  | "easeOutBack"
+  | "easeInOutBack"
+  | "easeOutElastic"
+  | "easeOutBounce";
 
 export interface AnimationValue {
   from: number | string;
@@ -28,11 +33,40 @@ export interface AnimationKeyframe {
   value: number | string;
 }
 
+/**
+ * One point on an animated curve.
+ *
+ * `easing` describes the segment *arriving* at this keyframe, so the first
+ * keyframe's easing is unused. Omitting it inherits the track's `easing`,
+ * defaulting to `easeInOut`.
+ */
+export interface CurveKeyframe {
+  /** Seconds from the element's `startAt`. */
+  at: number | string;
+  value: number | string;
+  easing?: Easing;
+}
+
+/**
+ * A multi-keyframe animation.
+ *
+ * `{ from, to, duration }` is sugar for two keyframes and stays the simpler
+ * form when there are only two.
+ */
+export interface KeyframedValue {
+  keyframes: CurveKeyframe[];
+  /** Easing for keyframes that do not set their own. Default `easeInOut`. */
+  easing?: Easing;
+}
+
+/** Either form is accepted wherever a value can be animated. */
+export type AnimatableValue = AnimationValue | KeyframedValue;
+
 export interface ElementAnimation {
-  opacity?: AnimationValue;
-  x?: AnimationValue;
-  y?: AnimationValue;
-  scale?: AnimationValue;
+  opacity?: AnimatableValue;
+  x?: AnimatableValue;
+  y?: AnimatableValue;
+  scale?: AnimatableValue;
   /**
    * A step function instead of an interpolation. Used by captions to draw one
    * copy of a line with a different word emphasised as each word is spoken.

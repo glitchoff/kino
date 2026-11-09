@@ -1,4 +1,7 @@
 import { describe, test, expect } from "vitest";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   splitWords,
   cleanWord,
@@ -6,6 +9,7 @@ import {
   groupWords,
   buildCaptionLines,
   captionElements,
+  captionImages,
   captions,
   captionsAsync,
   timeWords,
@@ -123,6 +127,71 @@ describe("captions: elements", () => {
     expect(els[0].captionWords).toBeUndefined();
   });
 
+  describe("reveal style", () => {
+    const els = captions(line, { style: "reveal", wordsPerLine: 6, fontSize: 52 });
+
+    /** Every word's highlighted element, in spoken order. */
+    const sung = els.filter((e) => e.fontColor === "#38bdf8");
+    /** Offset of an `x` like "w/2-12.5" from the frame centre. */
+    const offset = (x: unknown) => Number(String(x).replace(/^w\/2/, ""));
+
+    test("each word is its own element, with no captionWords", () => {
+      // One highlighted element per word, plus a dim redraw for all but the last.
+      expect(sung.map((e) => e.content)).toEqual([
+        "Where", "the", "mind", "is", "without", "fear.",
+      ]);
+      expect(els).toHaveLength(11);
+      expect(els.every((e) => !e.captionWords)).toBe(true);
+    });
+
+    test("x positions increase so words sit side by side", () => {
+      const xs = sung.map((e) => offset(e.x));
+      for (const x of xs) expect(Number.isFinite(x)).toBe(true);
+      for (let i = 1; i < xs.length; i++) expect(xs[i]).toBeGreaterThan(xs[i - 1]);
+    });
+
+    test("x is centred on the frame, never a bare number", () => {
+      // drawtext resolves `w-210` from the right edge and treats a plain
+      // negative number as a literal offset, both of which push the line
+      // off-screen. `w/2 +/- n` is the only form that anchors at the centre.
+      for (const el of els) expect(String(el.x)).toMatch(/^w\/2[+-][\d.]+$/);
+    });
+
+    test("a centred line spans the frame symmetrically", () => {
+      const xs = sung.map((e) => offset(e.x));
+      // The first word starts left of centre and the last one right of it.
+      expect(xs[0]).toBeLessThan(0);
+      expect(xs[xs.length - 1]).toBeGreaterThan(0);
+    });
+
+    test("the sung word is highlighted, then settles to the dim colour", () => {
+      const [sung, settled] = els;
+      expect(sung.content).toBe(settled.content);
+      expect(sung.fontColor).toBe("#38bdf8");
+      expect(settled.fontColor).toBe("#f8fafc");
+      expect(Number(settled.startAt)).toBeGreaterThanOrEqual(Number(sung.startAt));
+    });
+
+    test("the last word of a line is never redrawn in the dim colour", () => {
+      // Nothing follows it, so it stays highlighted for the rest of the line.
+      const last = els[els.length - 1];
+      expect(last.content).toBe("fear.");
+      expect(last.fontColor).toBe("#38bdf8");
+    });
+
+    test("words appear in spoken order", () => {
+      const firsts = els.filter((_, i) => i % 2 === 0);
+      const starts = firsts.map((e) => Number(e.startAt));
+      for (let i = 1; i < starts.length; i++) expect(starts[i]).toBeGreaterThanOrEqual(starts[i - 1]);
+    });
+
+    test("a word's element lasts until the next word begins", () => {
+      const [sung] = els;
+      const next = els[2];
+      expect(Number(sung.startAt) + Number(sung.duration)).toBeCloseTo(Number(next.startAt), 5);
+    });
+  });
+
   test("at shifts the whole track", () => {
     const els = captions(line, { style: "block", wordsPerLine: 6, at: 2 });
     expect(els[0].startAt).toBeCloseTo(2, 5);
@@ -217,4 +286,202 @@ describe("captions: pipeline", () => {
     expect(graph).not.toContain("split=");
     expect(graph).not.toContain("crop=");
   });
+
+  test("a graph too long for the command line is written to a script file", () => {
+    // Long caption tracks produce graphs past ARG_MAX, which fails at spawn
+    // with E2BIG and no useful message. Past a threshold the graph goes to a
+    // file instead, and ffmpeg reads it with -filter_complex_script.
+    const words = Array.from({ length: 400 }, (_, i) => ({
+      word: `word${i}`,
+      clean: `word${i}`,
+      start: i * 0.2,
+      end: i * 0.2 + 0.18,
+    }));
+    const els = captionElements(words, { style: "karaoke", wordsPerLine: 4 });
+    const comp = composition({ width: 640, height: 360 })
+      .scene({ duration: 90 }, (s) => s.addAll(els))
+      .build();
+
+    const { args, filtergraph } = compile(comp, { output: "out.mp4" });
+    expect(filtergraph!.length).toBeGreaterThan(100_000);
+    expect(args).not.toContain("-filter_complex");
+    const idx = args.indexOf("-filter_complex_script");
+    expect(idx).toBeGreaterThan(-1);
+    // The manifest is replayed with the extraction dir as cwd, so the script is
+    // referenced by name rather than by an absolute staging path.
+    expect(args[idx + 1]).toBe("filtergraph.txt");
+  });
+});
+
+describe("captions: image karaoke", () => {
+  /** Four words across one line, so each state can be checked on its own. */
+  const line = (n = 4) =>
+    Array.from({ length: n }, (_, i) => ({
+      word: `word${i}`,
+      clean: `word${i}`,
+      start: i * 0.5,
+      end: i * 0.5 + 0.4,
+    }));
+
+  test("emits one image per word, each showing for its own span", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-caption-images-"));
+    try {
+      const els = await captionImages(line(), {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 4,
+      });
+
+      expect(els).toHaveLength(4);
+      expect(els.every((e) => e.type === "image")).toBe(true);
+
+      // Each frame starts when its word does and runs until the next word.
+      expect(els.map((e) => e.startAt)).toEqual([0, 0.5, 1, 1.5]);
+      expect(els[0].duration).toBeCloseTo(0.5, 5);
+      expect(els[1].duration).toBeCloseTo(0.5, 5);
+      // The last word holds past the end of its speech by the line hold.
+      expect(els[3].duration).toBeCloseTo(1.9 + 0.35 - 1.5, 5);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("writes a PNG per word and positions the strip", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-caption-images-"));
+    try {
+      const els = await captionImages(line(), {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 4,
+        x: 12,
+        y: 340,
+      });
+
+      for (const el of els) {
+        expect(existsSync(el.src)).toBe(true);
+        expect(el.src.endsWith(".png")).toBe(true);
+        expect(el.x).toBe(12);
+        expect(el.y).toBe(340);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("scales to a whole song's worth of words", async () => {
+    // The text-based highlight stalled past a handful of lines. This is the
+    // property that makes the image path worth having: cost per word stays
+    // flat, so many lines still produce a composition quickly.
+    const words = Array.from({ length: 200 }, (_, i) => ({
+      word: `w${i % 37}`,
+      clean: `w${i % 37}`,
+      start: i * 0.4,
+      end: i * 0.4 + 0.35,
+    }));
+    const dir = mkdtempSync(join(tmpdir(), "kino-caption-images-"));
+    try {
+      const els = await captionImages(words, {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 5,
+      });
+      expect(els).toHaveLength(200);
+
+      const comp = composition({ width: 640, height: 360 })
+        .scene({ duration: 80 }, (s) => s.addAll(els))
+        .build();
+      // Compiling must stay linear: images are timed overlays with one input
+      // each, not a filter chain rebuilt per word the way drawtext was.
+      const { args, filtergraph } = compile(comp, { output: "out.mp4" });
+      const script =
+        filtergraph ??
+        readFileSync(args[args.indexOf("-filter_complex_script") + 1], "utf8");
+      // 200 words, so 200 image inputs — but the graph must stay linear in the
+      // word count rather than exploding the way per-word drawtext did.
+      expect(script.length).toBeLessThan(4_000_000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("caption seam — both renderers agree", () => {
+  // `captionElements` (drawtext) and `captionImages` (PNG strips) used to build
+  // their own lines, defaults and holds. That duplication already caused a bug:
+  // holds were not trimmed against the following line, so two captions sat on
+  // screen at once. These assert the shared path keeps them in step.
+  const words = Array.from({ length: 9 }, (_, i) => ({
+    word: `w${i}`,
+    clean: `w${i}`,
+    start: i * 0.5,
+    end: i * 0.5 + 0.4,
+  }));
+
+  test("the last word of a line ends where the next line starts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      const images = await captionImages(words, {
+        width: 640,
+        height: 100,
+        dir,
+        wordsPerLine: 3,
+        hold: 0.35,
+      });
+      const texts = captionElements(words, { wordsPerLine: 3, hold: 0.35 });
+
+      // Group the image elements back into lines and compare line ends.
+      const imageEnds = images.map((e) => e.startAt + e.duration);
+      const textEnds = texts.map((e) => e.startAt + e.duration);
+
+      // Line 0 holds to just before line 1 starts; the same trim must apply to
+      // both renderers.
+      const firstLineImagesEnd = Math.max(...imageEnds.slice(0, 3));
+      expect(firstLineImagesEnd).toBeLessThanOrEqual(1.5 + 1e-6);
+      expect(textEnds[0]).toBeLessThanOrEqual(1.5 + 1e-6);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("both apply the same z-index default", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      const images = await captionImages(words, { width: 640, height: 100, dir, wordsPerLine: 3 });
+      const texts = captionElements(words, { wordsPerLine: 3 });
+      expect(images[0].zIndex).toBe(texts[0].zIndex);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("an explicit z-index reaches both renderers", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      const images = await captionImages(words, {
+        width: 640, height: 100, dir, wordsPerLine: 3, zIndex: 42,
+      });
+      const texts = captionElements(words, { wordsPerLine: 3, zIndex: 42 });
+      expect(images[0].zIndex).toBe(42);
+      expect(texts[0].zIndex).toBe(42);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("a font size written with units is parsed the same way", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kino-seam-"));
+    try {
+      // Both used to parse this separately; a string size must not fall back to
+      // the default in one path and not the other.
+      const images = await captionImages(words, {
+        width: 640, height: 100, dir, wordsPerLine: 3, fontSize: "40px",
+      });
+      expect(images).toHaveLength(9);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

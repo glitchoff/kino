@@ -33,15 +33,18 @@ import type {
   AudioTrack,
 } from "../types/audio.js";
 import type { BackgroundInput } from "../types/background.js";
+import { TAKUMI_PREFIX } from "../remote/takumi.js";
 import type {
   ElementInput,
   TextElement,
   ImageElement,
   HtmlElement,
+  ShapeElement,
   VideoElement,
   ChromaKeyConfig,
 } from "../types/elements.js";
-import type { AnimationValue, Easing, ElementAnimation } from "../types/animation.js";
+import type { AnimationValue, Easing, ElementAnimation, AnimatableValue } from "../types/animation.js";
+import type { ColorAdjust, BlendMode, ElementMask } from "../types/elements.js";
 import type { KinoTemplate } from "../types/template.js";
 import { isVoice, tts, type TtsOptions, type TtsSpec, type Voice } from "../tts/piper.js";
 
@@ -90,6 +93,41 @@ export function popIn(duration: number | string = 0.4, easing: Easing = "easeOut
   return { from: 0.8, to: 1, duration, easing };
 }
 
+/**
+ * Offset an animation in time.
+ *
+ * ```ts
+ * fadeIn(0.4);                    // starts with the element
+ * shift(fadeIn(0.4), 1);          // starts one second after it
+ * shift(slideIn("x", 80), -0.2);  // starts before it
+ * ```
+ *
+ * Works on keyframed animations too, moving every keyframe. A negative delay
+ * is clamped to zero, since an animation cannot begin before its element.
+ */
+export function shift(value: AnimatableValue, by: number | string): AnimatableValue {
+  const offset = typeof by === "number" ? by : Number(by);
+  if (!Number.isFinite(offset) || offset === 0) return value;
+
+  if ("keyframes" in value) {
+    return {
+      ...value,
+      keyframes: value.keyframes.map((k) => {
+        const at = typeof k.at === "number" ? k.at : Number(k.at);
+        return { ...k, at: Math.max(0, (Number.isFinite(at) ? at : 0) + offset) };
+      }),
+    };
+  }
+
+  const delay = (typeof value.delay === "number" ? value.delay : Number(value.delay ?? 0)) || 0;
+  const shifted = Math.max(0, delay + offset);
+  if (shifted === 0) {
+    const { delay: _drop, ...rest } = value;
+    return rest;
+  }
+  return { ...value, delay: shifted };
+}
+
 // ---------------------------------------------------------------------------
 // Shared element options
 // ---------------------------------------------------------------------------
@@ -105,6 +143,14 @@ export interface ElementOptions {
   zIndex?: number | string;
   sfx?: string | AudioTrack;
   animation?: ElementAnimation;
+  /** Brightness, contrast, saturation, hue, gamma, lift and gain. */
+  grade?: ColorAdjust;
+  /** Composite onto what is beneath. Default `normal` (plain overlay). */
+  blend?: BlendMode;
+  /** Limit where the element is visible. */
+  mask?: ElementMask;
+  /** Sub-frame samples (number) or `{ samples, shutter }`. Off by default. */
+  motionBlur?: number | { samples?: number; shutter?: number };
 }
 
 /** Options accepted by `text()` — element options plus text styling. */
@@ -162,6 +208,10 @@ function baseFrom(options: ElementOptions): Record<string, unknown> {
   if (options.zIndex !== undefined) out.zIndex = options.zIndex;
   if (options.sfx !== undefined) out.sfx = options.sfx;
   if (options.animation !== undefined) out.animation = options.animation;
+  if (options.grade !== undefined) out.grade = options.grade;
+  if (options.blend !== undefined) out.blend = options.blend;
+  if (options.mask !== undefined) out.mask = options.mask;
+  if (options.motionBlur !== undefined) out.motionBlur = options.motionBlur;
   return out;
 }
 
@@ -220,6 +270,60 @@ export function video(src: string, options: VideoOptions = {}): VideoElement {
   } as VideoElement;
 }
 
+export interface ShapeOptions extends ElementOptions {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number | string;
+  radius?: number | string;
+  x1?: number | string;
+  y1?: number | string;
+  x2?: number | string;
+  y2?: number | string;
+}
+
+/** A rectangle, ellipse or line, drawn to a PNG at compile time. */
+export function shape(
+  kind: "rect" | "ellipse" | "line",
+  options: ShapeOptions & { width: number | string; height: number | string }
+): ShapeElement {
+  const { width, height, fill, stroke, strokeWidth, radius, x1, y1, x2, y2 } = options;
+  return {
+    type: "shape",
+    shape: kind,
+    width,
+    height,
+    ...(fill !== undefined ? { fill } : {}),
+    ...(stroke !== undefined ? { stroke } : {}),
+    ...(strokeWidth !== undefined ? { strokeWidth } : {}),
+    ...(radius !== undefined ? { radius } : {}),
+    ...(x1 !== undefined ? { x1 } : {}),
+    ...(y1 !== undefined ? { y1 } : {}),
+    ...(x2 !== undefined ? { x2 } : {}),
+    ...(y2 !== undefined ? { y2 } : {}),
+    ...baseFrom(options),
+  } as ShapeElement;
+}
+
+/** A filled or outlined rectangle. */
+export function rect(options: ShapeOptions & { width: number | string; height: number | string }): ShapeElement {
+  return shape("rect", options);
+}
+
+/** A filled or outlined ellipse filling its box. */
+export function ellipse(options: ShapeOptions & { width: number | string; height: number | string }): ShapeElement {
+  return shape("ellipse", options);
+}
+
+/** A line between two points inside its box. */
+export function line(options: ShapeOptions & { width: number | string; height: number | string }): ShapeElement {
+  return shape("line", options);
+}
+
+/** HTML rendered by Takumi, with no browser. See `SceneBuilder.tak()`. */
+export function takumi(markup: string, options: HtmlOptions): HtmlElement {
+  return html(TAKUMI_PREFIX + markup, options);
+}
+
 export function html(markup: string, options: HtmlOptions): HtmlElement {
   const { width, height, css, fit, backgroundColor, deviceScaleFactor } = options;
   return {
@@ -259,6 +363,148 @@ export function withDefaults<I, O extends object, R>(
   defaults: O
 ): (input: I, options?: Partial<O>) => R {
   return (input: I, options?: Partial<O>) => factory(input, { ...defaults, ...options } as O);
+}
+
+/**
+ * Attach options to an element that was made without them.
+ *
+ * Where `withDefaults` derives a factory from a look, `withOptions` dresses an
+ * element that already exists — useful when the element comes from elsewhere
+ * (a caption builder, a JSON file, another component) and still needs a
+ * position, a start time or an animation.
+ *
+ * ```ts
+ * const title = text("Hello", { fontSize: 96 });
+ * withOptions(title, { y: "center", animation: fadeIn(0.4) });
+ * ```
+ *
+ * Later options win over the element's own, and an empty value is skipped
+ * rather than written, so `{ y: undefined }` leaves the element alone.
+ */
+export function withOptions<E extends ElementInput>(
+  element: E,
+  options: ElementOptions & Partial<Omit<TextOptions, keyof ElementOptions>>,
+): E {
+  const base = baseFrom(options);
+  const { color, fontSize, align, box, boxColor, boxPadding, maxWidth, lineHeight, stroke, shadow, fontFile } =
+    options as TextOptions;
+  // The factories rename some options (`color` becomes `fontColor`), so the
+  // same mapping has to happen here for the option to take effect.
+  const renamed: Record<string, unknown> = {
+    ...(color !== undefined ? { fontColor: color } : {}),
+    ...(fontSize !== undefined ? { fontSize } : {}),
+    ...(align !== undefined ? { textAlign: align } : {}),
+    ...(box !== undefined ? { box } : {}),
+    ...(boxColor !== undefined ? { boxColor } : {}),
+    ...(boxPadding !== undefined ? { boxPadding } : {}),
+    ...(maxWidth !== undefined ? { maxWidth } : {}),
+    ...(lineHeight !== undefined ? { lineHeight } : {}),
+    ...(stroke !== undefined ? { stroke } : {}),
+    ...(shadow !== undefined ? { shadow } : {}),
+    ...(fontFile !== undefined ? { fontFile } : {}),
+  };
+  const out: Record<string, unknown> = { ...element };
+  for (const [key, value] of Object.entries({ ...renamed, ...base })) {
+    if (value !== undefined) out[key] = value;
+  }
+  // An animation given on its own (`fadeIn()`) is shorthand for the opacity
+  // channel. Storing it bare would be silently dropped by normalization, which
+  // only reads named channels.
+  const anim = out.animation;
+  if (isPlainObject(anim) && !ANIMATION_CHANNELS.some((ch) => ch in anim)) {
+    out.animation = { opacity: anim };
+  }
+  return out as E;
+}
+
+const ANIMATION_CHANNELS = ["opacity", "x", "y", "scale", "steps"] as const;
+
+/**
+ * Combine element options into one set of defaults.
+ *
+ * `withDefaults` merges one level deep, which means layering two presets loses
+ * the first one's `stroke` (or `animation`, or `shadow`) wholesale. `preset`
+ * merges those nested groups key by key instead, so a base look can be built
+ * up in pieces.
+ *
+ * ```ts
+ * const dark = preset({ color: "#fff", stroke: { color: "#000", width: 4 } });
+ * const big  = preset({ fontSize: 96 }, dark);
+ * big.stroke; // { color: "#000", width: 4 } — kept from `dark`
+ * ```
+ *
+ * `preset()` returns plain options, so it feeds `withDefaults`, `withOptions`
+ * or a factory call directly.
+ */
+export function preset<O extends object>(...layers: (Partial<O> | undefined)[]): O {
+  const out: Record<string, unknown> = {};
+  for (const layer of layers) {
+    if (!layer) continue;
+    for (const [key, value] of Object.entries(layer)) {
+      if (value === undefined) continue;
+      const current = out[key];
+      if (isPlainObject(current) && isPlainObject(value)) {
+        out[key] = { ...current, ...value };
+      } else {
+        out[key] = value;
+      }
+    }
+  }
+  return out as O;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Anything that can stand where an element stands: an element, a list of
+ * elements, or a function producing either — so a component can be a plain
+ * object, a lazy factory or a group of parts.
+ */
+export type ElementPart =
+  | ElementInput
+  | ElementInput[]
+  | (() => ElementInput | ElementInput[])
+  | ElementPart[];
+
+/**
+ * Flatten elements into a plain list.
+ *
+ * `scene()` takes a list, but a component often wants to hand back a group —
+ * a title with its subtitle, a lower third with its bar — and nesting those by
+ * hand means spreading arrays at every call site. `elements()` accepts them in
+ * any nesting, runs any factories, and returns one flat list.
+ *
+ * ```ts
+ * const lowerThird = (name: string) => elements(
+ *   rect({ width: 12, height: 120, x: 80, y: "bottom-160", fill: "#38bdf8" }),
+ *   text(name, { x: 116, y: "bottom-150", fontSize: 52 }),
+ * );
+ *
+ * const intro = scene({ for: 3 }, elements(Title("Hello"), lowerThird("Alice")));
+ * ```
+ *
+ * Factories are called once, at flatten time, so an element that depends on
+ * something expensive is only built when it is used.
+ */
+export function elements(...parts: ElementPart[]): ElementInput[] {
+  const out: ElementInput[] = [];
+
+  const walk = (part: ElementPart): void => {
+    if (typeof part === "function") {
+      walk(part());
+      return;
+    }
+    if (Array.isArray(part)) {
+      for (const inner of part) walk(inner as ElementPart);
+      return;
+    }
+    if (part) out.push(part);
+  };
+
+  for (const part of parts) walk(part);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +548,16 @@ export class SceneBuilder {
 
   html(markup: string, options: HtmlOptions): this {
     return this.add(html(markup, options));
+  }
+
+  /**
+   * HTML rendered by Takumi, with no browser.
+   *
+   * Sugar for `html("tak:" + markup, options)`. Takumi supports less CSS than
+   * Chrome and never runs scripts; use `html()` when you need either.
+   */
+  tak(markup: string, options: HtmlOptions): this {
+    return this.add(takumi(markup, options));
   }
 
   /**
@@ -358,6 +614,8 @@ export interface CompositionOptions {
   fps?: number | string;
   audio?: AudioTrack | AudioTrack[];
   templates?: KinoTemplate[];
+  /** A grade applied once to the finished frame. */
+  grade?: ColorAdjust;
 }
 
 type SceneCallback = (scene: SceneBuilder) => void | SceneBuilder;
@@ -375,7 +633,10 @@ export class CompositionBuilder {
   private readonly templates: KinoTemplate[] = [];
   private audioTracks: AudioTrack | AudioTrack[] | undefined = undefined;
 
-  constructor(private readonly options: CompositionOptions = {}) {
+  private options: CompositionOptions;
+
+  constructor(options: CompositionOptions = {}) {
+    this.options = options;
     this.templates = options.templates ? [...options.templates] : [];
     this.audioTracks = options.audio;
   }
@@ -425,6 +686,12 @@ export class CompositionBuilder {
     return this;
   }
 
+  /** A grade applied once to the finished frame. Replaces any earlier one. */
+  grade(color: ColorAdjust): this {
+    this.options = { ...this.options, grade: color };
+    return this;
+  }
+
   build(): KinoComposition {
     return {
       ...(this.options.width !== undefined ? { width: this.options.width } : {}),
@@ -433,6 +700,7 @@ export class CompositionBuilder {
       scenes: this.scenes,
       ...(this.audioTracks !== undefined ? { audio: this.audioTracks } : {}),
       ...(this.templates.length ? { templates: this.templates } : {}),
+      ...(this.options.grade !== undefined ? { grade: this.options.grade } : {}),
     };
   }
 }
@@ -440,6 +708,185 @@ export class CompositionBuilder {
 /** Start a new composition. Chain `.scene(...)` then `.build()`. */
 export function composition(options: CompositionOptions = {}): CompositionBuilder {
   return new CompositionBuilder(options);
+}
+
+// ---------------------------------------------------------------------------
+// Scenes as values
+// ---------------------------------------------------------------------------
+
+/**
+ * A scene, as a plain value.
+ *
+ * The builder chains scenes onto a composition, which means a scene cannot be
+ * named, reused or tested on its own. This returns the same `KinoScene` the
+ * builder would produce, so a scene can be held in a variable and merged
+ * wherever it is needed — a chorus used three times is written once.
+ *
+ * ```ts
+ * const intro = scene({ for: 5, bg: "#0f172a" }, [text("Hello")]);
+ * const outro = scene({ for: 3, bg: "#111827", transition: "fade" }, [text("Bye")]);
+ *
+ * await render(merge(intro, outro), { output: "out.mp4" });
+ * ```
+ */
+export interface SceneProps {
+  /** How long the scene lasts. Same values the builder's `duration` takes. */
+  for: SceneDuration;
+  /** A colour, or a background config. */
+  bg?: BackgroundInput;
+  /** How this scene arrives. The first scene of a composition cannot have one. */
+  transition?: KinoTransitionType | KinoTransition;
+  id?: string;
+}
+
+export function scene(props: SceneProps, elements: ElementInput[] = []): KinoScene {
+  const { for: duration, bg, transition, id } = props;
+  return {
+    ...(id !== undefined ? { id } : {}),
+    duration,
+    ...(bg !== undefined ? { background: bg } : {}),
+    elements,
+    ...(transition !== undefined
+      ? {
+          transition:
+            typeof transition === "string" ? { type: transition, duration: 0.5 } : transition,
+        }
+      : {}),
+  };
+}
+
+/** Anything `merge()` accepts: a scene, or something holding scenes. */
+export type MergeInput = KinoScene | KinoComposition | CompositionBuilder | MergeInput[];
+
+/**
+ * Join scenes into a composition.
+ *
+ * Accepts scenes, compositions and builders in any nesting, so two videos can
+ * be joined as easily as two scenes. Later arguments play after earlier ones.
+ *
+ * ```ts
+ * merge(intro, chorus, chorus, outro);
+ * merge(partOne, partTwo);              // compositions, flattened
+ * ```
+ *
+ * Options come from the first composition passed; anything after it
+ * contributes scenes only.
+ */
+export function merge(...parts: MergeInput[]): KinoComposition {
+  const scenes: KinoScene[] = [];
+  let base: CompositionOptions | undefined;
+
+  const walk = (part: MergeInput): void => {
+    if (Array.isArray(part)) {
+      for (const inner of part) walk(inner);
+      return;
+    }
+    if (part instanceof CompositionBuilder) {
+      const built = part.build();
+      base ??= {
+        width: built.width,
+        height: built.height,
+        fps: built.fps,
+        audio: built.audio,
+        templates: built.templates,
+        grade: built.grade,
+      };
+      scenes.push(...built.scenes);
+      return;
+    }
+    // A composition has `scenes`; a scene has `duration`. Checking `scenes`
+    // first is what tells them apart, since a scene never has one.
+    if ("scenes" in part) {
+      base ??= {
+        width: part.width,
+        height: part.height,
+        fps: part.fps,
+        audio: part.audio,
+        templates: part.templates,
+        grade: part.grade,
+      };
+      scenes.push(...part.scenes);
+      return;
+    }
+    scenes.push(part);
+  };
+
+  for (const part of parts) walk(part);
+
+  return {
+    ...(base?.width !== undefined ? { width: base.width } : {}),
+    ...(base?.height !== undefined ? { height: base.height } : {}),
+    ...(base?.fps !== undefined ? { fps: base.fps } : {}),
+    scenes,
+    ...(base?.audio !== undefined ? { audio: base.audio } : {}),
+    ...(base?.templates?.length ? { templates: base.templates } : {}),
+    ...(base?.grade !== undefined ? { grade: base.grade } : {}),
+  };
+}
+
+/**
+ * Play the same scene several times.
+ *
+ * ```ts
+ * repeat(chorus, 3);                       // chorus, chorus, chorus
+ * repeat(chorus, { times: 3, gap: 1 });    // 1s of black between each
+ * ```
+ *
+ * With `gap`, the repeated scene is copied and the gap is added to its
+ * duration rather than inserted as a separate scene, so the scene's background
+ * holds through the pause instead of flashing. Pass `{ gap: 0 }` for none.
+ *
+ * Every repetition shares the same object, which is what `scene()` is for:
+ * editing the scene changes all of them. Use a copy (see `variants`) when
+ * each repetition needs to differ.
+ */
+export function repeat(
+  input: KinoScene | KinoComposition | CompositionBuilder,
+  timesOrOptions: number | { times: number; gap?: number } = 2
+): KinoScene[] {
+  const { times, gap = 0 } = typeof timesOrOptions === "number" ? { times: timesOrOptions } : timesOrOptions;
+  const scenes = scenesOf(input);
+
+  const out: KinoScene[] = [];
+  for (let i = 0; i < Math.max(0, Math.floor(times)); i++) {
+    for (const s of scenes) {
+      out.push(gap > 0 && typeof s.duration === "number" ? { ...s, duration: s.duration + gap } : s);
+    }
+  }
+  return out;
+}
+
+/**
+ * One scene, several versions — the basis for a verse/chorus structure.
+ *
+ * ```ts
+ * variants({ for: 4, bg: "#111827" }, [
+ *   { id: "verse",   elements: elements(text("I")) },
+ *   { id: "chorus",  elements: elements(text("We")) },
+ * ]);
+ * ```
+ *
+ * Props are the shared scene properties; each entry overrides them and adds
+ * elements, so the background and length are written once. An element can also
+ * be written directly and is taken as the elements list.
+ */
+export function variants(
+  base: SceneProps,
+  each: (Partial<SceneProps> & { elements?: ElementPart })[],
+): KinoScene[] {
+  return each.map(({ elements: parts, ...overrides }) => {
+    const merged = { ...base, ...withoutUndefined(overrides) };
+    return scene(merged, elements(parts ?? []));
+  });
+}
+
+/** Scenes held by anything `merge()` accepts, flattened. */
+function scenesOf(input: KinoScene | KinoComposition | CompositionBuilder): KinoScene[] {
+  return merge(input).scenes;
+}
+
+function withoutUndefined<T extends object>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 /**

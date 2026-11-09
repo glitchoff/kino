@@ -1,404 +1,375 @@
-# Composition Schema Reference
+# Composition Reference
 
-The `KinoComposition` object defines canvas properties, frame rate, global audio tracks, and mandatory `scenes[]`.
+The data shape behind everything: what `composition()` builds, what `render()`
+takes, and what a `.kino` artifact carries.
 
-> **This is the data shape, not the authoring format.** In code you build it with
-> `composition()` (see [Code Compositions](./getting-started.md#-code-compositions));
-> the same object can be written as JSON and passed to `render()` / `compile()`
-> unchanged. Every field below is available from the builder.
+> **This is the data shape, not the recommended authoring style.** Build
+> compositions with the builder — you get types, loops and computed values. The
+> object below is what comes out, and it is plain JSON-safe data, so writing it
+> by hand still works. See [Getting Started](./getting-started.md) for the
+> authoring side.
 
----
+**Contents**
 
-## 🎬 Core Mental Model
-
-> **Composition contains Scenes.**  
-> **Scenes play sequentially and own time/backgrounds.**  
-> **Elements are layers inside Scenes.**  
-> **Elements start at `startAt` seconds relative to their parent Scene.**
-
----
-
-## Canvas & Composition Properties
-
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `width` | `number` | `1920` | Output video canvas width in pixels. |
-| `height` | `number` | `1080` | Output video canvas height in pixels. |
-| `fps` | `number` | `30` | Frame rate in FPS. |
-| `scenes` | `KinoScene[]` | **Required** | Array of scene objects. Must contain at least 1 scene. |
-| `audio` | `AudioTrack \| AudioTrack[]` | `[]` | Background music / audio track configurations. |
-| `templates` | `KinoTemplate[]` | `[]` | Reusable named property bags for elements. See **Templates**. |
+- [Shape of a composition](#shape-of-a-composition)
+- [Scene](#scene)
+- [Background](#background)
+- [Transitions](#transitions)
+- [Elements](#elements)
+- [Compositing: blend, mask, motion blur](#compositing-blend-mask-motion-blur)
+- [Colour grading](#colour-grading)
+- [Animation](#animation)
+- [Captions](#captions)
+- [Templates](#templates)
+- [Audio](#audio)
 
 ---
 
-## Scene Configuration (`KinoScene`)
+## Shape of a composition
 
-Scenes play sequentially back-to-back automatically.
-
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | `scene-1`, ... | Optional unique identifier for the scene. |
-| `duration` | `number` | **Required** | Duration of the scene in seconds. |
-| `transition` | `KinoTransition` | undefined | Optional transition into this scene from the previous scene (cannot be set on the first scene). |
-| `background` | `BackgroundInput` | `"#000000"` | Solid color hex string or background config object. |
-| `elements` | `ElementInput[]` | `[]` | Array of visual elements (`text`, `image`, `html`, `video`) inside the scene. |
-
----
-
-## Scene Transitions (`KinoTransition`)
-
-Transitions belong to the **entering** scene (Scene 2 transitions INTO the composition over Scene 1). The first scene in a composition cannot define a transition.
-
-```json
-{
-  "duration": 5,
-  "background": "#312e81",
-  "transition": {
-    "type": "slideLeft",
-    "duration": 0.6
-  }
+```typescript
+interface KinoComposition {
+  width?: number | string;        // default 1920
+  height?: number | string;       // default 1080
+  fps?: number | string;          // default 30
+  scenes: KinoScene[];            // required, at least one
+  audio?: AudioTrack | AudioTrack[];
+  templates?: KinoTemplate[];
+  grade?: ColorAdjust;            // applied once to the finished frame
 }
 ```
 
-### Supported Transition Types (`KinoTransitionType`)
-- `fade`
-- `slideLeft`, `slideRight`, `slideUp`, `slideDown`
-- `wipeLeft`, `wipeRight`, `wipeUp`, `wipeDown`
-- `zoomIn`, `zoomOut`
+| Field | Default | Notes |
+| --- | --- | --- |
+| `width`, `height` | `1920`, `1080` | Pixels. Accept `"1920px"` too |
+| `fps` | `30` | Accepts `"30fps"` |
+| `scenes` | — | Required, non-empty |
+| `audio` | — | One track or many |
+| `templates` | `[]` | Reusable property bags |
+| `grade` | — | See [Colour grading](#colour-grading) |
 
-Transitions operate on fully composited scenes (including background, text, images, and animations) and overlap adjacent scenes. Total composition duration equals `sum(scene.duration) - sum(transition.duration)`.
-
----
-
-## Background Configurations
-
-### 1. Solid Color
-`"background": "#0f172a"` or `"background": { "type": "color", "value": "#0f172a" }`
-
-### 2. Gradient
-`"background": { "type": "gradient", "from": "#0f172a", "to": "#7c3aed" }`
-
-### 3. Image Fill
-`"background": { "type": "image", "src": "./bg.jpg" }`
-
-### 4. Video Loop
-`"background": { "type": "video", "src": "./loop.mp4", "loop": true }`
+**The model in one paragraph.** A composition holds scenes. Scenes play in
+order and own their background and timing. Elements are layers inside a scene,
+positioned in frame coordinates and starting at `startAt` seconds relative to
+their scene.
 
 ---
 
-## Elements (`ElementInput`)
+## Scene
 
-> Note: `startAt` on an element is **relative to its parent scene's start time**.
-
-### Positioning Model
-
-Kino uses a simple three-layer positioning model:
-
-> **Anchors position. Offsets adjust. Animations move.**
-
-| Property | Purpose |
-| :--- | :--- |
-| `x`, `y` | Anchor position: `"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, an FFmpeg expression, or a number. Also supports shorthand: `"center-90"`, `"right+50"`, `"bottom-20"`. |
-| `offsetX`, `offsetY` | Pixel offset applied on top of the anchor. |
-| `animation.x`, `animation.y` | Animated translation on top of the static position. |
-
-**Explicit offset (canonical):**
-
-```json
-{
-  "x": "center",
-  "y": "center",
-  "offsetX": -90,
-  "offsetY": 120
+```typescript
+interface KinoScene {
+  id?: string;
+  duration: number | string | { fit: Voice };   // required
+  background?: string | BackgroundConfig;
+  elements?: ElementInput[];
+  transition?: { type: KinoTransitionType; duration: number | string };
 }
 ```
 
-**Shorthand (sugar for the above):**
-
-```json
-{
-  "x": "center-90",
-  "y": "center+120"
-}
-```
-
-Both resolve to the same internal representation. Using both shorthand and explicit offset on the same axis is rejected as ambiguous.
-
-**With animation:**
-
-```json
-{
-  "x": "center",
-  "y": "center",
-  "offsetY": -100,
-  "animation": {
-    "y": { "from": 40, "to": 0, "duration": 0.6 }
-  }
-}
-```
-
-This positions the element at `center + (0, -100)` and then animates its Y by an additional 40→0 pixels on top of that.
-
-### 1. `TextElement` (`type: "text"`)
-
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | undefined | Optional identifier for the element. |
-| `type` | `"text"` | `"text"` | Element type discriminator. |
-| `content` | `string` | `""` | Text string to render. |
-| `fontSize` | `number` | `48` | Font size in pixels. |
-| `fontColor` | `string` | `"white"` | Text color. |
-| `fontFile` | `string` | `Inter Regular (bundled)` | Custom font file path or `http(s)` URL. When omitted, Kino's bundled **Inter Regular** font is embedded in the `.kino` artifact and used for rendering (ensures consistent output across all platforms). Local paths are copied into the archive; remote font URLs are downloaded at compile time. |
-| `box` | `boolean` | `false` | Enable background box behind text. |
-| `boxColor` | `string` | `"black@0.5"` | Background box color with opacity. |
-| `boxPadding` | `number` | `10` | Border padding around text box. |
-| `maxWidth` | `number` | undefined | Target maximum width in pixels for automatic line wrapping. Preserves hard newlines (`\n`) and never splits unbreakable tokens. (Approximate measurement in V1 zero-dependency mode). |
-| `textAlign` | `"left" \| "center" \| "right"` | `"left"` | Alignment of text lines inside the text box. |
-| `lineHeight` | `number` | `1` | Multiplier for line height spacing (`1` = normal, `1.5` = 50% extra line spacing). |
-| `stroke` | `{ color: string; width: number }` | undefined | Text outline stroke color and border width. |
-| `shadow` | `{ color: string; x?: number; y?: number }` | undefined | Text drop shadow color and x/y pixel offsets (defaults to `x: 2, y: 2`). |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"left"`, `"right"`, expression, number, or shorthand like `"center-90"`). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, `"top-N"`, `"bottom-N"`, expression, number, or shorthand like `"center+120"`). |
-| `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
-| `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
-| `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
-| `duration` | `number` | Scene duration | Visible duration in seconds. |
-| `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
-| `zIndex` | `number` | declaration index | Layering order. Lower values render first (background), higher values render on top. Negative values clamp to `0`. When omitted, elements stack in declaration order. Applied composition-globally across all scenes. |
-| `animation` | `ElementAnimation` | undefined | Per-element animations (opacity / x / y / scale). See **Animation Reference**. |
-
-### 2. `ImageElement` (`type: "image"`)
-
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | undefined | Optional identifier for the element. |
-| `type` | `"image"` | required | Element type discriminator. |
-| `src` | `string` | required | File path or `http(s)` URL to image file. Remote URLs are downloaded into the `.kino` artifact at compile time. |
-| `width` | `number` | original | Target width in pixels. |
-| `height` | `number` | original | Target height in pixels. |
-| `fit` | `MediaFit` | undefined | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). When unset: native dimensions if `width`/`height` are omitted, force-scale to `width`×`height` if both are set. |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"left"`, `"right"`, expression, number, or shorthand like `"center-90"`). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, expression, number, or shorthand like `"center+120"`). |
-| `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
-| `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
-| `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
-
-### 3. `HtmlElement` (`type: "html"`)
-
-Static HTML is rendered once by Puppeteer into a transparent PNG, then handled like an image. The PNG is stored in the `.kino` artifact, so rendering an existing artifact does not require a browser. Omit `backgroundColor` for transparency.
-
-HTML elements use the normal image-layer timing pipeline after rasterization. `startAt`, `duration`, positioning, `zIndex`, and `x`/`y`/`scale` animations therefore apply to the generated PNG. The current FFmpeg opacity animation path should be avoided for HTML layers until its alpha-expression handling is corrected; position and scale animations are supported.
-
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `type` | `"html"` | required | Element type discriminator. |
-| `html` | `string` | required | Inline static HTML markup. |
-| `css` | `string` | undefined | Inline CSS. |
-| `width` | `number` | required | Browser viewport and rendered width in pixels. |
-| `height` | `number` | required | Browser viewport and rendered height in pixels. |
-| `backgroundColor` | `string` | transparent | Optional page background. |
-| `deviceScaleFactor` | `number` | `1` | Puppeteer device scale factor. |
-| `fit` | `MediaFit` | undefined | Image-style fit behavior. |
-| `x`, `y`, `offsetX`, `offsetY`, `startAt`, `duration`, `sfx`, `zIndex`, `animation` | shared element properties | shared defaults | Same behavior as `ImageElement`. |
-
-### 4. `VideoElement` (`type: "video"`)
-
-A positional video clip overlaid inside a scene. Supports source seeking, duration clipping, optional looping, optional audio extraction (opt-in via `volume`), shared `fit` layout, and the same per-element animations as `ImageElement`.
-
-By default a `VideoElement` is **silent** (`volume: 0`); its audio is excluded unless `volume` is set to a positive value, at which point it is folded into Kino's shared `amix` master alongside background tracks and element SFX.
-
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | undefined | Optional identifier for the element. |
-| `type` | `"video"` | required | Element type discriminator. |
-| `src` | `string` | required | File path or `http(s)` URL to a video file. Remote URLs are downloaded into the `.kino` artifact at compile time. |
-| `width` | `number` | original | Target width in pixels. |
-| `height` | `number` | original | Target height in pixels. |
-| `fit` | `MediaFit` | `"contain"` | Aspect-ratio fit when both `width` and `height` are set (see **Shared Media Fit**). |
-| `x` | `number \| string` | `"center"` | Horizontal position (`"center"`, `"left"`, `"right"`, expression, number, or shorthand like `"center-90"`). |
-| `y` | `number \| string` | `"center"` | Vertical position (`"center"`, `"left"`, `"right"`, `"top"`, `"bottom"`, expression, number, or shorthand like `"center+120"`). |
-| `offsetX` | `number` | `0` | Horizontal offset in pixels applied after anchoring via `x`. |
-| `offsetY` | `number` | `0` | Vertical offset in pixels applied after anchoring via `y`. |
-| `startAt` | `number` | `0` | Delay in seconds relative to scene start time. |
-| `duration` | `number` | Scene duration | Visible duration in seconds. This is also the length of source footage consumed. |
-| `trimStart` | `number` | `0` | Seek offset in seconds into the source file for playback (source segment = `trimStart` → `trimStart + duration`). |
-| `loop` | `boolean` | `false` | Loop the source to fill `duration` when the footage is shorter. If `false` and the remaining source (after `trimStart`) is shorter than `duration`, the clip is clipped at the source end. |
-| `volume` | `number` | `0` | Source audio gain. `0` (default) **silences** element audio (no audio stream is emitted). Set to a positive value (e.g. `1`) to opt the source audio into the shared `amix` master. |
-| `sfx` | `string \| AudioTrack` | undefined | Sound effect triggered when element appears. |
-| `zIndex` | `number` | declaration index | Layering order (see `ImageElement`). |
-| `animation` | `ElementAnimation` | undefined | Per-element animations (opacity / x / y / scale). See **Animation Reference**. |
-
-#### Semantics
-
-```
-scene t=4s                         (startAt)
-   ↓ video element appears
-source playback begins at t=12s   (trimStart)
-   ↓
-plays for 6 seconds               (duration)
-   ↓
-source segment = 12s → 18s        (trimStart → trimStart + duration)
-```
-
-##### Shared Media Fit (`MediaFit`)
-
-`fit` is shared between `ImageElement.fit` and `VideoElement.fit` and only applies when **both** `width` and `height` are specified:
-
-| Value | Behavior |
-| :--- | :--- |
-| `"contain"` (default for video) | Scale to fit entirely inside the box, preserving aspect ratio; pad the remainder with transparency (`0x00000000`). |
-| `"cover"` | Scale to fully cover the box, preserving aspect ratio; crop overflow. |
-| `"fill"` | Force-scale to the exact `width` × `height`, ignoring aspect ratio. |
-| `"none"` | No `fit`-driven scaling. When both `width` and `height` are set, the media is still scaled to that exact box (`scale=w:h`); otherwise native dimensions are kept. |
+`duration` is seconds, or `{ fit: await voice("…") }` to size the scene to a
+measured line of speech.
 
 ---
 
-## Templates (`KinoTemplate`)
+## Background
 
-Templates are reusable property bags that reduce repetition across elements. They are resolved at compile time and **completely disappear** before rendering — FFmpeg never sees them.
+A scene background is a colour string or a config object:
 
-### Defining Templates
-
-Templates live at the composition level. Each template declares an `id`, a `type` (matching the element type it's for), and a `props` object containing any element properties:
-
-```json
-{
-  "templates": [
-    {
-      "id": "hero-text",
-      "type": "text",
-      "props": {
-        "fontSize": 120,
-        "fontColor": "#ffffff",
-        "x": "center",
-        "animation": {
-          "opacity": { "from": 0, "to": 1, "duration": 0.5 }
-        }
-      }
-    },
-    {
-      "id": "subtitle",
-      "type": "text",
-      "props": {
-        "fontSize": 42,
-        "fontColor": "#aaaaaa",
-        "x": "center"
-      }
-    }
-  ]
-}
+```typescript
+"#0f172a"                                                    // colour
+{ type: "gradient", from: "#1e1b4b", to: "#000", direction: "vertical" }
+{ type: "image", src: "./photo.jpg" }
+{ type: "video", src: "./loop.mp4", loop: true }
 ```
 
-### Using Templates
-
-Reference a template by `id` on an element. The element must also specify `type` explicitly. Element properties override template properties:
-
-```json
-{
-  "type": "text",
-  "template": "hero-text",
-  "content": "KINO",
-  "y": "center-100"
-}
-```
-
-```json
-{
-  "type": "text",
-  "template": "subtitle",
-  "content": "VIDEO, EXPRESSED AS DATA.",
-  "y": "center+100"
-}
-```
-
-### Merge Rules
-
-- **Deep merge, instance wins.** Template props are the base; element props override per key.
-- **Animation channels are deep-merged.** If the template defines `animation.opacity` and the element defines `animation.opacity`, the element's opacity values win but other channels (e.g., `scale`) from the template are preserved.
-- **One template per element.** No stacking or inheritance.
-- **No template-to-template references.** Templates are flat property bags only.
-- **Templates are stripped during normalization.** The resolved element is indistinguishable from one defined without a template.
-
-### Constraints
-
-- Template `id` values must be unique within a composition.
-- Referenced template `id` values must exist in `templates`.
-- Elements using a template must specify `type` explicitly.
-- Template `type` must be `"text"`, `"image"`, `"html"`, or `"video"`. HTML templates may provide shared `html`, `css`, dimensions, positioning, fit, and animation properties.
+| `type` | Fields |
+| --- | --- |
+| `color` | `value` |
+| `gradient` | `from`, `to`, `direction` (`vertical` default, or `horizontal`) |
+| `image` | `src` |
+| `video` | `src`, `loop` |
 
 ---
 
-## Animation Reference (`ElementAnimation`)
+## Transitions
 
-Every `TextElement`, `ImageElement`, and `VideoElement` may define an `animation` object with up to four channels: `opacity`, `x`, `y`, and `scale`. Each channel is an `AnimationValue`:
+A transition belongs to the **entering** scene and overlaps the two, so the
+composition ends up shorter than the sum of its scenes. The first scene cannot
+have one.
 
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `from` | `number` | **required** | Starting value. For `opacity`, `0`–`1`; for `scale`, multiplier (`1` = 100%); for `x`/`y`, pixels of translation offset on top of the element's static position. |
-| `to` | `number` | **required** | Ending value. |
-| `duration` | `number` | **required** | Duration of the transition in seconds. |
-| `delay` | `number` | `0` | Delay in seconds before the animation begins (per channel). |
-  | `easing` | `Easing` | `"linear"` | Timing curve. See **Easing Reference** below. |
-  
-### Easing Reference (`Easing`)
-
-Kino supports 13 easing curves grouped into families:
-
-| Family | `easing` value | Curve formula | Description |
-| :--- | :--- | :--- | :--- |
-| **Linear** | `linear` | `p` | Constant rate of change. |
-| **Cubic** | `easeIn` | `p³` | Slow start, accelerating. |
-| | `easeOut` | `1-(1-p)³` | Fast start, decelerating. |
-| | `easeInOut` | `3p²-2p³` | Slow start and end, fast middle. |
-| **Sine** | `easeInSine` | `1-cos(p·π/2)` | Sinusoidal ease-in. |
-| | `easeOutSine` | `sin(p·π/2)` | Sinusoidal ease-out. |
-| | `easeInOutSine` | `(1-cos(p·π))/2` | Sinusoidal ease-in-out. |
-| **Expo** | `easeInExpo` | `2^(10p-10)` | Exponential ease-in. |
-| | `easeOutExpo` | `1-2^(-10p)` | Exponential ease-out. |
-| | `easeInOutExpo` | (piecewise) | Exponential ease-in-out. |
-| **Circ** | `easeInCirc` | `1-√(1-p²)` | Circular arc ease-in. |
-| | `easeOutCirc` | `√(1-(p-1)²)` | Circular arc ease-out. |
-| | `easeInOutCirc` | (piecewise) | Circular arc ease-in-out. |
-
-The formulas above use `p` as the normalized progress (0→1) within the animation window.
-
-### Behavior
-
-- **Element-local clock.** An animation begins at `scene.startTime + element.startAt + delay`, independent of other channels.
-- **Hold → Interpolate → Hold.** The value equals `from` before the window, interpolates during `[start, start+duration]`, and holds `to` afterward.
-- **Clip, never rescale.** If `delay + duration` exceeds the element's own lifetime, the animation is clipped at the element boundary; it never rescales the layer or affects other elements.
-- **Static positioning is preserved.** `x`/`y` are translation offsets layered on top of the element's static `x`/`y` layout (static layout is never overridden). `scale` is a center-anchored multiplier — `1` = natural size; `to:0` collapses to zero size.
-- **Opacity** is a `0`–`1` alpha multiplier applied via the alpha channel.
-
-### Example
-
-```json
-{
-  "type": "text",
-  "content": "Hello, Kino",
-  "x": "center",
-  "y": "(h-text_h)/2",
-  "startAt": 0,
-  "duration": 6,
-  "animation": {
-    "opacity": { "from": 0, "to": 1, "duration": 1, "easing": "easeOut" },
-    "x":      { "from": -400, "to": 0, "duration": 1.2, "delay": 0.2, "easing": "easeInOut" },
-    "scale":  { "from": 0.2, "to": 1, "duration": 1, "easing": "easeOut" }
-  }
-}
+```typescript
+{ duration: 2, transition: { type: "fade", duration: 0.5 } }
 ```
+
+Types: `fade`, `slideLeft`, `slideRight`, `slideUp`, `slideDown`, `wipeLeft`,
+`wipeRight`, `wipeUp`, `wipeDown`, `zoomIn`, `zoomOut`.
 
 ---
 
-## Audio Tracks & SFX (`AudioTrack`)
+## Elements
 
-| Property | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `src` | `string` | required | File path or URL to audio file (`.mp3`, `.wav`, `.aac`). |
-| `startTime` | `number` | `0` | Timeline delay start offset in seconds. |
-| `offset` | `number` | `0` | Seek start offset within source audio file in seconds. |
-| `duration` | `number` | audio duration | Playback clip duration in seconds. |
-| `volume` | `number` | `1.0` | Volume multiplier (`0.3` = 30%, `1.5` = 150%). |
-| `loop` | `boolean` | `false` | Loop audio throughout duration. |
-| `fadeIn` | `number` | `0` | Fade-in duration in seconds. |
-| `fadeOut` | `number` | `0` | Fade-out duration in seconds. |
+Every element shares `BaseElement`:
+
+```typescript
+interface BaseElement {
+  id?: string;
+  x?: number | string;            // frame coordinates
+  y?: number | string;
+  offsetX?: number | string;
+  offsetY?: number | string;
+  startAt?: number | string;      // seconds from the scene's start
+  duration?: number | string;
+  zIndex?: number | string;
+  sfx?: string | AudioTrack;
+  animation?: ElementAnimation;
+  grade?: ColorAdjust;
+  blend?: BlendMode;
+  mask?: ElementMask;
+  motionBlur?: number | { samples?: number; shutter?: number };
+}
+```
+
+`x` and `y` accept numbers, percentages, and shorthands like `"center"`,
+`"bottom-140"`, `"top-10%"`.
+
+### Text
+
+```typescript
+{
+  type: "text",
+  content: string,
+  fontSize?, fontColor?, fontFile?,
+  box?, boxColor?, boxPadding?,
+  maxWidth?, textAlign?, lineHeight?,
+  stroke?: { color, width },
+  shadow?: { color, x?, y? },
+  captionWords?: CaptionWord[],
+  highlight?: string,
+}
+```
+
+Builder options use `color` and `align`, which map to `fontColor` and
+`textAlign`.
+
+### Image
+
+```typescript
+{ type: "image", src, width?, height?, fit?, chromaKey? }
+```
+
+`fit` is `contain` (default), `cover`, `fill` or `none`. `chromaKey` is `true`
+for green with defaults, or `{ color, similarity, blend, despill }`.
+
+### Video
+
+```typescript
+{ type: "video", src, width?, height?, fit?, trimStart?, trimEnd?, loop?, volume?, chromaKey? }
+```
+
+`trimEnd` sets the duration when `duration` is unset, so
+`{ trimStart: 2, trimEnd: 8 }` plays six seconds. `volume` mixes the clip's own
+audio into the output.
+
+### HTML
+
+```typescript
+{ type: "html", html, css?, width, height, fit?, backgroundColor?, deviceScaleFactor? }
+```
+
+`html` starting with `tak:` renders through Takumi instead of a browser. The
+builder's `s.tak(markup, opts)` is sugar for that, so the marker travels with
+the element.
+
+### Shape
+
+```typescript
+{ type: "shape", shape: "rect" | "ellipse" | "line", width, height, fill?, stroke?, strokeWidth?, radius?, x1?, y1?, x2?, y2? }
+```
+
+Rasterised to a PNG at compile time — no browser. `radius` applies to `rect`;
+`x1…y2` to `line`, relative to the shape's own box.
+
+---
+
+## Compositing: blend, mask, motion blur
+
+These sit on `BaseElement`, so they work on text and shapes as well as media.
+
+### `blend`
+
+```typescript
+type BlendMode =
+  | "normal" | "multiply" | "screen" | "overlay" | "softlight" | "hardlight"
+  | "difference" | "exclusion" | "darken" | "lighten" | "add";
+```
+
+`normal` is a plain alpha overlay. Any other mode composites the element
+against what is already beneath it.
+
+### `mask`
+
+```typescript
+interface ElementMask {
+  shape?: "rect" | "ellipse" | "linear";
+  src?: string;                                   // luma matte
+  direction?: "up" | "down" | "left" | "right";   // for `linear`
+  feather?: number;                               // pixels
+  invert?: boolean;
+}
+```
+
+Masks apply **after** the element is positioned, so their coordinates are frame
+coordinates. `feather` blurs the mask, not the element.
+
+### `motionBlur`
+
+A sample count, or `{ samples, shutter }` where `shutter` is the open fraction
+of a frame (`0.5` is the film-standard 180°). Off by default.
+
+---
+
+## Colour grading
+
+The same object on an element or the composition:
+
+```typescript
+interface ColorAdjust {
+  brightness?: number;      // -1..1
+  contrast?: number;        // 0..3
+  saturation?: number;      // 0..3
+  hue?: number;             // degrees
+  gamma?: number;           // 0.1..10
+  lift?: number | [number, number, number];
+  gain?: number | [number, number, number];
+  lut?: string;             // .cube file or URL
+  lutInterp?: "nearest" | "trilinear" | "tetrahedral" | "pyramid" | "prism";
+  curves?: {
+    master?: Array<[number, number]>;
+    red?: Array<[number, number]>;
+    green?: Array<[number, number]>;
+    blue?: Array<[number, number]>;
+  };
+  balance?: {
+    shadows?: [number, number, number];
+    midtones?: [number, number, number];
+    highlights?: [number, number, number];
+    preserveLightness?: boolean;
+  };
+}
+```
+
+Filters are emitted in a fixed order: **LUT → curves → lift/gain → balance →
+eq → hue**. The same numbers in a different order look different, so the order
+is the contract.
+
+---
+
+## Animation
+
+```typescript
+interface ElementAnimation {
+  opacity?: AnimatableValue;
+  x?: AnimatableValue;
+  y?: AnimatableValue;
+  scale?: AnimatableValue;
+}
+```
+
+`AnimatableValue` is either a two-point animation or a keyframe list:
+
+```typescript
+{ from: 0, to: 1, duration: 0.6, delay?: 0.2, easing?: "easeOut" }
+
+{ keyframes: [
+    { at: 0, value: 0.8, easing: "easeOutBack" },
+    { at: 0.4, value: 1.1 },
+    { at: 0.7, value: 1.0 },
+  ],
+  easing?: "easeInOut" }
+```
+
+`at` is seconds from the element's `startAt`. A keyframe's `easing` describes
+the segment *arriving* at it, so the first one is unused.
+
+### Easings
+
+`linear`, `easeIn`, `easeOut`, `easeInOut` · `easeInSine`, `easeOutSine`,
+`easeInOutSine` · `easeInExpo`, `easeOutExpo`, `easeInOutExpo` · `easeInCirc`,
+`easeOutCirc`, `easeInOutCirc` · `easeInBack`, `easeOutBack`, `easeInOutBack` ·
+`easeOutElastic`, `easeOutBounce`.
+
+---
+
+## Captions
+
+```typescript
+interface CaptionWord {
+  word: string;
+  at: number;        // seconds from the element's startAt
+  duration: number;
+}
+```
+
+When `captionWords` is set, the element draws `content` in `fontColor` and then
+re-draws it clipped to each word, in `highlight`, while that word is spoken.
+
+---
+
+## Templates
+
+A template is a named bag of element properties, with the element type it
+applies to:
+
+```typescript
+interface KinoTemplate {
+  id: string;
+  type: "text" | "image" | "html" | "video";
+  props: TemplateProps;   // the same fields an element accepts
+}
+
+templates: [{
+  id: "title",
+  type: "text",
+  props: { fontSize: 96, fontColor: "#fff", x: "center", y: "center" },
+}]
+```
+
+An element references one with `template: "title"` and must still set its own
+`type`. Element properties win over template properties; `stroke` and `shadow`
+replace wholesale rather than merging key by key. Shapes have no template type —
+they were added after templates and take properties directly.
+
+---
+
+## Audio
+
+```typescript
+interface AudioTrack {
+  src: string | TtsSpec;    // file, URL, `yt:` source, or tts() spec
+  id?: string;              // names the track so another can duck under it
+  startTime?: number | string;
+  offset?: number | string;
+  duration?: number | string;
+  volume?: number | string;
+  loop?: boolean;
+  fadeIn?: number | string;
+  fadeOut?: number | string;
+  duck?: boolean | DuckConfig;
+}
+```
+
+`duck: true` lowers the track whenever a speech track is audible. The object
+form picks which tracks and how hard:
+
+```typescript
+{ src: "./music.mp3", id: "music", duck: { by: "voice", amount: 0.25, release: 0.4 } }
+```
+
+| `DuckConfig` | Default | Meaning |
+| --- | --- | --- |
+| `by` | every speech track | Track id, or an array of them |
+| `amount` | `0.3` | Level to drop **to** |
+| `release` | `0.4` | Seconds to ramp back up |
+| `attack` | `0.02` | Seconds to ramp down |
+| `threshold` | `0.02` | Sidechain level that counts as speech |

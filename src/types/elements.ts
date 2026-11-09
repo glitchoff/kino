@@ -1,6 +1,111 @@
 import type { AudioTrack } from "./audio.js";
 import type { ElementAnimation } from "./animation.js";
 
+/**
+ * Per-element colour adjustment, applied before the element is composited.
+ *
+ * Ranges follow the usual conventions: `brightness` and `saturation` are
+ * relative where 1 is unchanged, `contrast` likewise, `hue` is degrees, and
+ * `gamma` is a multiplier where 1 is unchanged.
+ */
+export interface ColorAdjust {
+  /** -1..1, where 0 is unchanged. Adds to every channel. */
+  brightness?: number;
+  /** 0..3, where 1 is unchanged. */
+  contrast?: number;
+  /** 0..3, where 1 is unchanged. 0 is greyscale. */
+  saturation?: number;
+  /** Degrees, -180..180. */
+  hue?: number;
+  /** 0.1..10, where 1 is unchanged. */
+  gamma?: number;
+  /** Black point lift per channel, -1..1. */
+  lift?: number | [number, number, number];
+  /** White point gain per channel, 0..2, where 1 is unchanged. */
+  gain?: number | [number, number, number];
+  /**
+   * A `.cube` 3D LUT, applied before everything else in the grade.
+   *
+   * Paths resolve like any other asset, so remote URLs are staged and bundled
+   * into the `.kino` file.
+   */
+  lut?: string;
+  /** Interpolation between LUT lattice points. Default `tetrahedral`. */
+  lutInterp?: "nearest" | "trilinear" | "tetrahedral" | "pyramid" | "prism";
+  /**
+   * Tonal curves, as control points from 0 to 1.
+   *
+   * ```ts
+   * curves: { master: [[0, 0], [0.5, 0.62], [1, 1]] }
+   * ```
+   *
+   * `master` shapes all three channels together; `red`/`green`/`blue` shape one
+   * each and are how a colour cast is fixed or introduced. Points are sorted and
+   * must stay inside 0..1; the curve between them is a spline, not a straight
+   * line.
+   */
+  curves?: CurveSet;
+  /**
+   * Per-channel balance across shadows, midtones and highlights.
+   *
+   * Each is -1..1 and positive pushes towards that channel's primary. This is
+   * the control that turns a neutral shot warm or cool without changing its
+   * contrast.
+   */
+  balance?: {
+    shadows?: [number, number, number];
+    midtones?: [number, number, number];
+    highlights?: [number, number, number];
+    /** Keep brightness unchanged while shifting colour. Default false. */
+    preserveLightness?: boolean;
+  };
+}
+
+/** One curve: control points as `[input, output]` pairs, both 0..1. */
+export type CurvePoints = Array<[number, number]>;
+
+export interface CurveSet {
+  /** All three channels together. */
+  master?: CurvePoints;
+  red?: CurvePoints;
+  green?: CurvePoints;
+  blue?: CurvePoints;
+}
+
+/** How an element composites onto what is already beneath it. */
+export type BlendMode =
+  | "normal"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "softlight"
+  | "hardlight"
+  | "difference"
+  | "exclusion"
+  | "darken"
+  | "lighten"
+  | "add";
+
+/**
+ * A matte that limits where an element is visible.
+ *
+ * Masks apply to the element *after* it is positioned, so their coordinates are
+ * frame coordinates: a bottom gradient fades the bottom of the frame wherever
+ * the element happens to sit.
+ */
+export interface ElementMask {
+  /** Built-in shapes. Coordinates are normalised to the frame. */
+  shape?: "rect" | "ellipse" | "linear";
+  /** A gradient matte from a file: its luma becomes the element's alpha. */
+  src?: string;
+  /** Direction of a `linear` gradient. Default `down`. */
+  direction?: "up" | "down" | "left" | "right";
+  /** Softens the mask edge in pixels. Blurs the mask, not the element. */
+  feather?: number;
+  /** Swap inside and outside. */
+  invert?: boolean;
+}
+
 export interface BaseElement {
   id?: string;
   x?: number | string;
@@ -13,6 +118,28 @@ export interface BaseElement {
   sfx?: string | AudioTrack;
   zIndex?: number | string;
   animation?: ElementAnimation;
+  /**
+   * Brightness, contrast, saturation, hue, gamma, lift and gain.
+   *
+   * Called `grade` rather than `color` because `color` already means font
+   * colour on text elements.
+   */
+  grade?: ColorAdjust;
+  /**
+   * Composite this element onto what is beneath with a blend mode. Default
+   * `normal`, which is a plain alpha overlay.
+   */
+  blend?: BlendMode;
+  /** Limit where this element is visible. */
+  mask?: ElementMask;
+  /**
+   * Blur fast movement the way a camera does.
+   *
+   * A number is the sub-frame sample count (4 is a good default, 8 is smooth,
+   * 16 is diminishing returns). An object adds a `shutter`, the fraction of a
+   * frame the shutter is open for — `0.5` is the film-standard 180°.
+   */
+  motionBlur?: number | { samples?: number; shutter?: number };
 }
 
 /** One word inside a caption line, timed relative to the element's start. */
@@ -58,6 +185,34 @@ export interface TextElement extends BaseElement {
 }
 
 export type MediaFit = "contain" | "cover" | "fill" | "none";
+
+/**
+ * A drawn shape: rectangle, ellipse or line.
+ *
+ * Rasterised to a PNG once at compile time and then overlaid like an image, so
+ * it needs no browser and costs one file. Agents used to fake these with `html`
+ * elements, which drags in Chrome or Obscura and renders slightly differently
+ * between them.
+ */
+export interface ShapeElement extends BaseElement {
+  type: "shape";
+  shape: "rect" | "ellipse" | "line";
+  width: number | string;
+  height: number | string;
+  /** Interior colour. Omit or `"transparent"` for an outline only. */
+  fill?: string;
+  /** Border colour. */
+  stroke?: string;
+  /** Border thickness in pixels. */
+  strokeWidth?: number | string;
+  /** Corner radius for `rect`. Clamped to half the shorter side. */
+  radius?: number | string;
+  /** Line end points, relative to the shape's own box. Only for `shape: "line"`. */
+  x1?: number | string;
+  y1?: number | string;
+  x2?: number | string;
+  y2?: number | string;
+}
 
 // Backward compatible alias
 export type ObjectFit = MediaFit;
@@ -106,13 +261,18 @@ export interface VideoElement extends BaseElement {
 
   // Source playback
   trimStart?: number | string;
+  /**
+   * Where to stop reading the source. Duration is derived from it when
+   * `duration` is unset, so `{ trimStart: "0:32", trimEnd: "0:45" }` plays 13s.
+   */
+  trimEnd?: number | string;
   loop?: boolean;
   volume?: number | string;
   /** Key out a background colour (green/blue screen). `true` keys green. */
   chromaKey?: boolean | ChromaKeyConfig;
 }
 
-export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement;
+export type ElementInput = TextElement | ImageElement | HtmlElement | VideoElement | ShapeElement;
 
 // Backward compatible alias
 export type TextOverlay = TextElement;

@@ -12,12 +12,26 @@ import { buildSceneBackground } from "./background.js";
 import { buildTextFilter, buildKaraokeFilters, hasCaptionWords } from "./elements/text.js";
 import { escapeFFmpegStr } from "./position.js";
 import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
+import { applyBlendAndMask, needsBlendPass, hasMask } from "./elements/blend.js";
+import { buildMotionBlurLayer, resolveMotionBlur } from "./elements/motion-blur.js";
 import type { ChromaKey } from "./elements/media.js";
+import type { ColorAdjust } from "../types/elements.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
+import { isTakumiMarkup } from "../remote/takumi.js";
+import { rasterRect, rasterEllipse, rasterLine } from "./elements/shapes.js";
+import { buildColorFilter, isNeutralColor } from "./elements/color.js";
 import { buildTransitionPipeline } from "./transitions.js";
 import { buildAudioMix } from "./audio.js";
 import { resolveEncoderSync, buildEncoderFlags } from "./encoder-flags.js";
 import { resolvePreviewHeight } from "../types/render.js";
+
+/**
+ * Longest filtergraph passed on the command line. The OS limit (ARG_MAX) is
+ * typically 2 MB and shared with the environment; this leaves generous room so
+ * a graph that fits today does not fail on a machine with a smaller limit.
+ */
+const FILTERGRAPH_ARG_LIMIT = 100_000;
+const FILTERGRAPH_SCRIPT_NAME = "filtergraph.txt";
 import type {
   KinoComposition,
   RenderOptions,
@@ -26,12 +40,27 @@ import type {
   NormalizedImageElement,
   NormalizedVideoElement,
   NormalizedTextElement,
+  NormalizedShapeElement,
 } from "../types/index.js";
 
-const DEFAULT_FONT_PATH = resolve(
-  typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url)),
-  "../../assets/inter-regular.ttf"
-);
+// Walk up to the package root: unbundled this module sits at `src/pipeline/`,
+// in the tsup bundle at `dist/`. Assuming either depth misses the other and
+// leaves `defaultFontRef` undefined, which does not fail — drawtext silently
+// uses its own default font instead of the bundled one. The file is
+// `Inter-Regular.ttf`; the old `inter-regular.ttf` never existed.
+const DEFAULT_FONT_PATH = (() => {
+  let dir = resolve(
+    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url))
+  );
+  for (let i = 0; i < 5; i++) {
+    for (const name of ["Inter-Regular.ttf", "inter-regular.ttf"]) {
+      const path = join(dir, "assets", name);
+      if (existsSync(path)) return path;
+    }
+    dir = dirname(dir);
+  }
+  return undefined;
+})();
 
 function addFFmpegInput(
   inputs: string[],
@@ -71,7 +100,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   });
 
   let defaultFontRef: string | undefined;
-  if (existsSync(DEFAULT_FONT_PATH)) {
+  if (DEFAULT_FONT_PATH) {
     defaultFontRef = "inter-regular.ttf";
     copyFileSync(DEFAULT_FONT_PATH, join(stagingDir, defaultFontRef));
   }
@@ -111,9 +140,62 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const filterComplex: string[] = [];
   let inputIndex = 0;
 
-  const htmlElements = norm.elements.filter((elem): elem is NormalizedHtmlElement => elem.type === "html");
-  const htmlPaths = renderHtmlBatchSync(htmlElements as any, stagingDir, options?.browserPath);
+  const allHtmlElements = norm.elements.filter(
+    (elem): elem is NormalizedHtmlElement => elem.type === "html"
+  );
+  // `tak:` markup goes to Takumi and never touches a browser; everything else
+  // takes the existing Chrome/Obscura path unchanged.
+  const htmlElements = allHtmlElements.filter((elem) => !isTakumiMarkup(elem.html));
+  const htmlPaths = renderHtmlBatchSync(
+    htmlElements as any,
+    stagingDir,
+    options?.browserPath,
+    options?.browser,
+    options?.browserUrl
+  );
   const htmlPathMap = new Map(htmlElements.map((elem, index) => [elem, htmlPaths[index]]));
+  // Takumi is async; compile() is sync, so this is resolved by the caller before
+  // compile runs. See `renderTakumiBatch`.
+  // Keyed by index in `norm.elements`, not by element identity: the caller
+  // normalized separately and built its own objects.
+  const takumiPathMap = (options?.takumiRenders ?? new Map<number, string>()) as Map<number, string>;
+  const takumiIndexByElement = new Map<NormalizedHtmlElement, number>();
+  norm.elements.forEach((el, index) => {
+    if (el.type === "html" && isTakumiMarkup(el.html)) takumiIndexByElement.set(el, index);
+  });
+
+  // Shapes are static, so each is drawn once to a PNG and then overlaid by the
+  // image path. No browser, no second rendering model.
+  const shapeElements = norm.elements.filter(
+    (elem): elem is NormalizedShapeElement => elem.type === "shape"
+  );
+  const shapePathMap = new Map<NormalizedShapeElement, string>();
+  shapeElements.forEach((shape, index) => {
+    const out = join(stagingDir, `shape-${index}.png`);
+    const width = Math.max(1, Math.round(shape.width));
+    const height = Math.max(1, Math.round(shape.height));
+    const opts = { out, width, height, workDir: stagingDir, ffmpegPath: options?.ffmpegPath };
+    if (shape.shape === "ellipse") {
+      rasterEllipse(opts, { fill: shape.fill, stroke: shape.stroke, strokeWidth: shape.strokeWidth });
+    } else if (shape.shape === "line") {
+      rasterLine(opts, {
+        x1: shape.x1 ?? 0,
+        y1: shape.y1 ?? 0,
+        x2: shape.x2 ?? width,
+        y2: shape.y2 ?? height,
+        stroke: shape.stroke ?? shape.fill ?? "#ffffff",
+        strokeWidth: shape.strokeWidth ?? 2,
+      });
+    } else {
+      rasterRect(opts, {
+        fill: shape.fill,
+        stroke: shape.stroke,
+        strokeWidth: shape.strokeWidth,
+        radius: shape.radius,
+      });
+    }
+    shapePathMap.set(shape, out);
+  });
 
   try {
     // ── Stage 1: Per-scene backgrounds ──────────────────────────────────────
@@ -155,32 +237,64 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
       for (const elem of sceneElems) {
         const elemIdx = ++globalElemIdx;
-        const isImage = elem.type === "image" || elem.type === "html";
+        const isImage = elem.type === "image" || elem.type === "html" || elem.type === "shape";
         const isVideo = elem.type === "video";
 
         if (isImage || isVideo) {
           const media =
             elem.type === "html"
-              ? ({ ...elem, type: "image", src: htmlPathMap.get(elem as NormalizedHtmlElement)! } as NormalizedImageElement)
-              : (elem as NormalizedImageElement | NormalizedVideoElement);
+              ? ({
+                  ...elem,
+                  type: "image",
+                  src:
+                    htmlPathMap.get(elem as NormalizedHtmlElement) ??
+                    takumiPathMap.get(takumiIndexByElement.get(elem as NormalizedHtmlElement)!) ??
+                    (() => {
+                      throw new Error(
+                        "`tak:` markup reached compile() without a pre-rendered PNG. " +
+                          "Render through render() or exportComposition(), which run Takumi first."
+                      );
+                    })(),
+                } as NormalizedImageElement)
+              : elem.type === "shape"
+                ? ({ ...elem, type: "image", src: shapePathMap.get(elem)! } as NormalizedImageElement)
+                : (elem as NormalizedImageElement | NormalizedVideoElement);
           const currInputIdx = inputIndex++;
 
           if (isVideo) {
             const vid = elem as NormalizedVideoElement;
             addFFmpegInput(inputs, stageAsset(vid.src), { seek: vid.trimStart, streamLoop: vid.loop });
           } else {
-            addFFmpegInput(inputs, stageAsset(media.src));
+            // Loop a still so it has a frame for the whole timeline. Without
+            // this the input is a single frame at t=0, and the `fps=` below
+            // resamples that one frame into nothing — the overlay then finds no
+            // image to place and every static image renders invisible.
+            addFFmpegInput(inputs, stageAsset(media.src), { loop: true });
           }
 
-          const scaleFilter = buildMediaScaleFilter(media);
+          // A shape is a PNG with transparency around the drawn region; `media`
+          // is already `type: "image"` by here, so the flag has to be passed.
+          // Colour adjustment runs after scaling and before any key, so the
+          // numbers mean the same thing regardless of the element's size.
+          const colorFilter = isNeutralColor((elem as { grade?: ColorAdjust }).grade)
+            ? ""
+            : buildColorFilter((elem as { grade?: ColorAdjust }).grade, stageAsset);
+          const scaleFilter =
+            buildMediaScaleFilter({
+              ...media,
+              preserveAlpha: elem.type === "shape" || undefined,
+            }) + (colorFilter ? `,${colorFilter}` : "");
           const ax = buildAnimationExpressions(media, "t");
           const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
-          // Keyed layers are RGBA from the scale filter onward; never re-format to yuv420p.
+          // RGBA from the scale filter onward; never re-format to yuv420p or the
+          // alpha is dropped. Shapes need this without a chroma key, so the two
+          // concerns are separate.
           const keyed = (media as { chromaKey?: unknown }).chromaKey !== undefined;
+          const needsAlpha = keyed || elem.type === "shape";
           const keyFilter = keyed
             ? `,${buildChromaKeyFilter((media as { chromaKey: ChromaKey }).chromaKey)}`
             : "";
-          const outFormat = keyed ? "rgba" : "yuv420p";
+          const outFormat = needsAlpha ? "rgba" : "yuv420p";
 
           let startPad: string;
           if (isVideo) {
@@ -213,14 +327,59 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             startPad = basePad;
           }
 
-          lastScenePad = applyMediaOverlay(
-            filterComplex, elemIdx, startPad, media, ax, hasAnimation, sceneDur, lastScenePad
-          );
+          const elemBlend = (elem as { blend?: any; mask?: any; motionBlur?: any });
+          const blur = resolveMotionBlur(elemBlend.motionBlur);
+          if (blur) {
+            // Sample the element's transform across the shutter, average, then
+            // composite once. Only this element's layer is sampled, so cost
+            // scales with blurred elements rather than with the composition.
+            const blurredPad = buildMotionBlurLayer(
+              filterComplex, elemIdx, startPad, lastScenePad, media,
+              ax, hasAnimation, sceneDur, width, height, fps, blur
+            );
+            lastScenePad = applyBlendAndMask(
+              filterComplex, elemIdx, blurredPad, lastScenePad, true,
+              { blend: elemBlend.blend, mask: elemBlend.mask }, {}, false,
+              sceneDur, width, height, fps
+            );
+          } else if (needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask)) {
+            const maskInputIdx = elemBlend.mask?.src ? inputIndex++ : undefined;
+            if (maskInputIdx !== undefined) {
+              // A matte is a still; loop it so it has a frame for the whole
+              // timeline, exactly like any other image input.
+              addFFmpegInput(inputs, stageAsset(elemBlend.mask.src), { loop: true });
+            }
+            lastScenePad = applyBlendAndMask(
+              filterComplex, elemIdx, startPad, lastScenePad, false, media, ax, hasAnimation,
+              sceneDur, width, height, fps, maskInputIdx
+            );
+          } else {
+            lastScenePad = applyMediaOverlay(
+              filterComplex, elemIdx, startPad, media, ax, hasAnimation, sceneDur, lastScenePad
+            );
+          }
         } else {
           // Text element
           const item = elem as NormalizedTextElement;
           const textOutPad = `[v_layer_${elemIdx}]`;
-          const inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
+          const elemBlend = (elem as { blend?: any; mask?: any; motionBlur?: any });
+          const textBlur = resolveMotionBlur(elemBlend.motionBlur);
+          const special = needsBlendPass(elemBlend.blend) || hasMask(elemBlend.mask) || !!textBlur;
+
+          // `drawtext` paints onto its input, so blending or masking text means
+          // giving it a blank transparent frame to paint on and compositing the
+          // result — the same treatment media elements get.
+          let inPad: string;
+          if (special) {
+            const canvas = `[txt_canvas_${elemIdx}]`;
+            filterComplex.push(
+              `color=c=black@0.0:s=${width}x${height}:r=${fps}:d=${sceneDur},format=rgba,settb=AVTB${canvas}`
+            );
+            inPad = canvas;
+          } else {
+            inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
+          }
+
           const filter = buildTextFilter(item, elemIdx, stagingDir, sceneDur, useTextFiles, defaultFontRef, stageAsset);
 
           if (hasCaptionWords(item)) {
@@ -241,7 +400,31 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           } else {
             filterComplex.push(`${inPad}${filter}${textOutPad}`);
           }
-          lastScenePad = textOutPad;
+
+          if (special) {
+            const maskInputIdx = elemBlend.mask?.src ? inputIndex++ : undefined;
+            if (maskInputIdx !== undefined) {
+              addFFmpegInput(inputs, stageAsset(elemBlend.mask.src), { loop: true });
+            }
+            // Text is painted by drawtext at its final position, so it is
+            // already full-frame and needs no second placement. Motion blur
+            // runs on the painted layer, same as on a media layer.
+            let layerPad = textOutPad;
+            if (textBlur) {
+              const blurPad = `[txt_blur_${elemIdx}]`;
+              filterComplex.push(
+                `${layerPad}tmix=frames=${Math.max(2, Math.round(textBlur.samples * textBlur.shutter * 2))}${blurPad}`
+              );
+              layerPad = blurPad;
+            }
+            lastScenePad = applyBlendAndMask(
+              filterComplex, elemIdx, layerPad, lastScenePad, true,
+              { blend: elemBlend.blend, mask: elemBlend.mask }, {}, false,
+              sceneDur, width, height, fps, maskInputIdx
+            );
+          } else {
+            lastScenePad = textOutPad;
+          }
         }
       }
 
@@ -250,6 +433,20 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
     // ── Stage 3: Transitions ─────────────────────────────────────────────────
     let lastVideoPad = buildTransitionPipeline(filterComplex, norm.scenes as any, sceneCompPads, fps);
+
+    // ── Stage 3a: Composition grade ──────────────────────────────────────────
+    // One pass over the finished frame, after every scene and transition, so a
+    // look holds across the whole video. Before the preview downscale: a preview
+    // should show what the grade does, and grading after a downscale would make
+    // the two disagree on fine colour detail.
+    if (norm.grade && !isNeutralColor(norm.grade)) {
+      const gradeFilter = buildColorFilter(norm.grade, stageAsset);
+      if (gradeFilter) {
+        const src = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
+        filterComplex.push(`${src}${gradeFilter}[vgraded]`);
+        lastVideoPad = "[vgraded]";
+      }
+    }
 
     // ── Stage 3b: Preview downscale ──────────────────────────────────────────
     // Only the output stage changes, so the scene graph (and therefore what a
@@ -278,15 +475,27 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     const encoder = resolveEncoderSync(options);
     const encoderFlags =
       previewHeight !== undefined
-        ? buildEncoderFlags(encoder, options?.preset ?? "ultrafast")
-        : buildEncoderFlags(encoder, options?.preset);
+        ? buildEncoderFlags(encoder, options?.preset ?? "ultrafast", options?.crf)
+        : buildEncoderFlags(encoder, options?.preset, options?.crf);
 
     const args: string[] = ["-y", ...inputs];
     let filtergraphStr: string | undefined;
 
     if (filterComplex.length > 0) {
       filtergraphStr = filterComplex.join(";");
-      args.push("-filter_complex", filtergraphStr);
+      // A long caption track produces a filtergraph far past the OS argument
+      // limit (E2BIG, typically 2 MB), which fails at spawn with no useful
+      // error. Handing ffmpeg a script file keeps the graph off the command
+      // line, so graph size no longer limits a composition.
+      if (filtergraphStr.length > FILTERGRAPH_ARG_LIMIT) {
+        // Written into the staging dir, which is packed into the .kino and
+        // extracted at render time; ffmpeg then runs with that as its cwd, so
+        // the basename is the whole path it needs.
+        writeFileSync(join(stagingDir, FILTERGRAPH_SCRIPT_NAME), filtergraphStr, "utf8");
+        args.push("-filter_complex_script", FILTERGRAPH_SCRIPT_NAME);
+      } else {
+        args.push("-filter_complex", filtergraphStr);
+      }
       args.push("-map", lastVideoPad);
       if (finalAudioMap) {
         args.push("-map", finalAudioMap, "-c:a", "aac", "-b:a", "192k");

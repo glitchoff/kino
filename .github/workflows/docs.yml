@@ -1,0 +1,115 @@
+name: Docs
+
+# Builds the Astro docs site from docs/*.md and publishes it to GitHub Pages on
+# every push to main. Pull requests build it too, but do not publish.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "docs/**"
+      - "docs-site/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The previews are real renders, so they need the vendored ffmpeg (the
+      # ffmpeg-static build has no drawtext) and a built library to import.
+      - name: Cache bundled ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-ffmpeg.mjs') }}
+          restore-keys: |
+            ffmpeg-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install docs dependencies
+        working-directory: docs-site
+        run: pnpm install --no-frozen-lockfile
+
+      # docs-site has its own node_modules, so the library is built in the root
+      # and imported by path rather than resolved as a package.
+      - name: Build library
+        run: |
+          pnpm install --frozen-lockfile --prefer-offline
+          pnpm exec tsup
+
+      - name: Render docs previews
+        run: node docs-site/scripts/build-previews.mjs
+
+      # Every `:::preview` in the docs must have a clip behind it. A missing one
+      # renders as an empty box, which nobody notices until a reader does.
+      - name: Check preview references
+        run: node docs-site/scripts/check-previews.mjs
+
+      - name: Build docs
+        working-directory: docs-site
+        run: pnpm build
+
+      # Fail loudly if the site built but produced no HTML, which is what a
+      # broken content loader looks like.
+      - name: Verify output
+        working-directory: docs-site
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          pages=$(find dist -name '*.html' | wc -l)
+          echo "built $pages pages"
+          # 12 routes: the overview, nine guide pages, and two extras. A drop
+          # here means a markdown file stopped being picked up.
+          test "$pages" -ge 12
+          # A preview that failed to render leaves no mp4, and the page would
+          # silently show an empty box.
+          clips=$(find dist/previews -name '*.mp4' 2>/dev/null | wc -l)
+          echo "rendered $clips previews"
+          test "$clips" -ge 27
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/dist
+
+  deploy:
+    # Publishing is main-only: a PR build proves the site compiles, nothing more.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

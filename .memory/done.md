@@ -1,9 +1,309 @@
 # Done
 
-Newest first. One line per item; link the ticket for detail.
+Newest first. Detail lives below each summary; the summaries are what to read if
+you only want the shape of a day.
+
+## 2026-11-08
+
+**In one paragraph.** Kino became something an agent can author against without
+guessing. It can now describe a composition before rendering (`inspect`), measure
+text exactly and synchronously (`measureText`, from font tables rather than a
+render), and scrub a composition at ~30 ms a frame (`Preview`). Authoring gained
+shapes, browserless HTML via Takumi (`s.tak()`), per-element colour grading, keyframed
+animation with curves, and audio ducking. Five silent bugs that had shipped for
+days were found and fixed — still images rendering as nothing, transparent PNGs
+losing alpha, the bundled font never being used, `frames` returning t=0 for every
+still, and four wrong-depth path bugs. The suite went from 201 to 317 tests, and
+now also runs against the built bundle, which is where those bugs lived.
+
+**Shipped:** `exportComposition` · blend modes and masks · motion blur · colour grading · audio ducking · keyframes + 5 easings ·
+`inspect()` · font-metric `measureText()` · `test-dist/` · shapes · `s.tak()` ·
+colour grading · `Preview` · `--crf` · docs rewritten task-first
+
+**Serious bugs found:** still images invisible (no `-loop`) · transparent PNGs
+losing alpha through `scale=` · bundled font never loaded (wrong depth *and*
+wrong filename) · `frames` returning t=0 always · four relative-path bugs from
+`dist/`
+
+
+- **Reusable pieces.** `preset()`, `withOptions()`, `elements()`, `shift()`,
+  `repeat()` and `variants()` (2026-11-09), extending scenes-as-values to
+  elements, looks and sets of scenes. 34 tests. Two silent-failure bugs were
+  found by pixel-checking the render rather than the test: `withOptions` wrote
+  `color` instead of `fontColor`, and stored a bare animation where the schema
+  expects `{ opacity }` — both dropped the option without any error. The
+  preview clip `feature-reusable` is built from all six.
+- **Scenes as values.** `scene()` and `merge()` (2026-11-08). The chained
+  builder could not reuse a scene: `.scene()` appends and returns the
+  composition, so a chorus used three times had to be written three times or
+  wrapped in a `SceneBuilder` and `.build()`ed. `scene()` returns a plain
+  `KinoScene`, so a scene is a variable, and `merge()` flattens scenes,
+  compositions, builders and arrays. Verified two ways: the merged form
+  compiles to the identical filtergraph as the chained one, and the preview
+  clip shows the chorus background at 2.2s and 3.7s.
+- **Docs site responsive + unslop redesign.** `getting-started.md` (787 lines)
+  split into five topic pages — compositions, content, look, sound, checking,
+  rendering — with `docs-site/src/nav.ts` owning sidebar order and prev/next so
+  the three never disagree. Grouped sidebar (Start / Guide / Reference), a real
+  mobile drawer with scrim, Escape and focus handling, sticky contents rail,
+  prev/next footer. Design passes: one Ink neutral ramp, one accent, Geist +
+  Geist Mono self-hosted, 4px spacing scale, code blocks on the page ramp, no
+  emoji headings, no hype words. Verified with headless Chrome at 390 / 900 /
+  1240 / 1440 / 1920: no horizontal overflow at any width.
+- **Docs: previews embedded in the pages, schema reference rewritten.** Ten
+  feature clips (shapes, `tak:`, curves, balance, blend, mask, motion blur,
+  keyframes, captions, preview API) now sit next to the text that describes
+  them, via a `:::preview` directive. `schema-reference.md` was 415 lines of
+  JSON examples covering nothing shipped after the first release; rewritten
+  against the real types. Running the doc examples through `--dry-run` caught
+  two that set a transition on the first scene, which the engine rejects.
+- **`--dry-run` on `tak:` compositions** — the flag called `compile()` directly,
+  skipping the Takumi pre-render, so any `s.tak()` composition failed with
+  "reached compile() without a pre-rendered PNG". It now renders markup first,
+  as `render()` does. The test was checked by re-introducing the bug.
+- **Colour grading** — `lut` (`.cube`), `curves`, `balance` and a
+  composition-level `grade`. The filter order is pinned in one function and
+  tested, so element and composition grades cannot drift.
+- **Motion blur** — `motionBlur` on every element, via `tmix` on the element's
+  own layer. The ticket's proposed design (N sub-frame renders combined with
+  `blend`) does not work — ffmpeg smears the whole frame past two RGBA inputs —
+  but the tool it dismissed does, because on an isolated layer there is nothing
+  else to blur.
+- **Blend modes and masks** — `blend` (11 modes) and `mask` (rect, ellipse,
+  linear gradient, luma matte from a file, feather, invert) on every element,
+  including text. Each such element compiles as a subgraph: laid on a
+  transparent full-frame canvas, masked with `alphamerge`, then blended. The
+  ticket asked whether a blended element needs a background — it does, and that
+  is what makes positioned blending possible without flattening the frame.
+- **Live preview** — `Preview.open(comp)` compiles once, renders a small
+  all-keyframe proxy, then serves `frame(t)` on demand at ~30 ms each, with a
+  `data:` URL ready for an `<img>` or a vision model. `previewFrames()` is the
+  one-shot form. The ticket asked for a spike first and it changed the design:
+  the 60–200 ms per-still cost was almost all process spawn, so the fix is a
+  **proxy file**, not a persistent process — a long-lived ffmpeg only reaches
+  ~10 ms and is not worth the lifetime complexity.
+- **`-vf` cannot be added to a compiled graph** — the args already use
+  `-filter_complex`, and ffmpeg refuses simple and complex filtering on one
+  stream. The proxy scale uses the existing `preview` compile option, which bakes
+  it into the graph.
+- **Per-element colour grading** — `grade` on any element: `brightness`,
+  `contrast`, `saturation`, `hue`, `gamma`, `lift` and `gain`, the last two
+  per-channel. Named `grade` because `color` already means font colour on text.
+  Verified by rendering flat colours and reading the centre pixel: brightness
+  ±0.2 moves 128 to 186/64, contrast 2 takes 64 to 0, hue 120 turns red to green,
+  lift 0.3 takes black to 75, gain 0.5 takes white to 128.
+- **Two `colorlevels` traps, both hit** — `rimin`/`rimax` are *input* thresholds
+  that clip rather than lift or darken, so the first version did nothing for
+  `lift` and made `gain` clip more of the image to white. Lifting blacks is
+  `romin`; darkening is `romax`.
+- **`tak:` markup — browserless HTML** — `s.tak(markup, opts)` is sugar for
+  `s.html("tak:" + markup, opts)`, mirroring the `yt:` convention. Markup with
+  the prefix renders through [Takumi](https://takumi.kane.tw/) (Rust, Blink-ported
+  text layout); everything else takes the existing Chrome/Obscura path. `tak` and
+  `html` coexist in the same scene. Verified by render: a panel plus its
+  Inter-set text drew 1,562 text-coloured pixels with no browser. `compile()` is
+  synchronous and Takumi is not, so `render()`/`exportComposition()` pre-render
+  the elements and pass a map keyed by index in `norm.elements` — identity cannot
+  be used because compile normalizes independently.
+- **Shapes** — `rect`, `ellipse`, `line` (and `shape(kind, opts)`), rasterised to
+  a PNG at compile time and overlaid by the existing image path. No browser.
+  Rounded corners, strokes and arbitrary-angle lines are drawn with `geq`,
+  because `drawbox` cannot round corners *and* does not write alpha: drawing a
+  fill onto a transparent canvas gave an invisible image with the right colour
+  in it.
+- **Two pre-existing overlay bugs, found while wiring shapes** — both made
+  images silently invisible, and neither had anything to do with shapes:
+  - A still image input was not looped, so it was one frame at t=0 and the
+    `fps=` filter resampled it into nothing. Every static image with an explicit
+    size rendered as nothing at all. Now `-loop 1`.
+  - `scale=w:h` outputs yuv420p, which has no alpha channel, so any PNG with
+    transparency became a fully transparent overlay. Now `format=rgba` whenever
+    alpha matters.
+- **Caption seam** — `resolveCaptions()` now produces the lines, trimmed holds,
+  resolved defaults, parsed font size and z-index for both caption renderers.
+  `captionImages` consumed none of that before: it rebuilt lines, re-derived
+  `color`/`highlight`/`at`/`zIndex` and re-implemented centring. The duplicated
+  hold-trimming is what caused the stacked-captions bug. Four tests assert the
+  two paths agree on line ends, z-index (default and explicit) and `"40px"` font
+  sizes. Note the caption suite takes ~145s — `captionImages` rasterises one
+  PNG per word.
+- **Tests against the bundled build** — `test-dist/bundled.test.ts`, run by
+  `pnpm test:dist` (builds first) and by CI as its own step. The main suite
+  imports from `src/`, so `__dirname` is always the source layout and the
+  `dist/` layout was never exercised; four bugs shipped that way, all silent.
+  The suite checks that the vendored ffmpeg resolves inside the package and has
+  `drawtext`, that the bundled font is found, that the compiled graph carries
+  `fontfile=`, and renders a real frame. Verified by reintroducing each bug: the
+  depth one fails three tests including the render, the filename one fails the
+  `fontfile=` assertion.
+- **`getFFmpegBinaryPath` exported** — needed by the bundled tests and useful to
+  anyone shelling out to the same binary kino uses.
+- **Font-metric text measurement** — `measureText()` now reads advance widths
+  out of the font file (`head`/`hhea`/`hmtx`/`cmap`, plus `kern` format 0)
+  instead of rasterising with ffmpeg. Synchronous, no subprocess, and it returns
+  the same number drawtext calls `text_w` — verified by rendering: centred
+  "Title" at 64px predicts ink at 258.9, drawtext puts it at 258. `inspect()`
+  became synchronous too and lost its `measure` option. The measure suite went
+  from ~400ms of ffmpeg spawns to 14ms.
+- **The bundled font was never being used** — found while checking the above.
+  `DEFAULT_FONT_PATH` in `compile.ts` assumed `src/pipeline/` depth (wrong from
+  `dist/`) *and* named the file `inter-regular.ttf` when it is
+  `Inter-Regular.ttf`. So `defaultFontRef` was always `undefined` and every
+  render silently fell back to drawtext's default font. Now walks up to the
+  package root and matches the real name; the compiled graph carries
+  `fontfile='inter-regular.ttf'`. This is the fourth depth bug of the same
+  shape — see `tickets/010`.
+- **Keyframed animation** — any animated channel accepts
+  `{ keyframes: [{ at, value, easing? }] }` alongside `{ from, to }`. `at` is
+  seconds from the element's `startAt`; a keyframe's `easing` describes the
+  segment arriving at it. Compiles to a nested `if(lt(t, end), seg, rest)` chain,
+  built back-to-front, so two keyframes give the same shape as `{ from, to }`.
+  Five new easings: `easeInBack`, `easeOutBack`, `easeInOutBack`,
+  `easeOutElastic`, `easeOutBounce` — verified rendered: `easeOutBack` overshoots
+  to 112 on the way to 100, `easeInBack` winds back to -1 first.
+- **`frames` returned t=0 for every still** — `-ss` was an input option, and the
+  background is a lavfi `color=...:d=N` generator, which cannot be seeked.
+  ffmpeg silently produced from t=0 and `-frames:v 1` captured the first frame,
+  so animations looked frozen and the still timings in `done.md` were misleading
+  about *which* frame they measured. Now an output option, so the graph runs to
+  `at` and the frame is dropped downstream. Also clamps a request at or past the
+  duration to the last whole frame: seeking there produces no file at all
+  (ffmpeg exits 0 and writes nothing).
+- **Audio ducking** — `duck` on an audio track lowers it under speech, via
+  `sidechaincompress`. `duck: true` listens to every `tts()`/`s.say()` track;
+  `duck: { by, amount, attack, release, threshold }` names them. Two things
+  about the filter cost time to find: it ends when the **sidechain** ends (a
+  1.5s voice truncated a 4s bed until the key was `apad`ed), and it attenuates
+  by a level ratio rather than to a target, so depth is driven by sidechain
+  gain. That curve was measured (gain 0.3 → 73%, 1.0 → 25%, 8.0 → 3.5%) and
+  fitted to a power law, `duckGain()`. Also: a pad can only be consumed once, so
+  a sidechain track is `asplit` — without it ffmpeg fails with "Invalid
+  argument". Ducking resolves *last* in normalization, because narration and sfx
+  tracks are appended after `normalizeAudio()`.
+- **`inspect()` and `measureText()`** — `inspect(comp)` describes a composition
+  without rendering: scene timing, element boxes in frame pixels, and issues
+  (`text-wider-than-frame`, `element-outlives-scene`, `missing-source`,
+  `element-overlap`, …). `measureText()` exposes the rasterised measurement
+  `captionImages` already used internally. Both live in `src/measure/` and
+  `src/inspect/`. Verified against real renders: left-aligned elements land
+  exactly on their `x`/`y`; centred text is within glyph side bearings; the
+  reported `y` sits ~13px above the ink because drawtext's `text_h` includes
+  ascender leading, which makes the box conservative for overflow checks.
+- **Third and fourth depth bugs, plus a new class of them** — the walk-ups were
+  returning *relative* paths (tsup emits a relative `__dirname`), so `spawn`
+  looked for `vendor/...` from the caller's cwd and failed with `ENOENT` unless
+  you happened to run from the package root. All four now `resolve()` first:
+  `resolveVendoredFFmpeg`, `findDrawtextFfmpeg`, `findRenderHelper`, and the new
+  font lookup. `inspect` also had a real bug: it measured every element at the
+  default 48px because one `measureTexts` batch takes one size — it now groups
+  by font size.
+- **Docs site** — `docs-site/` is an Astro app that reads `docs/*.md` in place
+  (no duplicated content) and publishes to GitHub Pages on every push to main.
+  Sidebar order is fixed in the layout; `/previews/` is added by hand since it is
+  an Astro page, not a markdown doc. Live at
+  https://moviea849w.github.io/kino/. Two link bugs on the way: `BASE_URL` is
+  `/kino` with no trailing slash, and markdown `./x.md` links were never
+  rewritten — a remark plugin maps them to absolute `/kino/x/`.
+- **Feature previews** — every transition (11) and animation helper (4) has a
+  looping clip, generated by `docs-site/scripts/build-previews.mjs` and embedded
+  in the tables. ~104K for all 15. They use the vendored ffmpeg, not
+  `ffmpeg-static` (no drawtext). CI fails if fewer than 15 render.
+- **Obscura support** — `--browser chrome|obscura|auto` plus
+  `npx kino setup obscura`. Obscura speaks CDP, so Puppeteer `connect`s to it and
+  the page code is unchanged. `disconnect()` not `close()`, or a render kills the
+  user's instance.
+- **Bundled-build path bug** — `renderHtmlBatchSync` resolved
+  `../../../scripts/render-html.mjs` from `__dirname`, which is `dist/` in the
+  tsup bundle, so every HTML element render failed with a missing module. Only
+  worked from `src/`. Now walks up to the package root, like `findDrawtextFfmpeg`.
+- **`exportComposition`** — one call, three independent outputs, destructured
+  so you take what you asked for: `{ frames, video, preview }`. Asking only for
+  `frames` never encodes a video — ffmpeg seeks to each timestamp on the same
+  filtergraph and takes one frame. Measured on a 20s 640×360 composition: a
+  still costs 74–187 ms against 1126 ms for the video, so it is cheap enough for
+  a feedback loop. Each still returns `{ at, path, data }`, `data` being a
+  `data:image/png;base64,…` URL already in memory when the file is written.
+  Compile happens once and is shared; `video` and `preview` still need one
+  ffmpeg run each, because a preview is a different filtergraph *and* encoder
+  setting — there is no single invocation that produces both correctly.
+- **Bundled-build path bugs (two, same shape)** — `renderHtmlBatchSync`
+  resolved `../../../scripts/render-html.mjs` and `resolveVendoredFFmpeg`
+  resolved `../../vendor` from `__dirname`. Both are right from `src/` and wrong
+  from `dist/`, where they landed on `/scripts/…` and `/workspaces/vendor`.
+  The ffmpeg one was the dangerous case: it *silently* fell back to
+  `ffmpeg-static`, which has no `drawtext`, so every text render from the bundle
+  failed. Tests never saw either because vitest imports from `src/`. Both now
+  walk up to the package root. Verified: vendored ffmpeg has drawtext (1 match),
+  `ffmpeg-static` has none (0), and a `dist/` dry-run emits `drawtext=textfile=`.
+  See `tickets/010`.
+- **`groupWords` grouping options** — takes `{ wordsPerLine, gap, breakOn }`, and
+  `CaptionOptions` exposes `gap`/`breakOn`. The lyric example had re-implemented
+  grouping by hand (gap + comma), diverged from the library, and then called
+  `captionElements` per line — the exact bug that stacks captions. It now passes
+  every word once.
+
+- **Word highlight as pre-rasterised images** — `captionImages()` renders each
+  word state to a PNG once and returns one `ImageElement` per word timed to its
+  span, so the composition only swaps images instead of rebuilding a drawtext
+  chain per word. A 163s song with word-level highlight renders in ~2 minutes;
+  the `karaoke` style never finished at 12 lines. Widths come from the
+  rasterised ink extent, not the character estimator, so gaps stay even
+  ("Maybe" 411px at fontsize 132 vs the old ~194 estimate at 64 — roughly 2x,
+  as expected). All timings must be passed at once: `buildCaptionLines` trims
+  each line's hold against the *following* line, and calling it per line stacked
+  captions on screen. `examples/lyrics.ts` gains a `frames` style rasterising at
+  2x and displaying at 1x (`displayWidth`/`displayHeight`); no entrance
+  animation on word frames or the line flickers on every swap. 36 caption tests,
+  192 total. `karaoke` kept for compatibility.
+- **`telegram-render.yml` offers `frames`** — the manual workflow's `lyrics_style`
+  choice list only had `block` and `karaoke`, so a dispatch asking for word
+  highlight failed validation with a 422 before it could run.
+- **Token scope notes** — a `ghu_` App token can push but cannot dispatch
+  workflows ("Resource not accessible by integration"); a classic `ghp_` token
+  with the `workflow` scope can. The Telegram group was upgraded to a
+  supergroup, so the chat ID is now `-1004377515630`, not the old `-5371873302`.
 
 ## 2026-11-07
 
+- **Word-by-word `reveal` caption style** — each word is its own element,
+  appearing when sung and staying until the line ends, so the line builds up.
+  The sung word is highlighted, then an overlapping element redraws it in the
+  resting colour (drawtext has no per-glyph colour). Positions are explicit
+  pixels from the same width estimator the renderer wraps with.
+  `x` must be emitted as `w/2 ± n`: drawtext resolves `w-210` from the *right*
+  edge and treats a bare negative number as a literal offset, both of which push
+  words off-screen. 32 tests in `test/captions.test.ts`.
+  Known gap: the estimator is a per-character approximation and can
+  under-measure by ~6px per word ("Maybe" 126.7 vs 133 rendered), so with many
+  words per line neighbours can touch. Fix is to calibrate advances from the
+  font; the real per-character advances are 0.28–1.07em (measured).
+- **`trimEnd` + `mm:ss` clock times** — `{ trimStart: "0:32", trimEnd: "0:45" }`
+  plays 13s; an explicit `duration` wins. `parseDuration` accepts `mm:ss` and
+  `hh:mm:ss`, throws on malformed clocks, and allows a leading component over 59
+  ("90:00"). Verified the cut is real: the first output frame is pixel-identical
+  to the source at 2s, not just a shortened element. 188 tests pass.
+- **Full-song alignment needs chunking** — one wav2vec2 pass over a whole track
+  is O(n²) in audio length and gets OOM-killed (no swap; `exit=143`). Align in
+  24s windows with 4s overlap and stitch. Each window must also be given only
+  ~3.2 words/second of transcript, or the model reports "no valid alignment
+  path exists". A 2:43 track aligns in ~8 windows.
+- **Karaoke highlight renders at ~2.6x realtime** — the highlight used to draw
+  the whole line again per word and crop afterwards, so each word cost a
+  full-resolution drawtext; a minute of captions was ~550 full-frame passes and
+  ffmpeg sat at `frame=0` indefinitely. Now each word is cropped to its box
+  *first* and the highlight is drawn into that small region, which drops
+  per-word cost ~50x. Measured: 10s of captions with 23 words renders in 3.8s.
+  Verified by frame inspection (the spoken word lights up in the right place).
+  Still true: cost scales with line count, so a 72-line song takes several
+  minutes. `block` remains much faster when the highlight is not needed.
+- **Long filtergraphs are passed as a script file** — past 100 KB the graph is
+  written into the `.kino` staging dir and handed to ffmpeg with
+  `-filter_complex_script`, so graph size no longer hits `E2BIG` at spawn. The
+  script travels inside the artifact and is referenced by basename, matching the
+  extraction dir ffmpeg runs in.
+- **Scratch files live in `.work/`, not `/tmp`** — a machine restart wiped
+  `/tmp` mid-task and lost a full alignment pass plus both source tracks.
+  `.work/` is gitignored and survives restarts.
 - **Word-level captions** — `captions()` (even timing, no deps) and
   `captionsAsync()` (forced alignment when `mms-forced-align` is present, even
   timing otherwise). Styles: `karaoke` (default), `word`, `block`. Timing

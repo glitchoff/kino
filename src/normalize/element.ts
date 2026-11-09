@@ -4,6 +4,7 @@ import type {
   NormalizedImageElement,
   NormalizedHtmlElement,
   NormalizedVideoElement,
+  NormalizedShapeElement,
 } from "../types/normalized.js";
 import { normalizeChromaKey } from "../pipeline/elements/media.js";
 import {
@@ -110,13 +111,60 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   const animation = normalizeAnimation(elem.animation, sceneDuration);
   const offsetX = parsePixels(elem.offsetX, canvasWidth);
   const offsetY = parsePixels(elem.offsetY, canvasHeight);
+  // A colour adjustment is carried through as written; the compiler turns it
+  // into filters, and validation rejects nonsense before that point.
+  const colorAdjust = elem.grade ? { ...elem.grade } : undefined;
+  // Blend and mask are passed through untouched; the compiler owns their
+  // meaning, and validation rejects unknown modes before this point.
+  const compositing = {
+    ...(elem.blend ? { blend: elem.blend } : {}),
+    ...(elem.mask ? { mask: { ...elem.mask } } : {}),
+    ...(elem.motionBlur !== undefined ? { motionBlur: elem.motionBlur } : {}),
+  };
 
   const rawWidth = parsePixels(elem.width, canvasWidth);
   const rawHeight = parsePixels(elem.height, canvasHeight);
 
+  if (elem.type === "shape") {
+    const shape: NormalizedShapeElement = {
+      type: "shape",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
+      shape: elem.shape === "ellipse" || elem.shape === "line" ? elem.shape : "rect",
+      width: rawWidth ?? 0,
+      height: rawHeight ?? 0,
+      fill: elem.fill,
+      stroke: elem.stroke,
+      strokeWidth: parsePixels(elem.strokeWidth) ?? 0,
+      radius: parsePixels(elem.radius) ?? 0,
+      x1: parsePixels(elem.x1),
+      y1: parsePixels(elem.y1),
+      x2: parsePixels(elem.x2),
+      y2: parsePixels(elem.y2),
+      x: elem.x,
+      y: elem.y,
+      offsetX,
+      offsetY,
+      startAt,
+      startTime: parseDuration(elem.startTime) ?? 0,
+      duration,
+      sfx: elem.sfx,
+      zIndex,
+      animation,
+    };
+    if (shape.width <= 0 || shape.height <= 0) {
+      throw new Error(
+        `ShapeElement needs a positive width and height (got ${shape.width}x${shape.height}).`
+      );
+    }
+    return shape;
+  }
+
   if (elem.type === "image") {
     const img: NormalizedImageElement = {
       type: "image",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
       src: elem.src || "",
       x: elem.x,
       y: elem.y,
@@ -139,6 +187,8 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
   if (elem.type === "html") {
     const html: NormalizedHtmlElement = {
       type: "html",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
       html: elem.html || "",
       css: elem.css,
       width: rawWidth ?? 0,
@@ -162,8 +212,21 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
 
   if (elem.type === "video") {
     const fit = elem.fit ?? "contain";
+    const trimStart = parseDuration(elem.trimStart);
+    const trimEnd = parseDuration(elem.trimEnd);
+    if (trimStart !== undefined && trimEnd !== undefined && trimEnd <= trimStart) {
+      throw new Error(
+        `Video element trimEnd (${elem.trimEnd}) must be greater than trimStart (${elem.trimStart}).`
+      );
+    }
+    // An explicit duration wins; otherwise trimEnd defines how long the clip
+    // plays. `"0:32"`..`"0:45"` is 13s, which is what an author expects.
+    const videoDuration =
+      duration ?? (trimStart !== undefined && trimEnd !== undefined ? trimEnd - trimStart : undefined);
     const vid: NormalizedVideoElement = {
       type: "video",
+      ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
       src: elem.src || "",
       x: elem.x,
       y: elem.y,
@@ -172,13 +235,14 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
       width: rawWidth,
       height: rawHeight,
       fit,
-      trimStart: parseDuration(elem.trimStart),
+      trimStart,
+      trimEnd,
       loop: elem.loop,
       volume: parseVolume(elem.volume),
       chromaKey: normalizeChromaKey(elem.chromaKey),
       startAt,
       startTime: parseDuration(elem.startTime) ?? 0,
-      duration,
+      duration: videoDuration,
       sfx: elem.sfx,
       zIndex,
       animation,
@@ -209,6 +273,8 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
 
   const text: NormalizedTextElement = {
     type: "text",
+    ...(colorAdjust ? { grade: colorAdjust } : {}),
+      ...compositing,
     content,
     fontSize,
     fontColor: elem.fontColor,

@@ -1,0 +1,62 @@
+---
+import Doc from "../layouts/Doc.astro";
+import Preview from "../components/Preview.astro";
+
+// Kept in step with docs-site/scripts/build-previews.mjs. The names there are
+// the same ones the engine maps in src/pipeline/transitions.ts.
+const TRANSITIONS = [
+  "fade",
+  "slideLeft",
+  "slideRight",
+  "slideUp",
+  "slideDown",
+  "wipeLeft",
+  "wipeRight",
+  "wipeUp",
+  "wipeDown",
+  "zoomIn",
+  "zoomOut",
+];
+
+const ANIMATIONS = ["fadeIn", "fadeOut", "slideIn", "popIn"];
+---
+
+<Doc title="Previews">
+  <h1>Previews</h1>
+  <p>
+    Each clip is a real composition put through the engine, at 480×270 and a
+    couple of seconds. They loop, they are muted, and nothing here is a mockup —
+    if a preview shows a transition, that transition is what you get.
+  </p>
+
+  <h2>Transitions</h2>
+  <p>
+    A transition belongs to the <strong>entering</strong> scene. Scene A fades
+    into scene B over the configured duration.
+  </p>
+  <div class="grid">
+    {TRANSITIONS.map((type) => (
+      <Preview name={`transition-${type}`} caption={type} />
+    ))}
+  </div>
+
+  <h2>Animation helpers</h2>
+  <p>
+    Applied to a single element. The clip shows the helper's motion, not the
+    default duration — see the API reference for signatures.
+  </p>
+  <div class="grid">
+    {ANIMATIONS.map((name) => (
+      <Preview name={`animation-${name}`} caption={name} />
+    ))}
+  </div>
+</Doc>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 1rem;
+    margin: 1.25rem 0 2rem;
+  }
+</style>

@@ -1,3 +1,6 @@
+/** Engine that rasterises `type: "html"` elements. */
+export type BrowserEngine = "chrome" | "obscura" | "auto";
+
 export type VideoEncoder =
   | "libx264"
   | "h264_nvenc"
@@ -14,9 +17,39 @@ export interface RenderOptions {
   verbose?: boolean;
   encoder?: VideoEncoder;
   preset?: string;
+  /**
+   * Encoder quality, 0–51 for libx264 where lower is better. Default 20, which
+   * keeps text crisp; the previous default had no quality target at all and
+   * crushed text-heavy frames. Hardware encoders map this to their own quality
+   * control.
+   */
+  crf?: number;
   kinoPath?: string;
   unsafeInlineText?: boolean;
   browserPath?: string;
+  /**
+   * Pre-rendered PNGs for `tak:` markup, keyed by element.
+   *
+   * `compile()` is synchronous and Takumi is async, so the caller renders those
+   * elements first (`renderTakumiBatch`) and passes the result in. `render()`
+   * and `exportComposition()` do this automatically.
+   */
+  takumiRenders?: Map<unknown, string>;
+  /**
+   * Which engine renders `type: "html"` elements.
+   *
+   * - `"chrome"` (default) launches Chrome/Chromium via Puppeteer.
+   * - `"obscura"` connects to a running [Obscura](https://docs.obscura.sh/)
+   *   CDP endpoint. Obscura is a Rust headless browser that speaks the Chrome
+   *   DevTools Protocol, so the same Puppeteer code drives it.
+   * - `"auto"` uses Obscura when an endpoint is configured, Chrome otherwise.
+   */
+  browser?: BrowserEngine;
+  /**
+   * CDP endpoint for Obscura, e.g. `http://127.0.0.1:9222`. Defaults to
+   * `OBSCURA_URL`, then to Obscura's usual port.
+   */
+  browserUrl?: string;
   /**
    * Fast preview mode. When set, the final video is downscaled to this height
    * (width follows the source aspect ratio) and encoded with `ultrafast`/CRF 30.

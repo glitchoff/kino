@@ -16,6 +16,11 @@ export type { Easing, AnimationValue, ElementAnimation } from "./animation.js";
 
 // Elements
 export type {
+  ColorAdjust,
+  CurvePoints,
+  CurveSet,
+  BlendMode,
+  ElementMask,
   BaseElement,
   TextElement,
   MediaFit,
@@ -49,6 +54,7 @@ export type {
   NormalizedTextElement,
   NormalizedImageElement,
   NormalizedHtmlElement,
+  NormalizedShapeElement,
   NormalizedVideoElement,
   NormalizedAudioTrack,
   NormalizedAnimationValue,

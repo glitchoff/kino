@@ -1,0 +1,162 @@
+---
+import { getCollection, render } from "astro:content";
+import Doc from "../layouts/Doc.astro";
+
+// Every markdown file in docs/ becomes a page at its own slug.
+export async function getStaticPaths() {
+  const entries = await getCollection("docs");
+  return entries
+    .filter((entry) => entry.id !== "index")
+    .map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+
+// Only the second level: the third level belongs to the section, and a rail
+// listing every one of them is longer than the page it describes.
+const sections = headings.filter((h) => h.depth === 2);
+---
+
+<Doc title={entry.data.title ?? entry.id}>
+  <article class="doc">
+    <div class="prose">
+      <Content />
+    </div>
+
+    {/*
+      Rendered after the content so the title leads on a phone, where this is a
+      box further down the page. On desktop a grid places it in the gutter.
+    */}
+    {sections.length > 1 && (
+      <nav class="toc" aria-label="On this page">
+        <p class="toc-label">On this page</p>
+        <ol>
+          {sections.map((h) => (
+            <li>
+              <a href={`#${h.slug}`}>{h.text}</a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    )}
+  </article>
+</Doc>
+
+<style>
+  .doc {
+    position: relative;
+  }
+
+  /* The rail sits in the article's right gutter, top-aligned with the title. */
+  .toc {
+    margin: var(--s10) 0 0;
+    padding: var(--s3) var(--s4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--card);
+  }
+
+  .toc-label {
+    margin: 0;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 16px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .toc ol {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: var(--s2) 0 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: section;
+  }
+
+  .toc li {
+    margin: 0;
+    counter-increment: section;
+  }
+
+  .toc a {
+    position: relative;
+    display: block;
+    padding: 2px 0 2px var(--s5);
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 20px;
+    text-decoration: none;
+    transition: color var(--fast) var(--ease);
+  }
+
+  /* A section number in the same tabular mono the rest of the chrome uses. */
+  .toc a::before {
+    content: counter(section, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toc a:hover {
+    color: var(--text);
+  }
+
+  /*
+   * The rail needs room beside a readable column. Below this the sidebar is
+   * already 264 wide, so the article gets under 600 and the contents become a
+   * box at the end of the page instead.
+   */
+  @media (min-width: 78rem) {
+    /*
+     * Two columns: the markdown in the first, the rail in the second. The rail
+     * is last in the DOM so the title leads on a phone, and a grid places it
+     * beside the article without reordering anything.
+     */
+    .doc {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 200px;
+      column-gap: var(--s8);
+      align-items: start;
+    }
+
+    .doc > :global(:not(.toc)) {
+      grid-column: 1;
+    }
+
+    .prose {
+      grid-column: 1;
+      grid-row: 1;
+      min-width: 0;
+    }
+
+    .toc {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: calc(var(--topbar) + var(--s12));
+      margin: 0;
+      padding: 0 0 0 var(--s4);
+      border: 0;
+      border-left: 1px solid var(--line);
+      border-radius: 0;
+      background: none;
+      max-height: calc(100dvh - var(--topbar) - var(--s16));
+      overflow-y: auto;
+    }
+
+    .toc-label {
+      margin-bottom: var(--s2);
+    }
+
+    .toc ol {
+      margin-top: 0;
+    }
+  }
+</style>

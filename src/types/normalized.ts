@@ -1,4 +1,4 @@
-import type { MediaFit } from "./elements.js";
+import type { ColorAdjust, MediaFit } from "./elements.js";
 import type { ChromaKey } from "../pipeline/elements/media.js";
 import type { BackgroundConfig } from "./background.js";
 import type { Easing } from "./animation.js";
@@ -21,6 +21,8 @@ export interface NormalizedElementAnimation {
 export interface NormalizedAudioTrack {
   /** Always a real file path or URL: `tts()` specs are resolved before compile. */
   src: string;
+  /** Names this track so another can duck under it. */
+  id?: string;
   startTime: number;
   offset?: number;
   duration?: number;
@@ -28,6 +30,19 @@ export interface NormalizedAudioTrack {
   loop?: boolean;
   fadeIn?: number;
   fadeOut?: number;
+  /** Resolved ducking config; `undefined` when the track is not ducked. */
+  duck?: {
+    by: string[];
+    amount: number;
+    attack: number;
+    release: number;
+    threshold: number;
+  };
+  /**
+   * True when this track is speech — a `tts()` track or `s.say()`. Set during
+   * normalization so `duck: true` knows what to listen to.
+   */
+  speech?: boolean;
 }
 
 export interface NormalizedBaseElement {
@@ -42,6 +57,8 @@ export interface NormalizedBaseElement {
   sfx?: string | NormalizedAudioTrack;
   zIndex?: number;
   animation?: NormalizedElementAnimation;
+  /** Per-element brightness/contrast/saturation/hue/gamma/lift/gain. */
+  grade?: import("./elements.js").ColorAdjust;
 }
 
 export interface NormalizedCaptionWord {
@@ -104,16 +121,39 @@ export interface NormalizedVideoElement extends NormalizedBaseElement {
   height?: number;
   fit?: MediaFit;
   trimStart?: number;
+  trimEnd?: number;
   loop?: boolean;
   volume?: number;
   chromaKey?: ChromaKey;
+}
+
+/**
+ * A shape. `src` is filled in at compile time with the rasterised PNG, at which
+ * point the element is overlaid exactly like an image.
+ */
+export interface NormalizedShapeElement extends NormalizedBaseElement {
+  type: "shape";
+  shape: "rect" | "ellipse" | "line";
+  width: number;
+  height: number;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  radius?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  /** Set by the compiler once the PNG exists. */
+  src?: string;
 }
 
 export type NormalizedElement =
   | NormalizedTextElement
   | NormalizedImageElement
   | NormalizedHtmlElement
-  | NormalizedVideoElement;
+  | NormalizedVideoElement
+  | NormalizedShapeElement;
 
 export interface NormalizedTransition {
   type: string;
@@ -138,4 +178,6 @@ export interface NormalizedComposition {
   elements: NormalizedElement[];
   scenes: NormalizedScene[];
   audio: NormalizedAudioTrack[];
+  /** A grade applied once to the finished frame. */
+  grade?: ColorAdjust;
 }

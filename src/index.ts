@@ -1,4 +1,17 @@
-export { render, compile } from "./pipeline/index.js";
+export { render, compile, exportComposition } from "./pipeline/index.js";
+export { getFFmpegBinaryPath } from "./encoder/probe.js";
+export { Preview, previewFrames } from "./pipeline/preview.js";
+export type { PreviewOptions, PreviewFrame } from "./pipeline/preview.js";
+export { inspect } from "./inspect/index.js";
+export type {
+  InspectReport,
+  InspectOptions,
+  InspectedScene,
+  InspectedElement,
+  InspectIssue,
+  IssueSeverity,
+  Box,
+} from "./inspect/index.js";
 export { renderFromArgv } from "./render-from-argv.js";
 export type { RenderFromArgvOptions } from "./render-from-argv.js";
 export { parseRenderArgs, RENDER_FLAGS } from "./cli-args.js";
@@ -24,17 +37,33 @@ export type { TtsSpec, TtsOptions, VoiceSpec, Voice } from "./tts/piper.js";
 export {
   composition,
   defineComposition,
+  merge,
+  scene,
+  type SceneProps,
+  type ElementPart,
+  type MergeInput,
   toComposition,
   text,
   image,
   video,
   html,
+  takumi,
+  shape,
+  rect,
+  ellipse,
+  line,
   animate,
   fadeIn,
   fadeOut,
   slideIn,
   popIn,
   withDefaults,
+  withOptions,
+  preset,
+  elements,
+  repeat,
+  variants,
+  shift,
   CompositionBuilder,
   SceneBuilder,
 } from "./builder/index.js";
@@ -47,6 +76,7 @@ export type {
   MediaOptions,
   VideoOptions,
   HtmlOptions,
+  ShapeOptions,
   AnimateOptions,
   Position,
 } from "./builder/index.js";
@@ -54,6 +84,7 @@ export {
   captions,
   captionsAsync,
   captionElements,
+  captionImages,
   timeWords,
   evenTimings,
   groupWords,
@@ -68,6 +99,7 @@ export {
 } from "./captions/index.js";
 export type {
   CaptionOptions,
+  CaptionImageOptions,
   CaptionStyle,
   CaptionTiming,
   CaptionLine,
@@ -79,7 +111,20 @@ export {
   normalizeElement,
   resolveSceneDuration,
   NARRATION_PAD,
+  estimateTextWidth,
+  wrapText,
 } from "./normalize/index.js";
+export {
+  measureText,
+  measureTexts,
+  measureSpace,
+  defaultFontFile,
+} from "./measure/index.js";
+export type {
+  MeasureTextOptions,
+  TextMeasurement,
+  MeasureSource,
+} from "./measure/index.js";
 export { validateComposition, KinoValidationError } from "./validate/index.js";
 export type { ValidationIssue } from "./validate/index.js";
 export type {

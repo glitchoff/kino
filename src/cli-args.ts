@@ -1,4 +1,4 @@
-import type { RenderOptions, VideoEncoder } from "./types/render.js";
+import type { BrowserEngine, RenderOptions, VideoEncoder } from "./types/render.js";
 import { PREVIEW_DEFAULT_HEIGHT } from "./types/render.js";
 
 /**
@@ -34,12 +34,18 @@ export function parseRenderArgs(argv: string[]): ParsedArgs {
       options.ffmpegPath = argv[++i];
     } else if (arg === "--browser-path") {
       options.browserPath = argv[++i];
+    } else if (arg === "--browser") {
+      options.browser = argv[++i] as BrowserEngine;
+    } else if (arg === "--browser-url") {
+      options.browserUrl = argv[++i];
     } else if (arg === "-e" || arg === "--encoder") {
       options.encoder = argv[++i] as VideoEncoder;
     } else if (arg === "--gpu") {
       options.encoder = "auto";
     } else if (arg === "--preset") {
       options.preset = argv[++i];
+    } else if (arg === "--crf") {
+      options.crf = Number(argv[++i]);
     } else if (arg === "--dry-run") {
       dryRun = true;
     } else if (arg === "--no-asset-cache") {
@@ -88,6 +94,7 @@ export const RENDER_FLAGS: ReadonlyArray<readonly [string, string]> = [
   ["-o, --output <path>", "Output video file path (default: ./out.mp4)"],
   ["-e, --encoder <name>", "Video encoder (libx264, h264_nvenc, hevc_nvenc, h264_qsv, h264_amf, h264_videotoolbox, auto)"],
   ["--preset <name>", "Encoder preset (per-encoder; e.g. NVENC p1-p7, x264 veryfast/slow)"],
+  ["--crf <n>", "Encoder quality, 0-51, lower is better (default 20)"],
   ["--gpu", "Enable GPU hardware acceleration (alias for --encoder auto with CPU fallback)"],
   ["--ffmpeg-path <path>", "Use a specific ffmpeg binary instead of the bundled one"],
   ["--browser-path <path>", "Chrome/Chromium executable for HTML elements"],

@@ -24,11 +24,26 @@ on:
           - examples/essay-narration.ts
           - examples/tts-narration.ts
           - examples/reusable-components.ts
+          - examples/lyrics.ts
       caption:
         description: Caption for the Telegram message
         required: false
         default: ""
         type: string
+      seconds:
+        description: Render only the first N seconds (blank = whole video)
+        required: false
+        default: ""
+        type: string
+      lyrics_style:
+        description: For examples/lyrics.ts — block (fast), frames (word highlight, scales), or karaoke (drawtext, stalls)
+        required: false
+        default: block
+        type: choice
+        options:
+          - block
+          - frames
+          - karaoke
       delivery:
         description: How to deliver the video
         required: true
@@ -112,6 +127,9 @@ jobs:
         run: pnpm exec tsup
 
       - name: Render composition
+        env:
+          KINO_LYRICS_SECONDS: ${{ inputs.seconds }}
+          KINO_LYRICS_STYLE: ${{ inputs.lyrics_style }}
         run: |
           mkdir -p out
           node dist/cli.js "${{ inputs.example }}" -o out/render.mp4 --ffmpeg-path "$FFMPEG_PATH"
