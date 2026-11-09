@@ -6,7 +6,10 @@ export type { ParsedArgs } from "./cli-args.js";
 export { selectScene } from "./normalize/composition.js";
 export {
   tts,
+  voice,
+  isVoice,
   isTtsSpec,
+  wavDuration,
   resolveVoice,
   ensureVoice,
   isPiperAvailable,
@@ -17,7 +20,7 @@ export {
   KNOWN_VOICES,
   DEFAULT_VOICE,
 } from "./tts/piper.js";
-export type { TtsSpec, TtsOptions, VoiceSpec } from "./tts/piper.js";
+export type { TtsSpec, TtsOptions, VoiceSpec, Voice } from "./tts/piper.js";
 export {
   composition,
   defineComposition,
@@ -48,9 +51,34 @@ export type {
   Position,
 } from "./builder/index.js";
 export {
+  captions,
+  captionsAsync,
+  captionElements,
+  timeWords,
+  evenTimings,
+  groupWords,
+  buildCaptionLines,
+  splitWords,
+  cleanWord,
+  isAlignmentAvailable,
+  warmAlignmentModel,
+  installAligner,
+  alignerInstallDir,
+  defaultCaptionCacheDir,
+} from "./captions/index.js";
+export type {
+  CaptionOptions,
+  CaptionStyle,
+  CaptionTiming,
+  CaptionLine,
+  WordTiming,
+} from "./captions/index.js";
+export {
   normalizeComposition,
   normalizeBackground,
   normalizeElement,
+  resolveSceneDuration,
+  NARRATION_PAD,
 } from "./normalize/index.js";
 export { validateComposition, KinoValidationError } from "./validate/index.js";
 export type { ValidationIssue } from "./validate/index.js";
@@ -68,6 +96,8 @@ export type {
   BackgroundConfig,
   ElementInput,
   KinoScene,
+  SceneDuration,
+  NarrationFit,
   Easing,
   AnimationValue,
   ElementAnimation,

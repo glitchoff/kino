@@ -54,6 +54,24 @@ builder.scene({ duration: 6 }, (s) => s.addAll(cards));
 Animation helpers: `animate({ from, to, duration, easing })`, `fadeIn()`,
 `fadeOut()`, `slideIn()`, `popIn()`.
 
+## Timing from narration
+
+`tts()` is lazy (render-time synthesis), so it cannot report a length. Use
+`await voice()` when the timing depends on the words:
+
+```ts
+const line = await voice("Where the mind is without fear.", { voice: "en_US-lessac-medium" });
+line.seconds; // 1.63
+
+comp.scene({ duration: { fit: line } }, (s) => s.text("…").say(line));
+comp.scene({ duration: line.seconds + 2 }, (s) => s.say(line)); // same audio, reused
+```
+
+`fit` = speech + `pad` (0.6s), plus optional `lead` and `min`. Fits are resolved
+in `normalizeComposition()` before validation, so everything downstream sees a
+number. Measuring is cached, so parallel `Promise.all` over many lines is cheap.
+See `examples/narration-fit.ts` and `tickets/008`.
+
 Plain objects can be typed with `defineComposition({ ... })`; `toComposition()`
 normalises a builder or object into a `KinoComposition`.
 

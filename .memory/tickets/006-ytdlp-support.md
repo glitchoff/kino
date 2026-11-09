@@ -1,6 +1,6 @@
 # 006 — Optional yt-dlp support
 
-**Status:** proposed — personal use only
+**Status:** shipped (`759f719`) — personal use only
 **Created:** 2026-11-06
 
 > **Scope note:** this is a private capability for the repo owner, not a public
@@ -97,6 +97,10 @@ s.video("yt:https://…", { trimStart: "0:32", trimEnd: "0:45" })
 ```
 
 Ship these with the yt-dlp work — they are the same feature from a user's view.
+
+> **Status 2026-11-07:** in progress, uncommitted. `trimEnd` (type, builder,
+> normalizer, validator) and `mm:ss` / `hh:mm:ss` parsing are edited and
+> typecheck, but there are no tests or docs yet. Finish before relying on it.
 
 ## Open questions
 

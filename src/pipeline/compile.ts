@@ -9,7 +9,8 @@ import { isTtsSpec, synthesizeToWav, stageTts } from "../tts/piper.js";
 import { packKino } from "../artifact/index.js";
 import { buildAnimationExpressions } from "../animation/index.js";
 import { buildSceneBackground } from "./background.js";
-import { buildTextFilter } from "./elements/text.js";
+import { buildTextFilter, buildKaraokeFilters, hasCaptionWords } from "./elements/text.js";
+import { escapeFFmpegStr } from "./position.js";
 import { buildMediaScaleFilter, applyMediaOverlay, buildChromaKeyFilter } from "./elements/media.js";
 import type { ChromaKey } from "./elements/media.js";
 import { renderHtmlBatchSync } from "./elements/html.js";
@@ -218,10 +219,28 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
         } else {
           // Text element
           const item = elem as NormalizedTextElement;
-          const filter = buildTextFilter(item, elemIdx, stagingDir, sceneDur, useTextFiles, defaultFontRef, stageAsset);
-          const inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
           const textOutPad = `[v_layer_${elemIdx}]`;
-          filterComplex.push(`${inPad}${filter}${textOutPad}`);
+          const inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
+          const filter = buildTextFilter(item, elemIdx, stagingDir, sceneDur, useTextFiles, defaultFontRef, stageAsset);
+
+          if (hasCaptionWords(item)) {
+            // Karaoke captions need the line drawn dim plus a per-word
+            // highlight pass; that is a sub-graph, not a single filter.
+            const textRef = useTextFiles
+              ? `textfile='${escapeFFmpegStr(`text-${elemIdx}.txt`)}'`
+              : undefined;
+            filterComplex.push(
+              ...buildKaraokeFilters(
+                { ...item, __textRef: textRef, __frameWidth: width, __frameHeight: height },
+                filter,
+                inPad,
+                textOutPad,
+                sceneDur
+              )
+            );
+          } else {
+            filterComplex.push(`${inPad}${filter}${textOutPad}`);
+          }
           lastScenePad = textOutPad;
         }
       }

@@ -1,6 +1,6 @@
 # Current state
 
-Last updated: 2026-11-06
+Last updated: 2026-11-07
 
 ## What kino is
 
@@ -19,6 +19,8 @@ the legacy/interop format.
 | `src/artifact/` | `.kino` zip read/write |
 | `src/remote/` | remote asset downloader |
 | `src/builder/` | code-first composition builder (`composition()`, element factories, animation helpers) |
+| `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement, resolution before compile |
+| `src/captions/` | Word timings (even or aligned) and karaoke/subtitle element generation |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
 | `scripts/` | install helpers (ffmpeg, browser), Telegram/tmpfiles utilities |
 | `test/` | vitest suites (`timeline`, `units`) |
@@ -27,10 +29,18 @@ the legacy/interop format.
 
 ## Health
 
-- `pnpm test` — 85 tests passing (6 files)
+- `pnpm test` — 175 tests passing (11 files)
 - `pnpm typecheck` — clean
-- `pnpm exec tsup` — builds library + CLI in ~7s
-- all 11 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
+- `pnpm exec tsup` — builds library + CLI
+- all 16 `examples/*.ts` compile via `--dry-run` (TypeScript compositions)
+- TTS verified by real render on 2026-11-07 (Piper on PATH here)
+
+## Uncommitted
+
+- `trimEnd` + `mm:ss` parsing is **in progress**: types, builder, normalizer and
+  validator are edited, but there are no tests or docs yet. See `tickets/006`
+  ("Related work this unlocks"). `package-lock.json` is untracked — this repo
+  uses pnpm, so it should probably not be committed.
 
 ## Known issues
 

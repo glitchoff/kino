@@ -2,6 +2,39 @@
 
 Newest first. One line per item; link the ticket for detail.
 
+## 2026-11-07
+
+- **Word-level captions** — `captions()` (even timing, no deps) and
+  `captionsAsync()` (forced alignment when `mms-forced-align` is present, even
+  timing otherwise). Styles: `karaoke` (default), `word`, `block`. Timing
+  weights words by length and pauses at punctuation. The aligner is optional —
+  `npx kino setup captions` installs it and its model caches in
+  `~/.cache/kino/captions`; nothing is required for captions to work.
+  Rendering: drawtext colours a whole string, so the highlight is a second copy
+  of the line cropped to the active word's box and overlaid — works with any
+  font and with wrapped lines. `npx kino setup captions` installs the aligner
+  into `~/.cache/kino/captions` (never the project's manifest). 24 tests in
+  `test/captions.test.ts`.
+  Verified by rendering and inspecting frames (karaoke on wrapped and
+  single-line captions). Docs: "Word-level captions"; example
+  `examples/captions.ts`.
+- **Scenes sized from narration** — `await voice(text, opts)` synthesises now and
+  returns a measured `Voice` (`seconds`, `path`, `spec`). `duration: { fit: voice }`
+  sizes a scene to speech + `pad` (0.6s default), with `lead` and `min`; fits are
+  resolved in normalization before validation, so the schema only sees numbers.
+  `s.say(voice)` reuses the audio instead of re-synthesising. `wavDuration()` reads
+  the length from the WAV header. 16 tests in `test/voice-duration.test.ts`
+  (including a real Piper round-trip, skipped when Piper is absent). Verified by
+  rendering: 1.63s + 0.60 = 2.23s scene, 4.20s total → 4.21s MP4.
+  Docs: "Sizing a scene from its narration"; example `examples/narration-fit.ts`.
+- **TTS via Piper** (2026-11-06 work, recorded late) — `src/tts/`, `s.say()`,
+  `kino setup tts`, global voice/audio cache. — `tickets/008`
+- **Reusable components** — `withDefaults()`, `.scene(scene)`, `SceneInput`
+  exported. — `tickets/007`
+- **yt-dlp behind `yt:`** — personal use only, `yt-dlp` must be on PATH.
+  — `tickets/006`
+- **`--scene <id>`** — render one scene, timeline rebased to zero.
+
 ## 2026-11-06
 
 - **CI on push/PR** — `.github/workflows/ci.yml` runs typecheck, tests, build,

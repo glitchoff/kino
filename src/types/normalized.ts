@@ -44,9 +44,19 @@ export interface NormalizedBaseElement {
   animation?: NormalizedElementAnimation;
 }
 
+export interface NormalizedCaptionWord {
+  word: string;
+  at: number;
+  duration: number;
+}
+
 export interface NormalizedTextElement extends NormalizedBaseElement {
   type: "text";
   content: string;
+  /** Per-word karaoke timings, relative to `startAt`. */
+  captionWords?: NormalizedCaptionWord[];
+  /** Colour of the word being spoken. */
+  highlight?: string;
   fontSize?: number;
   fontColor?: string;
   fontFile?: string;

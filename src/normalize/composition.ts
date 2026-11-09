@@ -4,10 +4,12 @@ import type {
   KinoScene,
   KinoTemplate,
   ElementInput,
+  NarrationFit,
   NormalizedComposition,
   NormalizedScene,
   NormalizedElement,
   NormalizedAudioTrack,
+  SceneDuration,
 } from "../types/index.js";
 import { normalizeBackground } from "./background.js";
 import { normalizeElement } from "./element.js";
@@ -72,6 +74,34 @@ function applyTemplate(
   return merged;
 }
 
+/** Default tail added after speech when a scene is fitted to narration. */
+export const NARRATION_PAD = 0.6;
+
+function isNarrationFit(value: SceneDuration): value is NarrationFit {
+  return typeof value === "object" && value !== null && "fit" in value;
+}
+
+/**
+ * Turns `duration: { fit: voice }` into a plain number.
+ *
+ * Fitting happens here, before any timing maths, so scene offsets, transition
+ * overlap and element defaults all see a normal duration. The `Voice` must
+ * already be measured — that is what `await voice()` is for — so a fit is
+ * resolved synchronously and the rest of the pipeline stays synchronous.
+ */
+export function resolveSceneDuration(duration: SceneDuration): number | string {
+  if (!isNarrationFit(duration)) return duration;
+
+  const seconds = duration.fit.seconds;
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    throw new Error(`A narration fit needs a measured voice (got ${seconds} seconds). Did you await voice()?`);
+  }
+  const pad = duration.pad ?? NARRATION_PAD;
+  const lead = duration.lead ?? 0;
+  const total = lead + seconds + pad;
+  return duration.min !== undefined ? Math.max(duration.min, total) : total;
+}
+
 export function normalizeComposition(comp: KinoComposition): NormalizedComposition {
   const norm = normalizeCompositionFull(comp);
   return norm;
@@ -131,7 +161,9 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
       const resolved = applyTemplate(rawElem, templates);
       resolvedElems.push(resolved as ElementInput);
     }
-    resolvedScenes.push({ ...scene, elements: resolvedElems });
+    // Fits are resolved before validation so the schema only ever sees a
+    // normal duration, and the numeric value is not recomputed later.
+    resolvedScenes.push({ ...scene, duration: resolveSceneDuration(scene.duration), elements: resolvedElems });
   }
 
   const resolvedComp: KinoComposition = {
@@ -146,7 +178,7 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
   let currentOffset = 0;
   for (let i = 0; i < resolvedScenes.length; i++) {
     const scene = resolvedScenes[i];
-    const sceneDur = parseDuration(scene.duration) ?? 0;
+    const sceneDur = parseDuration(resolveSceneDuration(scene.duration)) ?? 0;
     const transDuration = i > 0 && scene.transition ? parseDuration(scene.transition.duration, sceneDur) ?? 0 : 0;
 
     if (i > 0) {
