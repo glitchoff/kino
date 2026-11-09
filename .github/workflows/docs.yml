@@ -90,7 +90,7 @@ jobs:
           # silently show an empty box.
           clips=$(find dist/previews -name '*.mp4' 2>/dev/null | wc -l)
           echo "rendered $clips previews"
-          test "$clips" -ge 25
+          test "$clips" -ge 27
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'

@@ -239,6 +239,35 @@ const FEATURE_PREVIEWS = [
       };
     },
   },
+  {
+    // The reusable pieces: a preset look, a group of elements, a repeated
+    // scene, and variants sharing their props.
+    name: "feature-reusable",
+    build: (k) => {
+      const Heading = k.withDefaults(
+        k.text,
+        k.preset({ fontSize: 30, color: "#e2e8f0", x: "center", stroke: { color: "#0f172a", width: 3 } })
+      );
+      const card = (heading, note) =>
+        k.elements(
+          Heading(heading, { y: "center-24" }),
+          k.withOptions(k.text(note, { fontSize: 16 }), {
+            color: "#94a3b8",
+            x: "center",
+            y: "center+28",
+            animation: k.shift(k.fadeIn(0.3), 0.2),
+          })
+        );
+
+      const [intro, chorus, outro] = k.variants({ for: 1.5, bg: BG_A }, [
+        { id: "intro", elements: card("preset()", "one look, layered") },
+        { id: "chorus", elements: card("repeat()", "merged twice"), transition: "fade" },
+        { id: "outro", elements: card("variants()", "shared props"), transition: "fade" },
+      ]);
+
+      return { width: WIDTH, height: HEIGHT, fps: FPS, ...k.merge(intro, k.repeat(chorus, 2), outro) };
+    },
+  },
 ];
 
 async function main() {

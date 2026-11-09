@@ -43,7 +43,7 @@ import type {
   VideoElement,
   ChromaKeyConfig,
 } from "../types/elements.js";
-import type { AnimationValue, Easing, ElementAnimation } from "../types/animation.js";
+import type { AnimationValue, Easing, ElementAnimation, AnimatableValue } from "../types/animation.js";
 import type { ColorAdjust, BlendMode, ElementMask } from "../types/elements.js";
 import type { KinoTemplate } from "../types/template.js";
 import { isVoice, tts, type TtsOptions, type TtsSpec, type Voice } from "../tts/piper.js";
@@ -91,6 +91,41 @@ export function slideIn(
 
 export function popIn(duration: number | string = 0.4, easing: Easing = "easeOut"): AnimationValue {
   return { from: 0.8, to: 1, duration, easing };
+}
+
+/**
+ * Offset an animation in time.
+ *
+ * ```ts
+ * fadeIn(0.4);                    // starts with the element
+ * shift(fadeIn(0.4), 1);          // starts one second after it
+ * shift(slideIn("x", 80), -0.2);  // starts before it
+ * ```
+ *
+ * Works on keyframed animations too, moving every keyframe. A negative delay
+ * is clamped to zero, since an animation cannot begin before its element.
+ */
+export function shift(value: AnimatableValue, by: number | string): AnimatableValue {
+  const offset = typeof by === "number" ? by : Number(by);
+  if (!Number.isFinite(offset) || offset === 0) return value;
+
+  if ("keyframes" in value) {
+    return {
+      ...value,
+      keyframes: value.keyframes.map((k) => {
+        const at = typeof k.at === "number" ? k.at : Number(k.at);
+        return { ...k, at: Math.max(0, (Number.isFinite(at) ? at : 0) + offset) };
+      }),
+    };
+  }
+
+  const delay = (typeof value.delay === "number" ? value.delay : Number(value.delay ?? 0)) || 0;
+  const shifted = Math.max(0, delay + offset);
+  if (shifted === 0) {
+    const { delay: _drop, ...rest } = value;
+    return rest;
+  }
+  return { ...value, delay: shifted };
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +363,148 @@ export function withDefaults<I, O extends object, R>(
   defaults: O
 ): (input: I, options?: Partial<O>) => R {
   return (input: I, options?: Partial<O>) => factory(input, { ...defaults, ...options } as O);
+}
+
+/**
+ * Attach options to an element that was made without them.
+ *
+ * Where `withDefaults` derives a factory from a look, `withOptions` dresses an
+ * element that already exists — useful when the element comes from elsewhere
+ * (a caption builder, a JSON file, another component) and still needs a
+ * position, a start time or an animation.
+ *
+ * ```ts
+ * const title = text("Hello", { fontSize: 96 });
+ * withOptions(title, { y: "center", animation: fadeIn(0.4) });
+ * ```
+ *
+ * Later options win over the element's own, and an empty value is skipped
+ * rather than written, so `{ y: undefined }` leaves the element alone.
+ */
+export function withOptions<E extends ElementInput>(
+  element: E,
+  options: ElementOptions & Partial<Omit<TextOptions, keyof ElementOptions>>,
+): E {
+  const base = baseFrom(options);
+  const { color, fontSize, align, box, boxColor, boxPadding, maxWidth, lineHeight, stroke, shadow, fontFile } =
+    options as TextOptions;
+  // The factories rename some options (`color` becomes `fontColor`), so the
+  // same mapping has to happen here for the option to take effect.
+  const renamed: Record<string, unknown> = {
+    ...(color !== undefined ? { fontColor: color } : {}),
+    ...(fontSize !== undefined ? { fontSize } : {}),
+    ...(align !== undefined ? { textAlign: align } : {}),
+    ...(box !== undefined ? { box } : {}),
+    ...(boxColor !== undefined ? { boxColor } : {}),
+    ...(boxPadding !== undefined ? { boxPadding } : {}),
+    ...(maxWidth !== undefined ? { maxWidth } : {}),
+    ...(lineHeight !== undefined ? { lineHeight } : {}),
+    ...(stroke !== undefined ? { stroke } : {}),
+    ...(shadow !== undefined ? { shadow } : {}),
+    ...(fontFile !== undefined ? { fontFile } : {}),
+  };
+  const out: Record<string, unknown> = { ...element };
+  for (const [key, value] of Object.entries({ ...renamed, ...base })) {
+    if (value !== undefined) out[key] = value;
+  }
+  // An animation given on its own (`fadeIn()`) is shorthand for the opacity
+  // channel. Storing it bare would be silently dropped by normalization, which
+  // only reads named channels.
+  const anim = out.animation;
+  if (isPlainObject(anim) && !ANIMATION_CHANNELS.some((ch) => ch in anim)) {
+    out.animation = { opacity: anim };
+  }
+  return out as E;
+}
+
+const ANIMATION_CHANNELS = ["opacity", "x", "y", "scale", "steps"] as const;
+
+/**
+ * Combine element options into one set of defaults.
+ *
+ * `withDefaults` merges one level deep, which means layering two presets loses
+ * the first one's `stroke` (or `animation`, or `shadow`) wholesale. `preset`
+ * merges those nested groups key by key instead, so a base look can be built
+ * up in pieces.
+ *
+ * ```ts
+ * const dark = preset({ color: "#fff", stroke: { color: "#000", width: 4 } });
+ * const big  = preset({ fontSize: 96 }, dark);
+ * big.stroke; // { color: "#000", width: 4 } — kept from `dark`
+ * ```
+ *
+ * `preset()` returns plain options, so it feeds `withDefaults`, `withOptions`
+ * or a factory call directly.
+ */
+export function preset<O extends object>(...layers: (Partial<O> | undefined)[]): O {
+  const out: Record<string, unknown> = {};
+  for (const layer of layers) {
+    if (!layer) continue;
+    for (const [key, value] of Object.entries(layer)) {
+      if (value === undefined) continue;
+      const current = out[key];
+      if (isPlainObject(current) && isPlainObject(value)) {
+        out[key] = { ...current, ...value };
+      } else {
+        out[key] = value;
+      }
+    }
+  }
+  return out as O;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Anything that can stand where an element stands: an element, a list of
+ * elements, or a function producing either — so a component can be a plain
+ * object, a lazy factory or a group of parts.
+ */
+export type ElementPart =
+  | ElementInput
+  | ElementInput[]
+  | (() => ElementInput | ElementInput[])
+  | ElementPart[];
+
+/**
+ * Flatten elements into a plain list.
+ *
+ * `scene()` takes a list, but a component often wants to hand back a group —
+ * a title with its subtitle, a lower third with its bar — and nesting those by
+ * hand means spreading arrays at every call site. `elements()` accepts them in
+ * any nesting, runs any factories, and returns one flat list.
+ *
+ * ```ts
+ * const lowerThird = (name: string) => elements(
+ *   rect({ width: 12, height: 120, x: 80, y: "bottom-160", fill: "#38bdf8" }),
+ *   text(name, { x: 116, y: "bottom-150", fontSize: 52 }),
+ * );
+ *
+ * const intro = scene({ for: 3 }, elements(Title("Hello"), lowerThird("Alice")));
+ * ```
+ *
+ * Factories are called once, at flatten time, so an element that depends on
+ * something expensive is only built when it is used.
+ */
+export function elements(...parts: ElementPart[]): ElementInput[] {
+  const out: ElementInput[] = [];
+
+  const walk = (part: ElementPart): void => {
+    if (typeof part === "function") {
+      walk(part());
+      return;
+    }
+    if (Array.isArray(part)) {
+      for (const inner of part) walk(inner as ElementPart);
+      return;
+    }
+    if (part) out.push(part);
+  };
+
+  for (const part of parts) walk(part);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -645,6 +822,71 @@ export function merge(...parts: MergeInput[]): KinoComposition {
     ...(base?.templates?.length ? { templates: base.templates } : {}),
     ...(base?.grade !== undefined ? { grade: base.grade } : {}),
   };
+}
+
+/**
+ * Play the same scene several times.
+ *
+ * ```ts
+ * repeat(chorus, 3);                       // chorus, chorus, chorus
+ * repeat(chorus, { times: 3, gap: 1 });    // 1s of black between each
+ * ```
+ *
+ * With `gap`, the repeated scene is copied and the gap is added to its
+ * duration rather than inserted as a separate scene, so the scene's background
+ * holds through the pause instead of flashing. Pass `{ gap: 0 }` for none.
+ *
+ * Every repetition shares the same object, which is what `scene()` is for:
+ * editing the scene changes all of them. Use a copy (see `variants`) when
+ * each repetition needs to differ.
+ */
+export function repeat(
+  input: KinoScene | KinoComposition | CompositionBuilder,
+  timesOrOptions: number | { times: number; gap?: number } = 2
+): KinoScene[] {
+  const { times, gap = 0 } = typeof timesOrOptions === "number" ? { times: timesOrOptions } : timesOrOptions;
+  const scenes = scenesOf(input);
+
+  const out: KinoScene[] = [];
+  for (let i = 0; i < Math.max(0, Math.floor(times)); i++) {
+    for (const s of scenes) {
+      out.push(gap > 0 && typeof s.duration === "number" ? { ...s, duration: s.duration + gap } : s);
+    }
+  }
+  return out;
+}
+
+/**
+ * One scene, several versions — the basis for a verse/chorus structure.
+ *
+ * ```ts
+ * variants({ for: 4, bg: "#111827" }, [
+ *   { id: "verse",   elements: elements(text("I")) },
+ *   { id: "chorus",  elements: elements(text("We")) },
+ * ]);
+ * ```
+ *
+ * Props are the shared scene properties; each entry overrides them and adds
+ * elements, so the background and length are written once. An element can also
+ * be written directly and is taken as the elements list.
+ */
+export function variants(
+  base: SceneProps,
+  each: (Partial<SceneProps> & { elements?: ElementPart })[],
+): KinoScene[] {
+  return each.map(({ elements: parts, ...overrides }) => {
+    const merged = { ...base, ...withoutUndefined(overrides) };
+    return scene(merged, elements(parts ?? []));
+  });
+}
+
+/** Scenes held by anything `merge()` accepts, flattened. */
+function scenesOf(input: KinoScene | KinoComposition | CompositionBuilder): KinoScene[] {
+  return merge(input).scenes;
+}
+
+function withoutUndefined<T extends object>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 /**

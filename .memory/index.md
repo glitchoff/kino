@@ -39,12 +39,12 @@ frame, and `s.tak()` renders HTML with no browser to install.
 
 ## Health
 
-- `pnpm test` — 380 tests passing (26 files)
+- `pnpm test` — 414 tests passing (27 files)
 - `pnpm test:dist` — 9 tests against the built bundle
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 18 `examples/*.ts` compile via `--dry-run`
-- docs site builds 12 pages, 26 preview clips; CI runs `test:dist` as its own step
+- docs site builds 12 pages, 27 preview clips; CI runs `test:dist` as its own step
 
 ## Open
 
@@ -88,6 +88,16 @@ the common cases.
   never has a name — which is why `merge(chorus, chorus)` exists. Both are thin
   functions over the existing types; a merged composition compiles to the same
   filtergraph as the chained form, asserted in `test/scene-value.test.ts`.
+- **Reusable pieces sit next to `scene()`.** `preset()` (merges nested option
+  groups, which `withDefaults` does not), `withOptions()` (dresses an element
+  after it was made), `elements()` (flattens elements/groups/lazy factories),
+  `shift()` (moves an animation in time), `repeat()` (plays a scene again) and
+  `variants()` (several scenes sharing props). All thin functions over the
+  existing types; `test/reusable.test.ts`.
+- **`withOptions` must map renamed text options** (`color` → `fontColor`,
+  `align` → `textAlign`) and wrap a bare `AnimationValue` as
+  `{ opacity: … }`. Skipping either fails *silently*: the option is dropped and
+  the element renders unstyled, which no type check catches.
 - **`scene()` has no `say()`.** Narration is scene-shaped (it sizes the scene),
   so a scene value cannot currently hold speech. Unresolved, not an oversight.
 - **Do not rename `element` to `layer`.** Asked for and explicitly declined

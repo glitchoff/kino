@@ -26,6 +26,13 @@ wrong filename) · `frames` returning t=0 always · four relative-path bugs from
 `dist/`
 
 
+- **Reusable pieces.** `preset()`, `withOptions()`, `elements()`, `shift()`,
+  `repeat()` and `variants()` (2026-11-09), extending scenes-as-values to
+  elements, looks and sets of scenes. 34 tests. Two silent-failure bugs were
+  found by pixel-checking the render rather than the test: `withOptions` wrote
+  `color` instead of `fontColor`, and stored a bare animation where the schema
+  expects `{ opacity }` — both dropped the option without any error. The
+  preview clip `feature-reusable` is built from all six.
 - **Scenes as values.** `scene()` and `merge()` (2026-11-08). The chained
   builder could not reuse a scene: `.scene()` appends and returns the
   composition, so a chorus used three times had to be written three times or

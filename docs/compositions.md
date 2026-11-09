@@ -105,34 +105,78 @@ composition({ width: 1080, height: 1920 })
   );
 ```
 
-## Reusable components
+## Reusable pieces
 
-A component is a function or a `SceneBuilder` — there is no separate component
-model. Four patterns cover most reuse:
+`scene()` makes a scene a value. The rest of the same idea is here — a look, an
+element, a group of elements, and a set of scenes can all be named and reused.
+
+| Call | What it does |
+| --- | --- |
+| `preset(...layers)` | Merge option sets, nesting groups key by key |
+| `withDefaults(factory, defaults)` | Derive a factory from a look |
+| `withOptions(element, options)` | Dress an element after it was made |
+| `elements(...parts)` | Flatten elements, groups and lazy factories into one list |
+| `shift(animation, by)` | Move an animation in time |
+| `repeat(scene, times)` | Play a scene again, optionally with a gap |
+| `variants(props, entries)` | Several scenes sharing their props |
+
+```typescript
+import { elements, fadeIn, merge, preset, repeat, scene, shift, text, variants, withDefaults, withOptions } from "@glitchoff/kino";
+
+// A look, built up in layers. Nested groups merge, so `stroke` survives —
+// `withDefaults` alone replaces it wholesale.
+const Heading = withDefaults(text, preset({
+  fontSize: 84, color: "#ffffff", x: "center",
+  stroke: { color: "#0f172a", width: 6 },
+}));
+
+// A group of elements, passed around as one value.
+const card = (heading: string, note: string) => elements(
+  Heading(heading, { y: "center-50", animation: fadeIn(0.4) }),
+  withOptions(text(note, { fontSize: 30 }), {
+    color: "#94a3b8", x: "center", y: "center+60",
+    animation: shift(fadeIn(0.4), 0.25),   // starts a beat later
+  }),
+);
+
+// One background and length, several scenes.
+const [intro, chorus, outro] = variants({ for: 2.5, bg: "#0f172a" }, [
+  { id: "intro", elements: card("Kino", "reusable pieces") },
+  { id: "chorus", elements: card("again", "repeat(scene, 2)"), transition: "fade" },
+  { id: "outro", elements: card("done", "merge() them all"), transition: "fade" },
+]);
+
+const video = merge(intro, repeat(chorus, 2), outro);
+```
+
+`repeat` shares the scene object rather than copying it, so editing `chorus`
+changes both appearances. `{ times: 2, gap: 1 }` lengthens the scene instead of
+inserting a gap scene, so its background holds through the pause rather than
+flashing black. A scene sized to narration is left alone.
+
+`elements()` calls any factory it is given once, at flatten time, so a component
+that needs work to build is only built when it is used.
+
+:::preview name="feature-reusable" caption="a preset look, a group, a repeated scene"
+:::
+
+### Deriving from a factory
+
+`withDefaults` is the older form and still the shortest for a single look:
 
 ```typescript
 import { composition, text, withDefaults, SceneBuilder } from "@glitchoff/kino";
 
-// 1. A derived factory: define the look once, override per use.
 const Title = withDefaults(text, {
   fontSize: 96, color: "#fff", x: "center", y: "center",
 });
 Title("Hello");                          // defaults
 Title("Hello", { color: "#38bdf8" });    // per-call options win
 
-// 2. A scene callback: same scene, different data.
+// A scene callback: same scene, different data.
 const titleCard = (heading: string) => (s: SceneBuilder) => s.add(Title(heading));
 
-// 3. A pre-built scene: `.scene()` accepts a KinoScene or SceneBuilder directly.
-const lowerThird = (name: string) =>
-  new SceneBuilder({ duration: 3 }).text(name, { x: 80, y: "bottom-140" });
-
-composition({ width: 1080, height: 1920 })
-  .scene({ duration: 3 }, titleCard("Intro"))
-  .scene({ duration: 2 }, titleCard("Outro"))
-  .scene(lowerThird("Alice").build());
-
-// 4. A generator: one scene per item.
+// A generator: one scene per item.
 function* credits(names: string[]) {
   for (const name of names) yield (s: SceneBuilder) => s.text(name, { y: "center" });
 }
@@ -140,9 +184,11 @@ function* credits(names: string[]) {
 
 `withDefaults` merges one level deep — passing `stroke` replaces a default
 `stroke` entirely rather than merging its keys. Defaults are never mutated, so
-the same derived factory can be reused freely.
+the same derived factory can be reused freely. Use `preset()` when a look is
+built in layers.
 
-See `examples/reusable-components.ts` for a runnable version.
+See `examples/reusable-components.ts` and `examples/reusable-pieces.ts` for
+runnable versions.
 
 ## Plain objects
 
