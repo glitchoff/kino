@@ -167,6 +167,10 @@ s.text("Title", {
 the segment *arriving* at it, so the first one is unused and the last applies on
 the way in. Omit it to inherit the track's `easing`, defaulting to `easeInOut`.
 
+A `scale` track is clamped to a floor of 1% and both rendered dimensions to a
+minimum of 2px, so animating from `0` is safe even for wide, thin elements —
+a 1100×3 rule at 1% scale renders as 11×2 rather than an invalid 11×0 frame.
+
 `{ from, to, duration }` is sugar for two keyframes.
 
 **Easings**

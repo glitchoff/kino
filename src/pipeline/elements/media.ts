@@ -123,7 +123,14 @@ export function applyMediaOverlay(
     if (ax.scale) {
       const scaleExpr = `max(0.01,(${ax.scale}))`;
       const np = `[img_scaled_${elemIdx}]`;
-      filterComplex.push(`${transPad}scale=w='max(2,iw*${scaleExpr})':h=-2:eval=frame${np}`);
+      // Both dimensions get the same expression, each clamped to at least 2px.
+      // A derived height (`h=-2`) rounds to 0 for wide, thin elements — e.g. a
+      // 1100x3 rule at scale 0.01 becomes 11x0, which ffmpeg rejects with
+      // "Picture size 11x0 is invalid". Clamping height independently keeps the
+      // aspect ratio except at scales where the element is invisible anyway.
+      filterComplex.push(
+        `${transPad}scale=w='max(2,iw*${scaleExpr})':h='max(2,ih*${scaleExpr})':eval=frame${np}`
+      );
       transPad = np;
     }
 

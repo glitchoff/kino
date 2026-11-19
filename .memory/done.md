@@ -3,6 +3,67 @@
 Newest first. Detail lives below each summary; the summaries are what to read if
 you only want the shape of a day.
 
+## 2026-11-11
+
+**Sailor Moon "powers" episode (`episodes/moon.ts`, `anim3d/scenes/moon.html`).**
+The Sketchfab figure is a **static T-pose with no rig and no animations**, so
+every beat is procedural: float, spin, scale-pulse, plus wand / ribbon / orbit
+rings / dust / beam effects doing the acting. Five acts (girl → wand → ribbon →
+pose → blast), 30s, camera on an arc that pushes in for the pose and pulls back
+for the blast. Framing verified numerically (`anim3d/probe-moon.mjs`): she spans
+NDC x −0.45..0.47 early, −0.65..0.67 at the pose, never clips.
+
+- **Sketchfab Download API works with `Token <t>`** (not `Bearer`). The signed
+  S3 archive URL 403s if PowerShell mangles it — fetch the whole thing in Node.
+  `sketchfab-get.mjs` now streams with progress and a 240s abort.
+- **Sketchfab exports arrive `metalness=1` with no metal map** → black mirror
+  under point lights. Clamp to `metalness≈0.08, roughness≈0.55`.
+- **Vertical 9:16 has a narrow horizontal FOV.** At 540x960 a 3.2-unit figure
+  needs ~11.5 units of camera distance to sit inside the frame; 8.6 clipped her.
+  Same trap as Dave.
+- **Script was factually wrong and got rewritten.** The first draft claimed
+  transformations *freeze* enemies. Sources say the opposite — transformations
+  happen in real time and can be seen by bystanders. Replaced with the real
+  mechanic: the **tiara** is her first weapon, becomes a thrown disc, and
+  disintegrates youma into *moondust*; episode 184 she throws a **pizza**.
+  Credit required (CC-BY, Ruben Moreau) — it's on the end card.
+
+**In one paragraph.** TTS stopped being Piper-only. A `command` engine runs any
+external synthesiser, so a model Kino has never heard of — DhVaani, edge-tts,
+a local script — plugs in through the same `synthesizeToWav()` seam with no
+changes to the package. Building it surfaced a **pre-existing bug that broke
+every TTS render on Windows**: `synthesizeToWav` fed piper its text on stdin,
+which `spawnSync` does not deliver to this Python build, so piper opened the
+WAV, synthesised nothing and died with `wave.Error: # channels not specified`.
+The text now goes through a temp file with `-i`, and the exit check requires a
+non-empty output. 18 new tests; typecheck clean.
+
+- **`command` engine** — `src/tts/command.ts`, `engine: "command"` with a
+  template (`{text}`, `{out}`, `{rate}`, `{voice}`, `{reference}`,
+  `{referenceText}`). Spawned, never imported, for the same licence reason as
+  Piper. Cache keyed on template + voice + reference + rate + text. Writes
+  `.part.wav` then renames. A clean exit that writes no file is an error, not
+  a cache miss. See `tickets/008`.
+- **Windows argument quoting** — the program is spawned without a shell, so
+  arguments use the MSVCRT/`CommandLineToArgvW` rule (backslash-escape the
+  quote), not cmd.exe's double-the-quote rule. The first version used cmd.exe's
+  and left a literal backslash in any argument containing a quote; a test
+  caught it.
+- **Piper stdin is broken on Windows** — measured: stdin (string, Buffer, or
+  Buffer+newline) gives exit 1 and a 0-byte file; `-i` gives exit 0 and 52,268
+  bytes. Not encoding (`PYTHONIOENCODING=utf-8` changed nothing); `cmd /c "echo
+  ... | piper"` works, so it is specific to `spawnSync` stdin. Fixed by writing
+  the text to `<cache>/<key>.txt` and passing `-i`.
+- **`tsx` runs `dist/`, not `src/`** — an example imports `@glitchoff/kino`,
+  whose `main` is `dist/index.cjs`, so a source fix looked like it did nothing
+  and the stack trace kept naming the old line. Run `pnpm exec tsup` before
+  testing a source change through an example.
+- **Verified end to end** — `examples/tts-command-engine.ts` synthesises the
+  same Hindi line through built-in Piper and through the command engine driving
+  the same binary: 4.31s / 190 KB against 4.16s / 183 KB. Piper is
+  non-deterministic, so the check asserts both produced real speech and agree
+  within 25%.
+
 ## 2026-11-08
 
 **In one paragraph.** Kino became something an agent can author against without

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { synthesizeWithCommand, type CommandEngineOptions } from "./command.js";
 
 /**
  * Local text-to-speech via Piper.
@@ -151,10 +152,33 @@ export async function ensureVoice(spec: VoiceSpec, options: EnsureVoiceOptions =
 }
 
 export interface TtsOptions {
-  /** Voice id. Defaults to `en_US-lessac-medium`. */
+  /**
+   * Which synthesiser runs. Defaults to `piper`.
+   *
+   * `command` runs any external program named by `command`, so a model Kino
+   * does not know about — DhVaani, edge-tts, Coqui, a local script — works
+   * without changing this package.
+   */
+  engine?: "piper" | "command";
+  /** Voice id. Defaults to `en_US-lessac-medium` for Piper; free-form for `command`. */
   voice?: string;
   /** Speaking rate multiplier; 1 is normal, 0.5 is half speed. */
   rate?: number;
+  /**
+   * Command template for `engine: "command"`.
+   *
+   * `{text}`, `{out}`, `{rate}`, `{voice}`, `{reference}` and `{referenceText}`
+   * are substituted. The program must write a WAV to `{out}`.
+   *
+   * ```ts
+   * command: "python dhvaani-tts.py --text {text} --out {out}"
+   * ```
+   */
+  command?: string;
+  /** Reference clip for zero-shot cloning engines, exposed as `{reference}`. */
+  reference?: string;
+  /** Transcript of `reference`, exposed as `{referenceText}`. */
+  referenceText?: string;
   /** Where voices live. */
   voiceDir?: string;
   /** Where synthesised audio is cached. `false` disables the cache. */
@@ -175,6 +199,22 @@ export function ttsCacheKey(text: string, spec: VoiceSpec, rate: number): string
  * (see {@link isPiperAvailable}).
  */
 export async function synthesizeToWav(text: string, options: TtsOptions = {}): Promise<string> {
+  if (options.engine === "command") {
+    if (!options.command) {
+      throw new Error(
+        `engine: "command" needs a command template, e.g.\n` +
+          `  tts("नमस्ते", { engine: "command", command: "python dhvaani-tts.py --text {text} --out {out}" })`
+      );
+    }
+    if (options.cacheDir === false) {
+      // A command engine has no other place to write; give it a scratch dir.
+      const dir = join(defaultTtsCacheDir(), "uncached");
+      return synthesizeWithCommand(text, options as CommandEngineOptions, dir, options.rate ?? 1).path;
+    }
+    const dir = options.cacheDir ?? defaultTtsCacheDir();
+    return synthesizeWithCommand(text, options as CommandEngineOptions, dir, options.rate ?? 1).path;
+  }
+
   const spec = resolveVoice(options.voice);
   const rate = options.rate ?? 1;
   if (!Number.isFinite(rate) || rate <= 0) {
@@ -198,8 +238,15 @@ export async function synthesizeToWav(text: string, options: TtsOptions = {}): P
   // piper's --length-scale is the inverse of rate: faster speech is shorter.
   if (rate !== 1) args.push("--length-scale", String(1 / rate));
 
+  // Text goes through a file, not stdin. On Windows, piper's Python reads
+  // nothing from a `spawnSync` stdin — it opens the WAV, synthesises zero
+  // frames and dies with `wave.Error: # channels not specified`, leaving a
+  // 0-byte file. `-i` is the path that works, on every platform.
+  const inputFile = join(dir, `${key}.txt`);
+  writeFileSync(inputFile, `${text}\n`, "utf-8");
+  args.push("-i", inputFile);
+
   const res = spawnSync("piper", args, {
-    input: text,
     encoding: "utf-8",
     timeout: 300_000,
     maxBuffer: 16 * 1024 * 1024,
@@ -209,7 +256,7 @@ export async function synthesizeToWav(text: string, options: TtsOptions = {}): P
     if ((res.error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(INSTALL_HINT);
     throw res.error;
   }
-  if (res.status !== 0 || !existsSync(out)) {
+  if (res.status !== 0 || !existsSync(out) || statSync(out).size === 0) {
     // onnxruntime writes a benign PCI-bus warning to stderr on some hosts, so
     // surface stderr verbatim rather than trying to filter it.
     const detail = (res.stderr || "").trim().split("\n").slice(-3).join("\n");
@@ -236,6 +283,16 @@ export interface TtsSpec {
  */
 export function tts(text: string, options: TtsOptions = {}): TtsSpec {
   if (!text.trim()) throw new Error("tts() needs non-empty text.");
+  if (options.engine === "command") {
+    // A command engine names its own voices; only the template can be checked.
+    if (!options.command) {
+      throw new Error(
+        `engine: "command" needs a command template, e.g.\n` +
+          `  tts("नमस्ते", { engine: "command", command: "python dhvaani-tts.py --text {text} --out {out}" })`
+      );
+    }
+    return { __kinoTts: true, text, options };
+  }
   // Validate eagerly so a typo fails at build time, not render time.
   resolveVoice(options.voice);
   return { __kinoTts: true, text, options };

@@ -18,4 +18,4 @@ findable.
 
 ## Reminders
 
-<!-- one line each -->
+- 2026-11-19 — `.memory/` is tracked in the **public** repo. Keep it project-only: no personal goals, journal, or private context. Move anything personal out before committing.
