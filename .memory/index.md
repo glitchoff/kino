@@ -54,6 +54,7 @@ marked done is closed.
 | # | Ticket | What remains |
 | --- | --- | --- |
 | **009** | Docs rewrite | Rewritten to task-first structure on 2026-11-08. Site polish (search, syntax highlighting) still open. |
+| **023** | Still input lifetime | `trim=end` on the still branch so a panel stops decoding when it leaves the screen. Filtergraph verified, targeted tests green; full suite + a real-render CPU-second measurement still to do. |
 
 Deliberately out of scope: adjustment layers, nesting, speed ramps, time
 remapping. Real editor features that restructure the scene model; none unblock

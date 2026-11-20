@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeComposition, selectScene } from "../normalize/index.js";
+import { parseDuration } from "../normalize/unit-parser.js";
 import { prestageRemoteAssets, KINO_VERSION, defaultAssetCacheDir } from "../remote/index.js";
 import { isYtdlpSource, ytdlpUrl, fetchWithYtdlp } from "../remote/ytdlp.js";
 import { isTtsSpec, synthesizeToWav, stageTts } from "../tts/piper.js";
@@ -69,6 +70,30 @@ const DEFAULT_FONT_PATH = (() => {
   }
   return undefined;
 })();
+
+/**
+ * End of a still element's on-screen window, in seconds from the scene start,
+ * or `undefined` when it cannot be bounded.
+ *
+ * Returns `undefined` — meaning "no trim" — unless the element has an explicit
+ * `duration`. An element that runs to the end of its scene is already bounded
+ * by the scene's own length, and one with neither option is visible throughout,
+ * so trimming either would be guesswork. The overlay's `enable=between()`
+ * remains the authority on visibility; this only stops needless decoding.
+ */
+function stillWindow(
+  elem: { startAt?: number | string; duration?: number | string },
+  sceneDur: number
+): string | undefined {
+  const dur = parseDuration(elem.duration);
+  if (dur === undefined) return undefined;
+  const start = parseDuration(elem.startAt) ?? 0;
+  const end = Math.min(sceneDur, start + dur);
+  if (!(end > 0)) return undefined;
+  // Fixed precision: a long float here bloats the filtergraph, and the graph is
+  // already the thing that overflows Windows' command line.
+  return end.toFixed(3);
+}
 
 function addFFmpegInput(
   inputs: string[],
@@ -374,8 +399,26 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             }
           } else {
             const basePad = `[img_base_${elemIdx}]`;
+            // A still loops for the whole timeline, so without a bound it keeps
+            // decoding long after its element is off screen. `enable=between()`
+            // in the overlay only hides the result; ffmpeg still runs the whole
+            // branch every frame. Trimming to the element's own window drops the
+            // work — a panel on screen for 6s in a 238s timeline used to cost
+            // 238s of decode.
+            //
+            // The trim is deliberately on the filter, not `-t` on the input:
+            // inputs stay exactly as they were, so a mis-sized window can only
+            // shorten one layer, never starve a later scene (see the black-frame
+            // regression in paper-ghost findings, 2026-11-20).
+            //
+            // `setpts` rebases the trimmed output to t=0 so the overlay still
+            // sees the still at the scene's own clock. Trimming never moves it:
+            // the first frame is at t=0 and the overlay's `enable` decides
+            // visibility.
+            const stillWin = stillWindow(media, sceneDur);
+            const trimFilter = stillWin ? `,trim=end=${stillWin}` : "";
             filterComplex.push(
-              `[${currInputIdx}:v]${scaleFilter},fps=${fps},setpts=PTS-STARTPTS,settb=AVTB${keyFilter}${basePad}`
+              `[${currInputIdx}:v]${scaleFilter},fps=${fps}${trimFilter},setpts=PTS-STARTPTS,settb=AVTB${keyFilter}${basePad}`
             );
             startPad = basePad;
           }
