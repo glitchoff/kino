@@ -1,6 +1,6 @@
 # Current state
 
-Last updated: 2026-11-08
+Last updated: 2026-11-20
 
 ## What kino is
 
@@ -49,7 +49,7 @@ frame, and `s.tak()` renders HTML with no browser to install.
 ## Open
 
 Only what is genuinely still to do. Completed work lives in `done.md`; a ticket
-marked done is closed.
+marked done is closed. Per-session detail: [`changelog-2026-11-20.md`](./changelog-2026-11-20.md).
 
 | # | Ticket | What remains |
 | --- | --- | --- |
@@ -57,6 +57,11 @@ marked done is closed.
 | **023** | Still input lifetime | `trim=end` on the still branch so a panel stops decoding when it leaves the screen. Shipped in `613f948`. |
 | **024** | Preview resolution | `--preview` composites at the preview size instead of downscaling at the end. 36 s bench: 20.4 s at 144p. |
 | **025** | `zoompan` scale | Linear 1–10 scale ramps on opaque full-frame images compile to `zoompan`, ~2× faster, parity verified to 1–2 px. |
+| **026** | GPU `scale_cuda` | Measured: `scale_cuda` ~3× faster in isolation but **slower end to end** (44.5 s vs 39.1 s); `overlay_cuda` slower still. Shipped default-off. |
+| **027** | Incremental render | Segment cache by scene hash. Hash/plan written; blocked on transitions, which overlap their neighbours. |
+| **028** | Merge static layers | One overlay per scene instead of per layer, merging only provably-static groups. Proposed. |
+| **029** | Scratch on fast storage | Scratch is `<output dir>/.kino/`. `KINO_TMP` overrides (point it at a RAM disk). Wired into `compile.ts`. |
+| **030** | Assets in RAM, batched | Hold staged assets in memory under a byte budget; spill to disk when a scene exceeds it. Proposed. |
 
 Deliberately out of scope: adjustment layers, nesting, speed ramps, time
 remapping. Real editor features that restructure the scene model; none unblock
@@ -78,6 +83,13 @@ the common cases.
 
 ## Conventions worth knowing
 
+- **On the GPU: upload to scale, download to overlay.** Measured on an RTX 3050
+  4 GB, 300 frames at 1080p: CPU scale+overlay 10,949 ms, `scale_cuda`+CPU
+  overlay **3,613 ms**, `scale_cuda`+`overlay_cuda` 12,312 ms. `scale_cuda` is
+  ~3× faster; **`overlay_cuda` is slower than the CPU**. Two uploads and a
+  download per frame cost more than the composite saves. `drawtext`, `zoompan`
+  and `geq` have no CUDA variants, so any of them forces a download anyway —
+  the win is the resample alone. See `tickets/026`.
 - **A faster filter is only an optimisation if the picture matches.** `zoompan`
   was 2.5× faster than `scale` and looked like a free win; the first parity check
   said the motion went the opposite way. It didn't — the check compared a

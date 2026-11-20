@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { getFFmpegBinaryPath } from "../encoder/probe.js";
+import { getFFmpegBinaryPath, hasScaleCuda } from "../encoder/probe.js";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +27,7 @@ import { buildTransitionPipeline } from "./transitions.js";
 import { buildAudioMix } from "./audio.js";
 import { resolveEncoderSync, buildEncoderFlags } from "./encoder-flags.js";
 import { resolvePreviewHeight } from "../types/render.js";
+import { scratchDir } from "./scratch.js";
 
 /**
  * Longest filtergraph passed on the command line.
@@ -196,7 +197,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   const { width, height, duration, fps } = norm;
   const output = options?.output || "./out.mp4";
 
-  const stagingDir = mkdtempSync(join(tmpdir(), "kino-stage-"));
+  const stagingDir = scratchDir("stage-", { outputPath: output, ram: options?.ram });
   const assetNames = new Map<string, string>();
   let assetCounter = 0;
   let rawStillCounter = 0;
@@ -325,6 +326,17 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     const pw = previewHeight !== undefined ? Math.max(2, Math.round((width * previewHeight) / height / 2) * 2) : width;
     const ph = previewHeight !== undefined ? previewHeight : height;
 
+    // Resample on the GPU when this machine can.
+    //
+    // Default OFF: measured *slower* end to end (44.5s vs 39.1s on a 36s 1080p
+    // bench) despite `scale_cuda` winning 3x in isolation. `zoompan` and
+    // `drawtext` are CPU-only, so every element pays an upload and a download
+    // per frame, and that round trip costs more than the resize saves. Opt in
+    // with `scaleCuda: true` when the graph has no CPU-only filters in the
+    // chain — a pure still compositing pipeline, for instance.
+    const useScaleCuda =
+      options?.scaleCuda === true && hasScaleCuda(getFFmpegBinaryPath(options?.ffmpegPath));
+
     // ── Stage 1: Per-scene backgrounds ──────────────────────────────────────
     const sceneBgPads: string[] = [];
 
@@ -410,6 +422,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             buildMediaScaleFilter({
               ...media,
               ...previewScale(media, pw / width),
+              cuda: useScaleCuda,
               preserveAlpha: elem.type === "shape" || undefined,
             }) + (colorFilter ? `,${colorFilter}` : "");
           const ax = buildAnimationExpressions(media, "t");

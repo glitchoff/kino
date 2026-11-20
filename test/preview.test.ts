@@ -24,19 +24,21 @@ describe("preview mode", () => {
     expect(resolvePreviewHeight(1)).toBe(16);
   });
 
-  test("appends a final downscale to the filtergraph and maps it", () => {
+  test("composites at the preview size instead of downscaling at the end", () => {
     const { filtergraph, args } = compile(sample(), { output: "preview.mp4", preview: true });
     expect(filtergraph).toBeDefined();
-    expect(filtergraph).toContain(`scale=-2:${PREVIEW_DEFAULT_HEIGHT}[vpv]`);
-    // The downscale must be the last video stage, not a mid-graph filter.
-    expect(filtergraph!.trimEnd().endsWith("[vpv]")).toBe(true);
-    const mapIdx = args.indexOf("-map");
-    expect(args[mapIdx + 1]).toBe("[vpv]");
+    // The old contract appended `scale=-2:H[vpv]` after every scene. That did
+    // full-size work and threw it away, so it is gone.
+    expect(filtergraph).not.toContain("[vpv]");
+    expect(filtergraph).not.toMatch(/scale=-2:\d+/);
+    // The frame is built small: the background source is 1080x1920 at 144p.
+    expect(args.join(" ")).toContain("s=82x144");
   });
 
   test("honours an explicit preview height", () => {
-    const { filtergraph } = compile(sample(), { output: "preview.mp4", preview: 360 });
-    expect(filtergraph).toContain("scale=-2:360[vpv]");
+    const { args } = compile(sample(), { output: "preview.mp4", preview: 360 });
+    // 1080x1920 at 360p is 202x360.
+    expect(args.join(" ")).toContain("s=202x360");
   });
 
   test("encodes previews with ultrafast unless a preset is given", () => {
@@ -47,13 +49,35 @@ describe("preview mode", () => {
     expect(explicit.args.join(" ")).toContain("-preset slow");
   });
 
-  test("leaves the scene graph untouched when preview is off", () => {
+  test("a full render is built at full size", () => {
+    const full = compile(sample(), { output: "full.mp4" });
+    expect(full.args.join(" ")).toContain("s=1080x1920");
+    expect(full.args.join(" ")).not.toContain("s=82x144");
+    expect(full.args.join(" ")).not.toContain("-preset ultrafast");
+  });
+
+  test("preview keeps the same elements and timing, only a smaller frame", () => {
     const full = compile(sample(), { output: "full.mp4" });
     const preview = compile(sample(), { output: "preview.mp4", preview: true });
 
-    // Preview only adds the output stage — nothing before it changes.
-    expect(preview.filtergraph!.startsWith(full.filtergraph!)).toBe(true);
-    expect(full.filtergraph).not.toContain("[vpv]");
-    expect(full.args.join(" ")).not.toContain("-preset ultrafast");
+    // Same number of overlays and drawtexts: nothing is dropped or reordered.
+    const count = (g: string, re: RegExp) => (g.match(re) ?? []).length;
+    expect(count(preview.filtergraph!, /overlay=/g)).toBe(count(full.filtergraph!, /overlay=/g));
+    expect(count(preview.filtergraph!, /drawtext=/g)).toBe(count(full.filtergraph!, /drawtext=/g));
+    // Same duration either way.
+    const t = (args: string[]) => args[args.indexOf("-t") + 1];
+    expect(t(preview.args)).toBe(t(full.args));
+  });
+
+  test("scales text with the frame so it does not overflow a preview", () => {
+    const full = compile(sample(), { output: "full.mp4" });
+    const preview = compile(sample(), { output: "preview.mp4", preview: true });
+    // Animated text emits `fontsize='N'` (quoted), static text emits
+    // `fontsize=N`, so the pattern has to allow the quotes.
+    const fs = (g: string) => Number(g.match(/fontsize='?(\d+)'?/)?.[1]);
+    // sample() draws at 72; at 144/1920 the preview is ~5.
+    expect(fs(full.filtergraph!)).toBe(72);
+    expect(fs(preview.filtergraph!)).toBeGreaterThan(0);
+    expect(fs(preview.filtergraph!)).toBeLessThan(10);
   });
 });

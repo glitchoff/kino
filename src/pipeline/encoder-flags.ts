@@ -15,6 +15,11 @@ export function resolveEncoderSync(options?: Partial<RenderOptions>): VideoEncod
   if (options?.encoder && options.encoder !== "auto") {
     return options.encoder;
   }
+  // Tests and CI must not depend on whether the host has a GPU: the probe picks
+  // `h264_nvenc` on a machine with one and `libx264` elsewhere, so a filtergraph
+  // assertion would pass locally and fail on a runner (or the reverse).
+  const forced = process.env.KINO_ENCODER;
+  if (forced) return forced as VideoEncoder;
   return detectBestEncoderSync(getFFmpegBinaryPath(options?.ffmpegPath)) as VideoEncoder;
 }
 

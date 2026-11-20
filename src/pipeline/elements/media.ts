@@ -72,6 +72,17 @@ export function buildMediaScaleFilter(elem: ImageElement | VideoElement | Normal
   // Shapes are always transparent around the drawn region.
   const keyed = !!elem.chromaKey || elem.type === "shape" || !!elem.preserveAlpha;
 
+  // `scale_cuda` is measured ~3× faster than swscale for 1080p stills. Only the
+  // resize moves: `overlay_cuda` benchmarked *slower* than the CPU path, and
+  // every CPU-only filter downstream forces the download anyway. Elements that
+  // need alpha stay on the CPU — the CUDA path here emits yuv420p.
+  if (elem.cuda && !keyed && w > 0 && h > 0) {
+    const cuda = fit === "cover"
+      ? `hwupload_cuda,scale_cuda=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},hwdownload,format=yuv420p`
+      : `hwupload_cuda,scale_cuda=${w}:${h},hwdownload,format=yuv420p`;
+    return cuda;
+  }
+
   if (w > 0 && h > 0) {
     if (fit === "cover") {
       const base = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;

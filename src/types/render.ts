@@ -18,6 +18,19 @@ export interface RenderOptions {
   encoder?: VideoEncoder;
   preset?: string;
   /**
+   * Resample scaled elements on the GPU with `scale_cuda`. **Default off.**
+   *
+   * Measured slower end to end (44.5 s vs 39.1 s on a 36 s 1080p bench) even
+   * though `scale_cuda` beats swscale 3× in isolation. `zoompan` and `drawtext`
+   * have no CUDA variants, so each element pays an upload and a download per
+   * frame, and that round trip outweighs the resize.
+   *
+   * Worth trying only for a graph with no CPU-only filters in the chain. `true`
+   * enables it when the binary has a working device; `false` or unset keeps the
+   * CPU path. `KINO_SCALE_CUDA=0` disables the probe entirely.
+   */
+  scaleCuda?: boolean;
+  /**
    * Encoder quality, 0–51 for libx264 where lower is better. Default 20, which
    * keeps text crisp; the previous default had no quality target at all and
    * crushed text-heavy frames. Hardware encoders map this to their own quality
@@ -51,10 +64,15 @@ export interface RenderOptions {
    */
   browserUrl?: string;
   /**
-   * Fast preview mode. When set, the final video is downscaled to this height
-   * (width follows the source aspect ratio) and encoded with `ultrafast`/CRF 30.
-   * `true` means 144p. The scene graph is unchanged — only the output stage
-   * differs, so a preview that looks right will render right.
+   * Fast preview mode. `true` means 144p; a number sets the height (width
+   * follows the source aspect ratio).
+   *
+   * The composition **composites at the preview size** — backgrounds, images,
+   * text and blends are all built for the smaller frame — so the per-frame cost
+   * scales with the resolution. The scene graph is otherwise unchanged: same
+   * elements, same order, same timing, same grade, so a preview shows what the
+   * full render will at a lower pixel grid. Fine detail (a 1.5px stroke, a
+   * sub-pixel text offset) can round differently.
    */
   preview?: boolean | number;
   /**
@@ -64,6 +82,19 @@ export interface RenderOptions {
   assetCache?: boolean;
   /** Override the asset cache directory (default `.kino-cache/` in the cwd). */
   assetCacheDir?: string;
+  /**
+   * Keep render scratch (staging files, caption PNGs, extracted artifacts) in
+   * memory instead of on disk. **Opt-in, default off.**
+   *
+   * On Linux this uses `/dev/shm`. On Windows there is no built-in RAM disk, so
+   * `KINO_RAMDISK` must name one (e.g. `R:\`) or this falls back to disk with a
+   * warning — it never silently pretends to be in memory.
+   *
+   * Worth it when the working set fits comfortably in RAM. A render that
+   * quietly exhausts memory is worse than a slow one, which is why this is not
+   * the default.
+   */
+  ram?: boolean;
   /**
    * Allow `yt:` sources, fetched with the `yt-dlp` binary on PATH. Off by
    * default; Kino never installs yt-dlp.

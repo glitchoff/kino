@@ -194,3 +194,52 @@ export function detectBestEncoderSync(ffmpegBin: string): string {
   }
   return "libx264";
 }
+
+let scaleCudaCache: boolean | undefined;
+
+/**
+ * Whether `scale_cuda` can actually run on this machine.
+ *
+ * Listing the filter is not enough: the binary may be built with CUDA and still
+ * have no usable device (no driver, a headless CI box, a container without
+ * `/dev/nvidia*`). So this runs a one-frame graph through the real filter and
+ * checks the exit status. Cached per process — the probe costs ~200 ms.
+ *
+ * Returns false on any platform other than Linux/Windows: the macOS build of
+ * ffmpeg has no CUDA at all, and VideoToolbox is a different path.
+ */
+export function hasScaleCuda(ffmpegBin: string): boolean {
+  if (scaleCudaCache !== undefined) return scaleCudaCache;
+  if (process.env.KINO_SCALE_CUDA === "0") {
+    scaleCudaCache = false;
+    return false;
+  }
+  if (process.platform !== "linux" && process.platform !== "win32") {
+    scaleCudaCache = false;
+    return false;
+  }
+
+  const filters = spawnSync(ffmpegBin, ["-hide_banner", "-filters"], {
+    encoding: "utf-8",
+    timeout: 30_000,
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (filters.status !== 0 || !String(filters.stdout).includes("scale_cuda")) {
+    scaleCudaCache = false;
+    return false;
+  }
+
+  // A real round trip: upload, scale, download. A missing device fails here.
+  const probe = spawnSync(
+    ffmpegBin,
+    [
+      "-hide_banner", "-loglevel", "error",
+      "-f", "lavfi", "-i", "color=c=black:s=320x240:d=1",
+      "-vf", "hwupload_cuda,scale_cuda=160:120,hwdownload,format=yuv420p",
+      "-frames:v", "1", "-f", "null", "-",
+    ],
+    { timeout: 30_000, stdio: ["ignore", "ignore", "ignore"] }
+  );
+  scaleCudaCache = probe.status === 0;
+  return scaleCudaCache;
+}
