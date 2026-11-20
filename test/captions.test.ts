@@ -130,65 +130,57 @@ describe("captions: elements", () => {
   describe("reveal style", () => {
     const els = captions(line, { style: "reveal", wordsPerLine: 6, fontSize: 52 });
 
-    /** Every word's highlighted element, in spoken order. */
-    const sung = els.filter((e) => e.fontColor === "#38bdf8");
-    /** Offset of an `x` like "w/2-12.5" from the frame centre. */
-    const offset = (x: unknown) => Number(String(x).replace(/^w\/2/, ""));
-
-    test("each word is its own element, with no captionWords", () => {
-      // One highlighted element per word, plus a dim redraw for all but the last.
-      expect(sung.map((e) => e.content)).toEqual([
+    // `reveal` used to emit one element per word, positioned by hand. That made
+    // the x depend on `estimateTextWidth` (whose lowercase price is roughly 2x
+    // the drawn width, so the error became the gap between words) and made the
+    // y depend on each word's own `text_h` (`bottom-N` is `h - text_h - N`), so
+    // words with and without ascenders sat on different baselines. Both are
+    // fixed by emitting one element per line and letting the font lay it out.
+    test("one element per line, carrying per-word timings", () => {
+      expect(els).toHaveLength(1);
+      expect(els[0].content).toBe("Where the mind is without fear.");
+      expect(els[0].captionWords?.map((w) => w.word)).toEqual([
         "Where", "the", "mind", "is", "without", "fear.",
       ]);
-      expect(els).toHaveLength(11);
-      expect(els.every((e) => !e.captionWords)).toBe(true);
     });
 
-    test("x positions increase so words sit side by side", () => {
-      const xs = sung.map((e) => offset(e.x));
-      for (const x of xs) expect(Number.isFinite(x)).toBe(true);
-      for (let i = 1; i < xs.length; i++) expect(xs[i]).toBeGreaterThan(xs[i - 1]);
+    test("the line is drawn in the resting colour and highlights per word", () => {
+      // The pipeline draws the line once and re-draws the active word in
+      // `highlight`, clipped to that word's box. There is no per-word element
+      // to colour, so the highlight lives in `captionWords` + `highlight`.
+      expect(els[0].fontColor).toBe("#f8fafc");
+      expect(els[0].highlight).toBe("#38bdf8");
     });
 
-    test("x is centred on the frame, never a bare number", () => {
-      // drawtext resolves `w-210` from the right edge and treats a plain
-      // negative number as a literal offset, both of which push the line
-      // off-screen. `w/2 +/- n` is the only form that anchors at the centre.
-      for (const el of els) expect(String(el.x)).toMatch(/^w\/2[+-][\d.]+$/);
+    test("no element positions words individually", () => {
+      // A per-word x was the mechanism behind the uneven gaps; nothing should
+      // carry one now.
+      for (const el of els) {
+        if (el.x === undefined) continue;
+        expect(String(el.x)).not.toMatch(/^w\/2[+-][\d.]+$/);
+      }
     });
 
-    test("a centred line spans the frame symmetrically", () => {
-      const xs = sung.map((e) => offset(e.x));
-      // The first word starts left of centre and the last one right of it.
-      expect(xs[0]).toBeLessThan(0);
-      expect(xs[xs.length - 1]).toBeGreaterThan(0);
+    test("word timings are relative to the line, not the scene", () => {
+      const words = els[0].captionWords!;
+      expect(words[0].at).toBeCloseTo(0, 5);
+      for (let i = 1; i < words.length; i++) {
+        expect(words[i].at).toBeGreaterThan(words[i - 1].at);
+      }
+      for (const w of words) expect(w.duration).toBeGreaterThan(0);
     });
 
-    test("the sung word is highlighted, then settles to the dim colour", () => {
-      const [sung, settled] = els;
-      expect(sung.content).toBe(settled.content);
-      expect(sung.fontColor).toBe("#38bdf8");
-      expect(settled.fontColor).toBe("#f8fafc");
-      expect(Number(settled.startAt)).toBeGreaterThanOrEqual(Number(sung.startAt));
+    test("one y for the whole line, so the baseline cannot drift", () => {
+      // `bottom-N` resolves against `text_h`; with a single element that is the
+      // line's own height, so every word shares a baseline by construction.
+      const ys = new Set(els.map((e) => String(e.y)));
+      expect(ys.size).toBe(1);
     });
 
-    test("the last word of a line is never redrawn in the dim colour", () => {
-      // Nothing follows it, so it stays highlighted for the rest of the line.
-      const last = els[els.length - 1];
-      expect(last.content).toBe("fear.");
-      expect(last.fontColor).toBe("#38bdf8");
-    });
-
-    test("words appear in spoken order", () => {
-      const firsts = els.filter((_, i) => i % 2 === 0);
-      const starts = firsts.map((e) => Number(e.startAt));
-      for (let i = 1; i < starts.length; i++) expect(starts[i]).toBeGreaterThanOrEqual(starts[i - 1]);
-    });
-
-    test("a word's element lasts until the next word begins", () => {
-      const [sung] = els;
-      const next = els[2];
-      expect(Number(sung.startAt) + Number(sung.duration)).toBeCloseTo(Number(next.startAt), 5);
+    test("a long line wraps into several elements, one per line", () => {
+      const many = captions(line, { style: "reveal", wordsPerLine: 3, fontSize: 52 });
+      expect(many.length).toBeGreaterThan(1);
+      for (const el of many) expect(el.captionWords?.length).toBeGreaterThan(0);
     });
   });
 

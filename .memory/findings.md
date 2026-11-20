@@ -104,6 +104,106 @@ was fine (1.5–3.7/255) — the problem was purely the round trip.
 
 ---
 
+## 2026-11-21 — A frame cost was process spawn, not render cost
+
+**Claim:** kino's per-frame cost was almost entirely Windows process startup, not
+decoding or compositing.
+
+**Evidence,** 640×360 proxy, best of several:
+
+| shape | cost |
+| --- | --- |
+| spawn per frame (old `Preview.frame`) | 623 ms |
+| `ffmpeg -version` alone, no decode | **641 ms** |
+| 30 frames in one process | 531 ms total (17.7 ms/frame) |
+| decode the whole proxy once | 0.0004 ms/frame |
+
+`ffmpeg -version` does no work and costs the same as a full frame. A spawn on
+this machine is ~640 ms — more than decoding 30 frames.
+
+**Implication:** never put a process on a per-frame path. The fix is to decode
+the proxy once into RAM and serve frames from memory: 4.75 ms/frame over HTTP,
+211 fps, on a real 21.5 s composition.
+
+**Trap hit once:** caching frames but still encoding each to JPEG measured
+**662 ms — no gain at all**, because the encode was another spawn. The win only
+arrives when ffmpeg leaves the per-frame path completely.
+
+**Cross-refs:** `src/pipeline/frame-cache.ts`, `docs/studio.md`.
+
+---
+
+## 2026-11-21 — Preview must resolve TTS before compile, or every voice() clip fails
+
+`compile()` is synchronous and `prestageRemoteAssets` expects every `src` to be
+a path string. `render()` resolves TTS first; `Preview.open` did not, so a raw
+`{ __kinoTts: true, text, options }` spec reached it and:
+
+```
+TypeError: src.startsWith is not a function
+```
+
+Any composition using `voice()` therefore failed to preview. Fixed by resolving
+TTS in `Preview.open` exactly as `render()` does, plus a guard in `isRemote` so a
+non-string cannot take down the whole compile.
+
+**Rule:** anything that calls `compile()` on a user composition must run
+`resolveTtsTracks()` first when `compositionHasTts()` is true.
+
+**Cross-refs:** `src/pipeline/preview.ts`, `src/tts/resolve.ts`.
+
+---
+
+## 2026-11-21 — An animated element skipped its fit filter entirely
+
+An element with a `scale` animation emitted
+`scale=w='max(2,iw*<expr>)':h='max(2,ih*<expr>)'` straight onto the raw input,
+**replacing** the fit/downscale filter. `iw`/`ih` are the *source* size, so:
+
+- in a preview, a 870 px panel went into a 640 px frame undownscaled and hung off
+  the right edge — every animated panel, because nearly every panel is animated;
+- the target `width`/`height` were computed and then thrown away.
+
+Fixed by applying the fit first, then the animated scale. Verified by pixel
+bounding box, not by eye: 2 px worst edge error at 640×360.
+
+**Second half of the same bug:** `previewScale` was applied to the scale filter
+but not to the overlay position, so a panel was drawn at the right size in the
+wrong place. One `previewMedia` value now feeds scale, position, animation and
+the still-window trim, so they cannot disagree about coordinate space.
+
+**Cross-refs:** `src/pipeline/compile.ts`, `src/pipeline/elements/media.ts`.
+
+---
+
+## 2026-11-21 — `reveal` captions: estimate for layout, and per-word `text_h`
+
+Two bugs, one cause: `reveal` emitted **one element per word**.
+
+**Gaps.** Each word's x came from `estimateTextWidth`, whose lowercase price is
+0.52em where the font draws closer to 0.25em. That estimate is the advance, so
+the error became a gap, and because each word's error differed the gaps were
+uneven — 15, 40 and 14 px in one line. A line read `Whathas`.
+
+**Baseline.** `bottom-N` compiles to `h - text_h - N`, and `text_h` is *that
+element's* height. Per-word elements each got their own baseline, so a word with
+an ascender (`have`) sat higher than one without (`you`). That reads as
+inconsistent font size; the size was never different.
+
+**Fix:** one element per line, full text, with `captionWords` driving the
+highlight. One `text_h`, and the font does the layout. Word gaps 16/18/14/19 px,
+baseline spread 0 px.
+
+**Wrong turn worth recording:** the first fix kept per-word elements and measured
+real glyph widths with ffmpeg (batched, ~700 ms per line). Gaps became correct
+but the baseline stayed broken — per-word elements still each got their own
+`text_h` — and the caption suite went from seconds to **411 s**. When a font is
+doing the drawing, let it do the measuring.
+
+**Cross-refs:** `src/captions/index.ts`, `src/pipeline/elements/text.ts`.
+
+---
+
 ## 2026-11-20 — A true live preview is not possible with a filtergraph batch renderer
 
 **Claim:** kino cannot preview like a video editor (play instantly, no encode)

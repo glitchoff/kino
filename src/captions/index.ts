@@ -1,7 +1,7 @@
-/**
+﻿/**
  * Word-level captions from a measured line of speech.
  *
- * The text is already known — it is the `s.say()` line — so this never needs
+ * The text is already known â€” it is the `s.say()` line â€” so this never needs
  * speech recognition, only *when* each word is spoken.
  *
  * ```ts
@@ -48,13 +48,13 @@ import type { ImageElement, TextElement, CaptionWord } from "../types/elements.j
 export interface WordTiming {
   /** The word as written, punctuation included. */
   word: string;
-  /** The same word with punctuation stripped — what an aligner is given. */
+  /** The same word with punctuation stripped â€” what an aligner is given. */
   clean: string;
   /** Start, in seconds from the beginning of the audio. */
   start: number;
   /** End, in seconds from the beginning of the audio. */
   end: number;
-  /** 0–1 confidence, when the timing came from an aligner. */
+  /** 0â€“1 confidence, when the timing came from an aligner. */
   score?: number;
 }
 
@@ -129,7 +129,7 @@ export function splitWords(text: string): string[] {
   return text.split(/\s+/).filter(Boolean);
 }
 
-/** Strips punctuation, leaving the model's `a–z` + apostrophe vocabulary. */
+/** Strips punctuation, leaving the model's `aâ€“z` + apostrophe vocabulary. */
 export function cleanWord(word: string): string {
   return word.replace(/[^A-Za-z']/g, "");
 }
@@ -141,7 +141,7 @@ const LONG_PAUSE_AFTER = /[.!?]$/;
  * Distributes `duration` seconds across words by weight.
  *
  * Weight is the word's length plus one, so a long word gets proportionally
- * more time than a short one — TTS pace tracks characters. A comma or full
+ * more time than a short one â€” TTS pace tracks characters. A comma or full
  * stop adds a silent gap *after* that word rather than stretching the word
  * itself, which keeps the spoken words evenly paced.
  */
@@ -193,7 +193,7 @@ export function defaultCaptionCacheDir(): string {
  * Where the optional aligner is installed, separate from the project.
  *
  * Keeping it in Kino's cache means no manifest or lockfile changes, and one
- * copy is shared by every project on the machine — the same reasoning as the
+ * copy is shared by every project on the machine â€” the same reasoning as the
  * Piper voices and the ONNX model.
  */
 export function alignerInstallDir(): string {
@@ -237,7 +237,7 @@ let cachedAligner: Promise<any> | undefined;
  *
  * The package downloads its own model on first use; `cacheDir` points that
  * download at Kino's cache so it sits next to the Piper voices and is shared
- * between projects. The aligner is loaded once per process — loading the ONNX
+ * between projects. The aligner is loaded once per process â€” loading the ONNX
  * session is the expensive part, not aligning.
  */
 async function loadAligner(): Promise<any | undefined> {
@@ -346,7 +346,7 @@ async function alignTimings(file: string, words: string[]): Promise<WordTiming[]
   const clean = words.map(cleanWord);
 
   // The model's vocabulary is letters only. Words that reduce to nothing
-  // ("—", "2024") are dropped from the alignment and get zero-length spans,
+  // ("â€”", "2024") are dropped from the alignment and get zero-length spans,
   // which is why the original index is tracked rather than the cleaned one.
   const alignable = clean
     .map((word, index) => ({ word, index }))
@@ -530,106 +530,12 @@ function measure(text: string, fontSize: number): number {
 }
 
 /**
- * Word-by-word reveal: each word is its own element, appearing when it is sung
- * and staying until the line ends, so the sentence builds up as it is heard.
- *
- * Two things make this work with drawtext:
- *
- * - Each element is placed at an explicit pixel `x`, computed from the width of
- *   the words before it. Centring every element would stack them on top of each
- *   other, since each one holds only a single word.
- * - The word being sung is drawn in `highlight`; once the next word starts, an
- *   overlapping element redraws it in `color` until the line ends. That keeps
- *   the current word standing out without needing per-glyph colouring.
- */
-function revealElements(
-  timings: WordTiming[],
-  options: CaptionOptions,
-  ctx: { fontSize: number | string; color: string; highlight: string; fade: number; at: number }
-): TextElement[] {
-  const { color, highlight, fade, at } = ctx;
-  const fontSize = parsePixels(ctx.fontSize) ?? 56;
-  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
-  const out: TextElement[] = [];
-  const zIndex = options.zIndex ?? 100;
-
-  for (const line of lines) {
-    const lineStart = at + line.start;
-    const lineEnd = lineStart + (line.end - line.start);
-    const lineLeft = resolveAnchor(options.x, measure(line.text, fontSize));
-
-    let before = 0;
-    for (let i = 0; i < line.words.length; i++) {
-      const word = line.words[i];
-      const wordStart = at + word.start;
-      const next = line.words[i + 1];
-      const nextStart = next ? at + next.start : lineEnd;
-      const wordX = lineLeft + before;
-
-      const base = {
-        type: "text" as const,
-        content: word.word,
-        fontSize,
-        // Positioned from the frame centre, not from `w` directly: drawtext
-        // resolves `w-210` to 960-210 measured from the right edge, which
-        // pushed every word off-screen. `w/2 +/- n` is unambiguous.
-        x: `w/2${wordX < 0 ? "-" : "+"}${Math.abs(wordX).toFixed(3)}`,
-        y: options.y ?? "bottom-240",
-        textAlign: "left" as const,
-        zIndex,
-        ...options.text,
-      };
-
-      // While this word is being sung it is highlighted...
-      out.push({
-        ...base,
-        fontColor: highlight,
-        startAt: wordStart,
-        duration: Math.max(0.05, Math.min(nextStart, lineEnd) - wordStart),
-        animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
-      } as TextElement);
-
-      // ...then it settles into the resting colour for the rest of the line.
-      const settledFor = lineEnd - nextStart;
-      if (settledFor > 0.05) {
-        out.push({
-          ...base,
-          fontColor: color,
-          startAt: Math.max(wordStart, nextStart),
-          duration: settledFor,
-        } as TextElement);
-      }
-
-      // Advance by this word plus the space that separates it from the next.
-      // The space is added explicitly: measuring "word " would count a trailing
-      // space drawtext never draws, drifting the line right by a space per word.
-      before += measure(word.word, fontSize) + measure(" ", fontSize);
-    }
-  }
-
-  return out;
-}
-
-/**
- * Turns a caption `x` option into a left-edge pixel offset for a line of
- * `width`, so reveal elements can be positioned individually.
- */
-function resolveAnchor(x: number | string | undefined, width: number): number {
-  if (typeof x === "number") return x;
-  const value = (x ?? "center").trim();
-  if (value === "center" || value === "c") return -width / 2;
-  if (value === "left") return 0;
-  if (value === "right") return -width;
-  return parsePixels(value) ?? -width / 2;
-}
-
-/**
  * Everything the two caption renderers share.
  *
  * `captionElements` (drawtext) and `captionImages` (rasterised PNGs) used to
  * each build their own lines, defaults and anchoring. That duplication already
  * caused a bug: `buildCaptionLines` trims each line's hold so it cannot run
- * into the next line, and that only works when it can see the following line —
+ * into the next line, and that only works when it can see the following line â€”
  * calling it per line left the holds untrimmed and stacked captions on screen.
  *
  * Both renderers now take this. Only the drawing differs.
@@ -698,11 +604,43 @@ export function captionElements(
     );
   }
 
-  if (style === "reveal") {
-    return revealElements(timings, options, { fontSize, color, highlight, fade, at });
-  }
-
   const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
+
+  if (style === "reveal") {
+    // `reveal` used to emit one element per word, positioned by hand. That made
+    // two things go wrong at once:
+    //
+    //   - the x came from `estimateTextWidth`, which prices lowercase at 0.52em
+    //     where the font draws closer to 0.25em, so the advance overshot and the
+    //     error showed up as uneven gaps between words (`Whathas`);
+    //   - `bottom-N` compiles to `h - text_h - N`, and `text_h` is each word's
+    //     own height, so a word with an ascender sat higher than one without.
+    //
+    // A line is one element now: the full text at one position, with per-word
+    // timings driving the highlight. There is one `text_h`, so the baseline
+    // cannot drift, and the font lays the words out itself, so there is no
+    // advance to estimate.
+    return lines.map((line) => {
+      const lineStart = at + line.start;
+      const lineDuration = line.end - line.start;
+      const captionWords: CaptionWord[] = line.words.map((w) => ({
+        word: w.word,
+        at: w.start - line.start,
+        duration: Math.max(0.05, w.end - w.start),
+      }));
+
+      return {
+        type: "text",
+        content: line.text,
+        fontSize,
+        fontColor: color,
+        captionWords,
+        highlight,
+        animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
+        ...baseOptions(options, lineStart, lineDuration),
+      } as TextElement;
+    });
+  }
 
   return lines.map((line) => {
     const lineStart = at + line.start;
@@ -710,7 +648,7 @@ export function captionElements(
 
     // Karaoke: one element holding the full line, plus the per-word timings.
     // The pipeline draws the line in `fontColor` and re-draws each word in
-    // `highlight` for its span, clipped to the word's box — so the highlight
+    // `highlight` for its span, clipped to the word's box â€” so the highlight
     // sits exactly over the word inside the line rather than on a separate
     // copy of the text.
     const captionWords: CaptionWord[] =
@@ -735,7 +673,7 @@ export function captionElements(
 }
 
 /**
- * Captions for a measured line using even timing — no model, no dependency.
+ * Captions for a measured line using even timing â€” no model, no dependency.
  *
  * ```ts
  * const line = await voice("Where the mind is without fear.");
@@ -827,7 +765,7 @@ export interface CaptionImageOptions extends CaptionOptions {
  * Karaoke captions as pre-rendered images, one per word.
  *
  * The text-based highlight draws the line again for every word, and ffmpeg has
- * to keep a full-frame copy per word alive — with several lines on screen that
+ * to keep a full-frame copy per word alive â€” with several lines on screen that
  * collapses and the render never finishes. Here each word's state is
  * rasterised once to a PNG, and the composition only swaps images on a
  * timeline, which costs the same per frame no matter how many words there are.
@@ -858,7 +796,7 @@ export async function captionImages(
   mkdirSync(options.dir, { recursive: true });
 
   // A colon separates filter options, so an absolute Windows path
-  // (`C:\…`) splits the argument and ffmpeg then sees a bare `text`, failing
+  // (`C:\â€¦`) splits the argument and ffmpeg then sees a bare `text`, failing
   // with "Both text and text file provided". Escape every path that reaches a
   // `drawtext` option.
   const font = options.fontFile ? `:fontfile='${escapeFFmpegStr(options.fontFile)}'` : "";
