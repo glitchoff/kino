@@ -35,6 +35,8 @@ real composition and say which one.
 
 ## The suite is red
 
-14 failures at session end: captions 8, export 2, ytdlp 4. None are from the
-preview or zoompan work. Do not assume a red suite means your change broke
-something, and do not commit with new failures on top of these.
+5 failures across 2 files after the 2026-11-20 session: 1 export (`export.test.ts`,
+frame naming), 4 ytdlp (the Unix-shebang stub cannot execute on Windows). The 8
+caption failures that had been carried as "pre-existing" were a real engine bug
+and are fixed. Do not assume a red suite means your change broke something, and
+do not commit with new failures on top of these.

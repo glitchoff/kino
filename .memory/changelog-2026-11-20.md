@@ -211,9 +211,12 @@ a real composition.
 - **Captions are green** — 40/40, after the path-escape fix (change 11). Before
   the fix the file was 32/40; the 8 failures had been treated as pre-existing
   and were a real engine bug.
-- The rest of the suite still carries **6 known failures** (export 2, ytdlp 4)
-  from the original baseline of 14. A full-suite run was still in flight when
-  this changelog was committed; re-run `npx vitest run` to confirm the count.
+- Full suite after these changes: **5 failures across 2 files** — 1 export
+  (`export.test.ts`: frames named from the timestamp), 4 ytdlp (the Unix-shebang
+  stub cannot execute on Windows). Baseline before this session was 14
+  (captions 8, export 2, ytdlp 4); the 8 caption failures are gone. The export
+  count is 1, not the 2 the baseline recorded — that line was slightly off.
+- **No new failures.** 28 test files passed, 2 skipped.
 - Changes 4–11 are committed in `fdcc73f`; changes 1–3 in `613f948`, `a1acb7e`,
   `d799517`.
 - Eight scratch call sites still use `tmpdir()` directly; only `compile.ts` was
