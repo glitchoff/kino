@@ -8,7 +8,6 @@ import { render, compile } from "./pipeline/index.js";
 import { renderTakumiElements } from "./pipeline/elements/takumi-elements.js";
 import { parseRenderArgs, RENDER_FLAGS } from "./cli-args.js";
 import { replaceTtsWithPlaceholders } from "./tts/resolve.js";
-import { startStudio } from "../studio/server.js";
 import type { KinoComposition } from "./types/index.js";
 
 async function setupBrowser(): Promise<void> {
@@ -179,28 +178,39 @@ async function main() {
     return;
   }
 
-  if (args.includes("studio")) {
-    let port = 3333;
-    const portIdx = args.findIndex((a) => a === "-p" || a === "--port");
-    if (portIdx !== -1 && args[portIdx + 1]) {
-      port = Number(args[portIdx + 1]) || 3333;
+  if (args[0] === "preview" || args[0] === "serve") {
+    const file = args.slice(1).find((a) => !a.startsWith("-"));
+    if (!file) {
+      console.error("Usage: npx kino preview <composition.ts> [--port <n>] [--height <px>]");
+      process.exit(1);
     }
-    startStudio(port);
+
+    const portIdx = args.findIndex((a) => a === "-p" || a === "--port");
+    const port = portIdx !== -1 && args[portIdx + 1] ? Number(args[portIdx + 1]) || 3333 : 3333;
+    const heightIdx = args.findIndex((a) => a === "--height");
+    const height = heightIdx !== -1 && args[heightIdx + 1] ? Number(args[heightIdx + 1]) || 360 : 360;
+
+    const fullPath = resolve(file);
+    const composition = await loadComposition(fullPath);
+    const { serve } = await import("./pipeline/serve.js");
+    // Held open until the process is killed; a watcher restarting the process
+    // is how a source change reaches the browser.
+    await serve(composition, { port, height });
     return;
   }
 
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     console.log(`
-  🎥 kino - JSON to FFmpeg video compiler
+  🎥 kino - code to FFmpeg video compiler
 
   Usage:
     npx kino <file> [options]
     npx kino render <file> [options]
-    npx kino studio [--port <number>]
+    npx kino preview <file> [--port <number>] [--height <px>]
     npx kino setup [browser|ffmpeg|tts|captions]
 
   Commands:
-    studio                 Launch Kino Studio web editor & preview server
+    preview <file>         Serve a live preview: scrub by seeking a proxy, or render a playable mp4
     setup [browser]        Download Chrome for HTML elements (no-op if already installed; also happens automatically on first HTML render)
     setup ffmpeg           Install/verify the bundled ffmpeg (downloads the drawtext-enabled Linux build; verifies ffmpeg-static elsewhere)
     setup tts [voice]      Check for Piper and download a voice (pip install piper-tts first)
@@ -208,8 +218,8 @@ async function main() {
     render <file>          Render composition to video file
 
   File formats:
-    .json                  JSON composition file
     .ts / .js / .mjs       Code composition, e.g. export default composition(...).build()
+    .json                  JSON composition file (still supported)
     .kino                  Pre-compiled .kino artifact (renders without recompiling)
 
   Options:
@@ -218,7 +228,8 @@ async function main() {
   for (const [flag, description] of RENDER_FLAGS) {
     console.log(`    ${flag.padEnd(23)}${description}`);
   }
-  console.log(`    -p, --port <number>    Port for studio server (default: 3333)
+  console.log(`    -p, --port <number>    Port for the preview server (default: 3333)
+    --height <px>          Preview proxy height (default: 360)
 `);
     process.exit(0);
   }
@@ -232,7 +243,7 @@ async function main() {
   const isUnsafeInlineText = opts.unsafeInlineText ?? false;
 
   if (!inputPath) {
-    console.error("Error: Please provide a valid input file (.json or .kino) or use `npx kino studio`.");
+    console.error("Error: Please provide a valid input file (.ts, .json or .kino) or use `npx kino preview <file>`.");
     process.exit(1);
   }
 

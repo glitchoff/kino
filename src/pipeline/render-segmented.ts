@@ -183,13 +183,30 @@ function renderOneSegment(
 }
 
 /**
- * Removes the output path and any encode flags from a manifest's args.
+ * Removes everything that describes the *whole* composition's output: the
+ * output path, the encode flags, and the composition-wide `-t`.
  *
- * The manifest ends with `… -c:v … <output>`; the caller re-adds its own flags
- * so all segments match.
+ * The `-t <duration>` matters as much as the codec flags. It is baked into the
+ * manifest and ffmpeg takes the **first** `-t` as the output duration, so
+ * leaving it in makes every segment as long as the entire composition and the
+ * caller's per-segment `-t` is ignored. A 3-scene probe hid this because every
+ * slice was nearly the same length as the whole clip; a real clip with mixed
+ * scene lengths produces a broken timeline.
  */
 function stripOutputAndEncode(args: string[]): string[] {
+  // Cut from the output-mapping tail onwards. `-map` is kept (the filtergraph's
+  // output pad is still needed) but `-t` and the codecs are not.
   const cut = args.findIndex((a) => a === "-c:v" || a === "-c:a");
-  const withoutEncode = cut >= 0 ? args.slice(0, cut) : args.slice(0, -1);
-  return withoutEncode;
+  const head = cut >= 0 ? args.slice(0, cut) : args.slice(0, -1);
+
+  const out: string[] = [];
+  for (let i = 0; i < head.length; i++) {
+    if (head[i] === "-t") {
+      // Drop the flag and its value.
+      i++;
+      continue;
+    }
+    out.push(head[i]);
+  }
+  return out;
 }

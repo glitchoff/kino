@@ -113,6 +113,17 @@ export class Preview {
     return this.duration;
   }
 
+  /**
+   * Path to the all-keyframe proxy, for serving as a playable video.
+   *
+   * The proxy is a real mp4: every frame is a keyframe, so a `<video>` can both
+   * play it straight through and seek it instantly. That is what makes scrubbing
+   * and playback the same artifact instead of two renders.
+   */
+  get proxyFile(): string {
+    return this.proxyPath;
+  }
+
   /** Frame rate of the composition. */
   get frameRate(): number {
     return this.fps;

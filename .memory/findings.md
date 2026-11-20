@@ -128,6 +128,41 @@ anyway, so a whole-scene GPU graph is never achievable for a typical composition
 
 **Cross-refs:** `tickets/026`.
 
+### Correction (same day) — the mechanism was wrong, the conclusion was right
+
+The table above changed **two** variables per row, so it never measured
+`overlay_cuda` on its own. Re-measured with one variable per row, decoded inputs,
+best of 3, every chain gated on actually emitting 300 frames:
+
+| Chain | 1080p | 720p | 360p |
+| --- | --- | --- | --- |
+| CPU scale + CPU overlay | 1,528 ms | 1,434 ms | 1,436 ms |
+| CPU scale + **overlay_cuda** | 2,196 ms | 1,881 ms | 1,830 ms |
+| *upload+download only, no filter* | *1,712 ms* | *1,482 ms* | *1,452 ms* |
+
+`overlay_cuda` loses at every size, so the conclusion stands. But **the cost is
+not bandwidth.** The bare round trip costs ~1,450 ms even at 640×360 — one ninth
+the pixels of 1080p — so it is **fixed per-frame overhead** (allocation,
+synchronisation, context switching), not data volume. Resolution cannot rescue
+it.
+
+GPU use was verified, not assumed: `nvidia-smi` showed utilisation 0% → ~50% and
+VRAM 689 → 872 MiB during a CUDA chain. The filters do run on the card; they
+spend their time on bookkeeping.
+
+Two traps this exposed, both worth remembering:
+
+- **A crashed ffmpeg looks like a fast ffmpeg.** Three of my benchmark rounds
+  timed processes that had failed with `Filter format:default has an unconnected
+  output`. Gate every chain on emitting the expected frame count before timing
+  it.
+- **My absolute numbers do not match the ones above** (1,528 ms vs 10,949 ms for
+  the same shape). Something in the original setup differed and could not be
+  reconstructed. Treat the original absolute figures as unreproduced; only the
+  relative ordering survived.
+
+**Cross-refs:** `tickets/026`.
+
 ---
 
 ## 2026-11-20 — `zoompan` flattens alpha and only zooms 1–10

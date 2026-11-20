@@ -19,8 +19,7 @@
   "files": [
     "dist",
     "assets",
-    "scripts",
-    "studio/dist"
+    "scripts"
   ],
   "publishConfig": {
     "access": "public"
@@ -33,13 +32,10 @@
     ]
   },
   "scripts": {
-    "build": "tsup && pnpm studio:build",
+    "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "studio": "vite build studio && tsx watch studio/server.ts",
-    "studio:dev": "vite studio",
-    "studio:build": "vite build studio",
     "postinstall": "node scripts/install-ffmpeg.mjs",
     "test:dist": "tsup && vitest run --config vitest.dist.config.ts"
   },
@@ -65,23 +61,14 @@
     "puppeteer-core": "^24.43.1",
     "takumi-js": "^2.20.0",
     "tar": "^7.5.22",
-    "xz-decompress": "^0.2.3",
-    "zustand": "^5.0.14"
+    "xz-decompress": "^0.2.3"
   },
   "devDependencies": {
-    "@monaco-editor/react": "^4.7.0",
     "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.11.0",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.0.5",
-    "lucide-react": "^1.28.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
     "tsup": "^8.0.2",
     "tsx": "^4.7.1",
     "typescript": "^5.4.2",
-    "vite": "^8.2.0",
     "vitest": "^1.4.0"
   }
 }

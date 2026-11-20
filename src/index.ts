@@ -1,4 +1,6 @@
 export { render, compile, exportComposition } from "./pipeline/index.js";
+export { serve } from "./pipeline/serve.js";
+export type { ServeOptions, ServeHandle } from "./pipeline/serve.js";
 export { getFFmpegBinaryPath } from "./encoder/probe.js";
 export { Preview, previewFrames } from "./pipeline/preview.js";
 export type { PreviewOptions, PreviewFrame } from "./pipeline/preview.js";

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { NormalizedComposition } from "../types/index.js";
 
 /**
@@ -143,9 +143,22 @@ export function canSegment(norm: NormalizedComposition): { ok: boolean; reason?:
   return { ok: true };
 }
 
-/** A stable list of segment files for the concat demuxer. */
+/**
+ * A stable list of segment files for the concat demuxer.
+ *
+ * Paths are made **absolute** on the way in. The concat file lives in a scratch
+ * directory while the segments live in the cache directory, and ffmpeg resolves
+ * `file` entries relative to the list, not the caller's cwd — so a relative
+ * segment path silently points at a file that does not exist. Windows paths also
+ * need forward slashes: the concat demuxer treats a backslash as an escape.
+ */
 export function writeConcatList(segments: Segment[], path: string): void {
-  const body = segments.map((s) => `file '${s.path.replace(/'/g, "'\\''")}'`).join("\n");
+  const body = segments
+    .map((s) => {
+      const abs = resolve(s.path).replace(/\\/g, "/");
+      return `file '${abs.replace(/'/g, "'\\''")}'`;
+    })
+    .join("\n");
   writeFileSync(path, `${body}\n`, "utf8");
 }
 

@@ -324,3 +324,9 @@ examples/assets/NotoSansDevanagari-*.ttf
 examples/assets/q1-copper.jpg
 examples/assets/q2-gandhi.jpg
 examples/assets/q3-train.jpg
+
+# Kino Studio preview output and segment cache
+.studio/
+
+# kino serve preview output
+.kino-serve/
