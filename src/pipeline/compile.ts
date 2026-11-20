@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeComposition, selectScene } from "../normalize/index.js";
-import { parseDuration } from "../normalize/unit-parser.js";
+import { parseDuration, parsePixels } from "../normalize/unit-parser.js";
 import { prestageRemoteAssets, KINO_VERSION, defaultAssetCacheDir } from "../remote/index.js";
 import { isYtdlpSource, ytdlpUrl, fetchWithYtdlp } from "../remote/ytdlp.js";
 import { isTtsSpec, synthesizeToWav, stageTts } from "../tts/piper.js";
@@ -70,6 +70,40 @@ const DEFAULT_FONT_PATH = (() => {
   }
   return undefined;
 })();
+
+/**
+ * Re-expresses an element's geometry in preview space.
+ *
+ * A preview composites on a smaller frame, so an element's `width`, `height`,
+ * `x` and `y` all have to be scaled by the same ratio or the layout drifts —
+ * a centred element would sit off-centre, and a full-frame panel would spill
+ * past the edge. Scaling the numbers keeps `overlay`'s `main_w - overlay_w`
+ * centring correct, which inserting a `scale=` filter would not.
+ *
+ * Returns `{}` at ratio 1, so a full render is byte-identical to before.
+ */
+function previewScale(
+  elem: { width?: unknown; height?: unknown; x?: unknown; y?: unknown },
+  ratio: number
+): Record<string, number> {
+  if (ratio >= 1) return {};
+  const scale = (v: unknown): number | undefined => {
+    if (typeof v !== "string" && typeof v !== "number") return undefined;
+    const n = parsePixels(v);
+    if (n === undefined || n === null) return undefined;
+    return Math.max(1, Math.round(n * ratio));
+  };
+  const out: Record<string, number> = {};
+  const w = scale(elem.width);
+  const h = scale(elem.height);
+  const x = scale(elem.x);
+  const y = scale(elem.y);
+  if (w !== undefined) out.width = w;
+  if (h !== undefined) out.height = h;
+  if (x !== undefined) out.x = x;
+  if (y !== undefined) out.y = y;
+  return out;
+}
 
 /**
  * End of a still element's on-screen window, in seconds from the scene start,
@@ -276,6 +310,21 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
   });
 
   try {
+    // A preview is downscaled at the source, not at the output.
+    //
+    // Appending `scale=-2:H` after the whole graph (Stage 3b) meant every scene,
+    // transition and overlay ran at full resolution and the result was thrown
+    // away at the end — a 144p preview cost 1080p work. Downscaling each element
+    // and background on entry makes the per-frame cost scale with the preview
+    // size, which is what makes `--preview` a usable iteration tool.
+    //
+    // The scene graph itself is unchanged: same elements, same order, same
+    // timings. Only the pixel grid they are composited on differs, so a preview
+    // still shows what the full render will.
+    const previewHeight = resolvePreviewHeight(options?.preview);
+    const pw = previewHeight !== undefined ? Math.max(2, Math.round((width * previewHeight) / height / 2) * 2) : width;
+    const ph = previewHeight !== undefined ? previewHeight : height;
+
     // ── Stage 1: Per-scene backgrounds ──────────────────────────────────────
     const sceneBgPads: string[] = [];
 
@@ -284,7 +333,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
       const bgPad = `[bg_scene_${i}]`;
       const currInputIdx = inputIndex++;
 
-      buildSceneBackground(inputs, filterComplex, scene.background, width, height, fps, scene.duration, bgPad, currInputIdx, {
+      buildSceneBackground(inputs, filterComplex, scene.background, pw, ph, fps, scene.duration, bgPad, currInputIdx, {
         stageAsset,
         addFFmpegInput,
       });
@@ -360,6 +409,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           const scaleFilter =
             buildMediaScaleFilter({
               ...media,
+              ...previewScale(media, pw / width),
               preserveAlpha: elem.type === "shape" || undefined,
             }) + (colorFilter ? `,${colorFilter}` : "");
           const ax = buildAnimationExpressions(media, "t");
@@ -447,11 +497,12 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             }
             lastScenePad = applyBlendAndMask(
               filterComplex, elemIdx, startPad, lastScenePad, false, media, ax, hasAnimation,
-              sceneDur, width, height, fps, maskInputIdx
+              sceneDur, pw, ph, fps, maskInputIdx
             );
           } else {
             lastScenePad = applyMediaOverlay(
-              filterComplex, elemIdx, startPad, media, ax, hasAnimation, sceneDur, lastScenePad
+              filterComplex, elemIdx, startPad, media, ax, hasAnimation, sceneDur, lastScenePad,
+              { width: pw, height: ph, fps }, needsAlpha
             );
           }
         } else {
@@ -469,14 +520,27 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           if (special) {
             const canvas = `[txt_canvas_${elemIdx}]`;
             filterComplex.push(
-              `color=c=black@0.0:s=${width}x${height}:r=${fps}:d=${sceneDur},format=rgba,settb=AVTB${canvas}`
+              `color=c=black@0.0:s=${pw}x${ph}:r=${fps}:d=${sceneDur},format=rgba,settb=AVTB${canvas}`
             );
             inPad = canvas;
           } else {
             inPad = lastScenePad.startsWith("[") ? lastScenePad : `[${lastScenePad}]`;
           }
 
-          const filter = buildTextFilter(item, elemIdx, stagingDir, sceneDur, useTextFiles, defaultFontRef, stageAsset);
+          // Text is drawn straight onto the frame, so a preview has to shrink
+          // the font and move the position with it — otherwise the text is full
+          // size on a tiny canvas and runs off the edge.
+          const previewText = previewScale({ width: item.fontSize, x: item.x, y: item.y }, pw / width);
+          const textItem =
+            pw === width
+              ? item
+              : {
+                  ...item,
+                  fontSize: previewText.width ?? item.fontSize,
+                  x: previewText.x ?? item.x,
+                  y: previewText.y ?? item.y,
+                };
+          const filter = buildTextFilter(textItem, elemIdx, stagingDir, sceneDur, useTextFiles, defaultFontRef, stageAsset);
 
           if (hasCaptionWords(item)) {
             // Karaoke captions need the line drawn dim plus a per-word
@@ -486,7 +550,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
               : undefined;
             filterComplex.push(
               ...buildKaraokeFilters(
-                { ...item, __textRef: textRef, __frameWidth: width, __frameHeight: height },
+                { ...textItem, __textRef: textRef, __frameWidth: pw, __frameHeight: ph },
                 filter,
                 inPad,
                 textOutPad,
@@ -532,9 +596,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
     // ── Stage 3a: Composition grade ──────────────────────────────────────────
     // One pass over the finished frame, after every scene and transition, so a
-    // look holds across the whole video. Before the preview downscale: a preview
-    // should show what the grade does, and grading after a downscale would make
-    // the two disagree on fine colour detail.
+    // look holds across the whole video. A preview grades its own smaller frame,
+    // so the look is the same, just at lower resolution.
     if (norm.grade && !isNeutralColor(norm.grade)) {
       const gradeFilter = buildColorFilter(norm.grade, stageAsset);
       if (gradeFilter) {
@@ -544,17 +607,8 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
       }
     }
 
-    // ── Stage 3b: Preview downscale ──────────────────────────────────────────
-    // Only the output stage changes, so the scene graph (and therefore what a
-    // preview shows) is identical to a full render.
-    const previewHeight = resolvePreviewHeight(options?.preview);
-    if (previewHeight !== undefined) {
-      // `buildTransitionPipeline` returns a bracketed pad (e.g. `[bg_concat]`).
-      const src = lastVideoPad.startsWith("[") ? lastVideoPad : `[${lastVideoPad}]`;
-      filterComplex.push(`${src}scale=-2:${previewHeight}[vpv]`);
-      // `lastVideoPad` is consumed as `-map <pad>`, which needs bracket syntax.
-      lastVideoPad = "[vpv]";
-    }
+    // No output-stage downscale: a preview already composites on a smaller
+    // frame, so the finished pad is the preview size.
 
     // ── Stage 4: Audio ───────────────────────────────────────────────────────
     // TTS tracks are resolved to WAV paths by `resolveTtsTracks()` before

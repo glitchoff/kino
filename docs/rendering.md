@@ -18,7 +18,7 @@ npx kino out.kino -o out.mp4               # a pre-compiled artifact
 | --- | --- |
 | `-o, --output <path>` | Where the video goes |
 | `--dry-run` | Print the ffmpeg command and exit |
-| `--preview [height]` | Fast downscaled render |
+| `--preview [height]` | Downscaled render — composites at that height, not full size |
 | `--crf <n>` | Encoder quality, 0–51, lower is better. Default 20 |
 | `--preset <name>` | Encoder preset (x264, NVENC p1–p7, …) |
 | `--scene <n>` | Render one scene |
@@ -28,6 +28,15 @@ npx kino out.kino -o out.mp4               # a pre-compiled artifact
 | `--asset-cache [dir]` | Cache downloaded assets |
 | `--ytdlp` | Allow `yt:` sources |
 | `--verbose` | Show the ffmpeg command and its output |
+
+**`--preview` composites at the preview size.** Backgrounds, images, text and
+overlays are all built for the smaller frame, so the work per frame scales down
+with the resolution. Earlier versions did full-resolution work and downscaled at
+the very end, which made a 144p preview cost as much as a 1080p render.
+
+The scene graph is unchanged — same elements, same order, same timing, same
+grade — so a preview shows what the full render will, at a lower pixel grid.
+Fine detail (a 1.5px stroke, a sub-pixel text offset) can round differently.
 
 ## From code
 

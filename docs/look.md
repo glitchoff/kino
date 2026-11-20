@@ -171,6 +171,12 @@ A `scale` track is clamped to a floor of 1% and both rendered dimensions to a
 minimum of 2px, so animating from `0` is safe even for wide, thin elements —
 a 1100×3 rule at 1% scale renders as 11×2 rather than an invalid 11×0 frame.
 
+**A slow push or pull on a full-frame image gets a faster path.** When an image
+covers its frame, is opaque, and its scale ramps linearly between 1 and 10 with
+no opacity animation, kino compiles it to `zoompan` instead of a per-frame
+`scale`. That is about 2× faster and produces the same picture (verified to
+within 1–2 px). Anything outside that — `popIn` (which starts at 0.8), keyframed
+scale, overshooting easings, anything with alpha — keeps the general path.
 `{ from, to, duration }` is sugar for two keyframes.
 
 **Easings**

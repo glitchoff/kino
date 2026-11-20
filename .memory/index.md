@@ -54,7 +54,9 @@ marked done is closed.
 | # | Ticket | What remains |
 | --- | --- | --- |
 | **009** | Docs rewrite | Rewritten to task-first structure on 2026-11-08. Site polish (search, syntax highlighting) still open. |
-| **023** | Still input lifetime | `trim=end` on the still branch so a panel stops decoding when it leaves the screen. Filtergraph verified, targeted tests green; full suite + a real-render CPU-second measurement still to do. |
+| **023** | Still input lifetime | `trim=end` on the still branch so a panel stops decoding when it leaves the screen. Shipped in `613f948`. |
+| **024** | Preview resolution | `--preview` composites at the preview size instead of downscaling at the end. 36 s bench: 20.4 s at 144p. |
+| **025** | `zoompan` scale | Linear 1–10 scale ramps on opaque full-frame images compile to `zoompan`, ~2× faster, parity verified to 1–2 px. |
 
 Deliberately out of scope: adjustment layers, nesting, speed ramps, time
 remapping. Real editor features that restructure the scene model; none unblock
@@ -75,6 +77,15 @@ the common cases.
   word. It dominates `pnpm test`.
 
 ## Conventions worth knowing
+
+- **A faster filter is only an optimisation if the picture matches.** `zoompan`
+  was 2.5× faster than `scale` and looked like a free win; the first parity check
+  said the motion went the opposite way. It didn't — the check compared a
+  top-left anchor against a centred one. Measure the *output*, not the timing,
+  and make sure both sides are anchored the same way. See `tickets/025`.
+- **Read the ffmpeg filter docs for the option's range.** `zoompan`'s `z` is
+  documented as 1–10; `popIn` starts at 0.8, so it can never use the fast path.
+  A clamp would have changed the animation silently.
 
 - **Paths are found by walking up to the package root.** Four bugs shipped from
   assuming a fixed depth, all silent, because the suite imports from `src/` and
