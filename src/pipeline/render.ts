@@ -6,6 +6,7 @@ import { compile } from "./compile.js";
 import { resolveTtsTracks, compositionHasTts } from "../tts/resolve.js";
 import { renderTakumiElements } from "./elements/takumi-elements.js";
 import { extractKino, readKinoManifest } from "../artifact/index.js";
+import { renderSegmented } from "./render-segmented.js";
 import {
   getFFmpegBinaryPath,
   detectBestEncoder,
@@ -41,10 +42,19 @@ function spawnFFmpegProcess(
   });
 }
 
+/** What a render produced. The cache fields are absent when `cache` is off. */
+export interface RenderResult {
+  output: string;
+  /** Segments reused from a previous cached render. */
+  reused?: number;
+  /** Segments rendered this run. */
+  rendered?: number;
+}
+
 export async function render(
   compositionOrKinoPath: KinoComposition | string,
   options: RenderOptions
-): Promise<{ output: string }> {
+): Promise<RenderResult> {
   const ffmpegBin = getFFmpegBinaryPath(options.ffmpegPath);
 
   let requestedEncoder: VideoEncoder | undefined = options.encoder;
@@ -76,6 +86,18 @@ export async function render(
     }
     resolvedComposition = composition;
     await assertDrawtextSupport(ffmpegBin, composition);
+
+    // Incremental rendering: when the caller asked for the cache, render scene
+    // segments and join them. Only reached for a composition — a pre-built
+    // `.kino` is a single artifact with no scene boundaries left.
+    if (options.cache) {
+      const cacheDir = options.cacheDir ?? join(dirname(resolve(options.output)), ".kino-cache");
+      const result = renderSegmented(composition, renderOptions, cacheDir);
+      console.log(
+        `[kino] cached render: ${result.reused} segment(s) reused, ${result.rendered} rendered`
+      );
+      return { output: result.output, reused: result.reused, rendered: result.rendered };
+    }
 
     // `tak:` markup is rendered here because compile() is synchronous and
     // Takumi is not. Elements without the prefix still go to a browser inside

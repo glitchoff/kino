@@ -127,12 +127,69 @@ Batching dropped by decision — the working set is small. Ticket 030.
 
 ## Recorded but not built
 
-- **027** Incremental render — segment cache by scene hash. Hash and planning
-  written; blocked on transitions, which overlap their neighbours, so the cache
-  unit must be "scene plus its incoming transition" and an edit invalidates two
-  segments.
 - **028** Merge static layers into one overlay per scene. Proposed; merges only
   provably-static groups, so authoring flexibility is unchanged.
+
+---
+
+## 10. Incremental render — `cache: true`
+
+The feature the whole session was for: edit one scene, re-render only what
+changed.
+
+Each scene is rendered as its own segment and joined with `-f concat -c copy`.
+Segments are keyed by a hash of the scene's content, so an unchanged segment is
+reused from disk.
+
+**Transitions are handled as "adjacent scene"**, which dissolves the blocker that
+had parked this ticket. A fade draws from both scenes, so segment N renders
+scenes N-1 and N *together* and keeps only the slice it owns. The fade is
+physically in the encoded file before the cut — nothing needs to share tails
+between separate files.
+
+Segments own abutting slices `[start_i, start_{i+1})`, so the join reproduces
+the timeline with no gap and no double-count.
+
+**Measured** — synthetic 3-scene probe, 640×360, 2 s scenes, 0.4 s fades:
+
+| Run | Reused | Rendered | Time |
+| --- | --- | --- | --- |
+| cold | 0 | 3 | 4719 ms |
+| no edit | 3 | 0 | 704 ms |
+| edit scene 2 | 1 | 2 | — |
+
+Editing scene 2 invalidated scenes 2 and 3 (the fade between them) and reused
+scene 1 — the intended two-segment blast radius.
+
+Output verified by frame hash, not by eye: 156 frames (5.2 s = 2 + 1.6 + 1.6),
+and the three slices hash differently, so the join is real rather than one scene
+duplicated three times.
+
+**Costs, stated plainly:** a one-shot render is *slower* with the cache (one
+ffmpeg run per segment plus a concat pass). It pays off from the second render.
+The cache never garbage-collects.
+
+---
+
+## 11. Caption rasteriser broke on every absolute Windows path
+
+Not an optimisation — a bug that had been sitting in the "pre-existing failures"
+bucket.
+
+`captionImages()` failed every word with `Both text and text file provided`.
+Nothing provided `text=`. The real cause: `:` separates filter options, so
+`textfile='C:\…'` splits the argument and the parser reads the remainder as a
+bare `text`.
+
+Reproduced directly against ffmpeg 6.1.1. Forward slashes do **not** help
+(`C:/…` still has the colon); escaping it does (`C\:/…`).
+
+`text.ts` already escaped correctly via `escapeFFmpegStr()`. The caption
+rasteriser hand-rolled all three of its paths and did not. That asymmetry is why
+normal text worked and captions did not.
+
+**Verified:** caption suite 32/40 → **40/40**. The 8th failure was a separate
+test bug — it asserted a POSIX-separator path on Windows — fixed separately.
 
 ---
 
@@ -152,7 +209,9 @@ a real composition.
 ## Honest state at session end
 
 - The suite is **red**: 14 failures (captions 8, export 2, ytdlp 4). None are
-  from changes 1–3; 4 of the preview ones were and are now fixed.
-- Changes 4–9 are uncommitted.
+  from changes 1–3; 4 of the preview ones were and are now fixed. The 8 caption
+  failures were a real engine bug, now fixed and verified — captions are green
+  (change 11).
+- Changes 4–11 are uncommitted.
 - Eight scratch call sites still use `tmpdir()` directly; only `compile.ts` was
   migrated.

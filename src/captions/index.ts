@@ -37,6 +37,7 @@ import { fileURLToPath } from "node:url";
 import { estimateTextWidth } from "../normalize/element.js";
 import { getFFmpegBinaryPath } from "../encoder/probe.js";
 import { parsePixels } from "../normalize/unit-parser.js";
+import { escapeFFmpegStr } from "../pipeline/position.js";
 import type { ImageElement, TextElement, CaptionWord } from "../types/elements.js";
 
 // ---------------------------------------------------------------------------
@@ -856,7 +857,11 @@ export async function captionImages(
   const height = options.height;
   mkdirSync(options.dir, { recursive: true });
 
-  const font = options.fontFile ? `:fontfile='${options.fontFile}'` : "";
+  // A colon separates filter options, so an absolute Windows path
+  // (`C:\…`) splits the argument and ffmpeg then sees a bare `text`, failing
+  // with "Both text and text file provided". Escape every path that reaches a
+  // `drawtext` option.
+  const font = options.fontFile ? `:fontfile='${escapeFFmpegStr(options.fontFile)}'` : "";
   const out: ImageElement[] = [];
   let probeCount = 0;
 
@@ -876,7 +881,7 @@ export async function captionImages(
       [
         "-hide_banner", "-loglevel", "error", "-y",
         "-f", "lavfi", "-i", "color=c=black:s=2400x120:d=1,format=gray",
-        "-vf", `drawtext=textfile='${probe}'${font}:fontsize=${fontSize}:fontcolor=white:x=10:y=10`,
+        "-vf", `drawtext=textfile='${escapeFFmpegStr(probe)}'${font}:fontsize=${fontSize}:fontcolor=white:x=10:y=10`,
         "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-",
       ],
       { maxBuffer: 64 * 1024 * 1024 }
@@ -920,7 +925,7 @@ export async function captionImages(
         const txt = join(options.dir, `l${li}-w${wi}-${k}.txt`);
         writeFileSync(txt, parts[k].text, "utf8");
         filters.push(
-          `drawtext=textfile='${txt}'${font}:fontsize=${fontSize}:fontcolor=${parts[k].colour}:x=${x.toFixed(2)}:y=${Math.round(height * 0.2)}`
+          `drawtext=textfile='${escapeFFmpegStr(txt)}'${font}:fontsize=${fontSize}:fontcolor=${parts[k].colour}:x=${x.toFixed(2)}:y=${Math.round(height * 0.2)}`
         );
         x += widths[k] + space;
       }

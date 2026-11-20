@@ -215,7 +215,8 @@ describe("captions: optional aligner", () => {
     // manifest or lockfile, which this must not do.
     expect(alignerInstallDir()).not.toContain(process.cwd());
     expect(alignerInstallDir().startsWith(defaultCaptionCacheDir())).toBe(true);
-    expect(alignerInstallDir()).toContain(".cache/kino/captions");
+    // Separator-agnostic: Windows reports backslashes here.
+    expect(alignerInstallDir().replace(/\\/g, "/")).toContain(".cache/kino/captions");
   });
 
   test("timing: auto falls back to even timing when nothing is installed", async () => {

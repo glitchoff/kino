@@ -10,4 +10,8 @@ Task-oriented notes for working on kino. Reference material lives in `docs/`.
 | [code-compositions.md](./guide/code-compositions.md) | Authoring compositions in TypeScript instead of JSON |
 | [long-filtergraphs.md](./guide/long-filtergraphs.md) | The 32,767-character Windows command line, `filter_complex_script`, and why the guard does not fire |
 
+See also [changelog-2026-11-20.md](./changelog-2026-11-20.md) — what shipped this
+session, what each change measured, and what was rejected. Read it before
+proposing anything faster.
+
 Add a row here whenever a new guide is written.

@@ -12,6 +12,33 @@ ticket teaches something that will outlive it, it belongs here.
 
 ---
 
+## 2026-11-20 — An absolute Windows path in a `drawtext` option breaks the filtergraph
+
+**Claim:** `drawtext=textfile='C:\Users\…\w.txt'` fails with
+`Both text and text file provided`, because `:` separates filter options. The
+parser splits `textfile` from its value, and the leftover is read as a bare
+`text` argument.
+
+**Evidence:** reproduced directly against ffmpeg 6.1.1:
+
+```
+drawtext=textfile='C:\…\w.txt':fontfile='D:\…\Inter-Regular.ttf':…
+→ [Parsed_drawtext_0] Both text and text file provided. Please provide only one
+```
+
+Forward slashes alone do **not** help — `C:/…` still has the colon. Escaping it
+does: `C\:/Users/…` renders (exit 0, PNG written).
+
+**Implication:** every path reaching a `drawtext` option must go through
+`escapeFFmpegStr()` (`src/pipeline/position.ts`), which escapes `\`, `'` and `:`.
+`text.ts` already did; `captions/index.ts` hand-rolled its `fontfile` and
+`textfile` arguments and was broken on Windows for any absolute font path. Fixed
+in `captionImages` for all three sites.
+
+**Cross-refs:** `tickets/031`.
+
+---
+
 ## 2026-11-20 — `C:` has 3.1 GB free, and that is where every scratch file goes
 
 **Claim:** all kino intermediates land in `os.tmpdir()`, which on this machine is

@@ -96,6 +96,24 @@ export interface RenderOptions {
    */
   ram?: boolean;
   /**
+   * Render as cached scene segments and join them with `-c copy`. **Opt-in.**
+   *
+   * Each segment is keyed by a hash of its scene, so a re-render after editing
+   * one scene only re-renders the segments containing it. A transition makes a
+   * scene and its predecessor one unit — the fade is drawn from both — so an
+   * edit invalidates at most two segments.
+   *
+   * Costs: the composition is rendered scene-by-scene rather than as one
+   * filtergraph, and the join is a second pass. Worth it when iterating on a
+   * long composition; a one-shot render is faster without it.
+   *
+   * Not compatible with `preview`: a preview composites at a smaller frame, and
+   * joining a preview segment to a full one would break the concat.
+   */
+  cache?: boolean;
+  /** Where segments live. Default `.kino-cache/` beside the output. */
+  cacheDir?: string;
+  /**
    * Allow `yt:` sources, fetched with the `yt-dlp` binary on PATH. Off by
    * default; Kino never installs yt-dlp.
    */

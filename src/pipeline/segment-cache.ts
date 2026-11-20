@@ -1,27 +1,34 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { NormalizedComposition, NormalizedScene } from "../types/index.js";
+import type { NormalizedComposition } from "../types/index.js";
 
 /**
  * Incremental rendering: cache each scene segment keyed by its content hash.
  *
- * A scene is not self-contained at its edges. A transition overlaps the two
- * scenes it joins — with `b` starting 1s before `a` ends, editing `b` changes
- * the last second of `a`'s picture. So the cache unit is a scene **plus its
- * incoming transition**, and editing scene N invalidates segment N *and*
- * segment N+1.
+ * **A transition makes a scene and its predecessor one unit.** Scene B starts
+ * inside scene A when a fade joins them, so B's first frames are A fading out.
+ * A segment therefore renders the *pair* and keeps the slice that belongs to
+ * the later scene:
  *
- * That is the whole point: an edit re-renders two segments, never the timeline.
+ * ```
+ * a  start 0     dur 4
+ * b  start 3     dur 4      ← b begins 1s before a ends
+ * c  start 6.5   dur 4
  *
- * Segments must encode identically for `-c copy` concat to work — same codec,
- * size, fps, pixel format, and a keyframe on frame 0.
+ * segment a  = a alone                     (no incoming transition)
+ * segment b  = a+b, keep [3, 7)            (the fade lives in this slice)
+ * segment c  = b+c, keep [6.5, 10.5)
+ * ```
+ *
+ * The kept slices abut exactly, so `-f concat -c copy` reproduces the timeline.
+ * Editing scene N invalidates segment N and segment N+1 — never the timeline.
  */
 
 export interface Segment {
-  /** Index in `norm.scenes`. */
+  /** Index in `norm.scenes` — the scene this segment *produces*. */
   index: number;
-  /** Scene id, for the log line and the file name. */
+  /** Scene id, for logs and file names. */
   id: string;
   /** Hash of everything that affects this segment's pixels. */
   hash: string;
@@ -29,33 +36,40 @@ export interface Segment {
   path: string;
   /** True when a previous render produced this exact segment. */
   cached: boolean;
+  /** Scenes rendered together for this segment: `[index]` or `[index-1, index]`. */
+  renderIndices: number[];
+  /** Seconds to seek into the rendered pair before keeping frames. */
+  offset: number;
+  /** Seconds to keep from the pair. */
+  duration: number;
 }
 
 /**
  * Hash of the inputs that decide a segment's picture.
  *
- * Deliberately includes the *previous* scene's tail, because an incoming
- * transition is composited from both sides. Two scenes that look identical but
- * sit after different neighbours must not share a cache entry.
+ * Includes the previous scene when a transition joins them, because that scene
+ * is physically rendered into the same segment.
  */
-export function segmentHash(
-  norm: NormalizedComposition,
-  index: number
-): string {
+export function segmentHash(norm: NormalizedComposition, index: number): string {
   const scene = norm.scenes[index];
   const prev = index > 0 ? norm.scenes[index - 1] : undefined;
+  const joined = !!scene.transition && !!prev;
 
-  // Only the fields that reach the filtergraph. Encoder settings are excluded
-  // on purpose: they are fixed per render (see `segmentArgs`), so a preset
-  // change invalidates everything anyway and is not worth hashing per scene.
   const payload = {
-    v: 1,
+    v: 2,
     width: norm.width,
     height: norm.height,
     fps: norm.fps,
-    // The incoming transition is drawn from both scenes, so the previous
-    // scene's id and duration are part of *this* segment's inputs.
-    prev: prev ? { id: prev.id, duration: prev.duration } : null,
+    grade: norm.grade ?? null,
+    // Only include the previous scene when it is actually rendered here.
+    prev: joined
+      ? {
+          id: prev!.id,
+          duration: prev!.duration,
+          background: prev!.background,
+          elements: prev!.elements,
+        }
+      : null,
     scene: {
       id: scene.id,
       duration: scene.duration,
@@ -63,7 +77,6 @@ export function segmentHash(
       transition: scene.transition ?? null,
       elements: scene.elements,
     },
-    grade: norm.grade ?? null,
   };
 
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16);
@@ -75,58 +88,64 @@ function segmentName(index: number, id: string, hash: string): string {
   return `${String(index).padStart(3, "0")}-${safe}-${hash}.mp4`;
 }
 
-/**
- * Plans the segments for a composition.
- *
- * Only valid when the composition has no transitions *or* when segments are cut
- * at transition boundaries. `canSegment` decides that; this assumes it was
- * checked.
- */
-export function planSegments(
-  norm: NormalizedComposition,
-  cacheDir: string
-): Segment[] {
+/** Plans every segment for a composition, marking cache hits. */
+export function planSegments(norm: NormalizedComposition, cacheDir: string): Segment[] {
   mkdirSync(cacheDir, { recursive: true });
-  return norm.scenes.map((scene: NormalizedScene, index) => {
+  const scenes = norm.scenes;
+  const total = Number(norm.duration ?? 0);
+
+  return scenes.map((scene, index) => {
+    const prev = index > 0 ? scenes[index - 1] : undefined;
+    const joined = !!scene.transition && !!prev;
+
+    // The slice this segment owns is [start_i, start_{i+1}): from where this
+    // scene becomes the incoming one to where the next scene takes over. The
+    // slices abut exactly, so concatenating them reproduces the timeline.
+    const ownStart = Number(scene.startTime ?? 0);
+    const ownEnd =
+      index + 1 < scenes.length
+        ? Number(scenes[index + 1].startTime ?? 0)
+        : total;
+
+    // A joined segment renders from the previous scene's start so the fade is
+    // physically present in the encoded file, then discards everything before
+    // its own start.
+    const renderStart = joined ? Number(prev!.startTime ?? 0) : ownStart;
+
     const hash = segmentHash(norm, index);
-    const path = join(cacheDir, segmentName(index, scene.id ?? `scene${index}`, hash));
+    const id = scene.id ?? `scene${index}`;
+    const path = join(cacheDir, segmentName(index, id, hash));
+
     return {
       index,
-      id: scene.id ?? `scene${index}`,
+      id,
       hash,
       path,
       cached: existsSync(path),
+      renderIndices: joined ? [index - 1, index] : [index],
+      offset: Math.max(0, ownStart - renderStart),
+      duration: Math.max(0.04, ownEnd - ownStart),
     };
   });
 }
 
 /**
- * Whether a composition can be split into independently renderable segments.
+ * Whether a composition can be split into segments at all.
  *
- * Transitions are the blocker: `selectScene()` drops them, so a scene rendered
- * alone has no fade. Until transition-aware segment rendering exists, a
- * composition with any transition falls back to a normal full render rather
- * than silently losing its fades.
+ * Anything can now, including transitions, because a segment renders its
+ * predecessor alongside it. This exists so callers can skip the machinery when
+ * there is only one scene, where caching cannot help.
  */
 export function canSegment(norm: NormalizedComposition): { ok: boolean; reason?: string } {
-  const withTransition = norm.scenes.filter((s) => s.transition);
-  if (withTransition.length > 0) {
-    return {
-      ok: false,
-      reason:
-        `${withTransition.length} scene(s) have transitions, and a segment rendered alone ` +
-        `has no neighbour to fade from. Render without transitions, or leave the cache off.`,
-    };
+  if (norm.scenes.length < 2) {
+    return { ok: false, reason: "a single-scene composition has nothing to cache" };
   }
   return { ok: true };
 }
 
 /** A stable list of segment files for the concat demuxer. */
 export function writeConcatList(segments: Segment[], path: string): void {
-  // The concat demuxer wants `file '<path>'` with single quotes escaped.
-  const body = segments
-    .map((s) => `file '${s.path.replace(/'/g, "'\\''")}'`)
-    .join("\n");
+  const body = segments.map((s) => `file '${s.path.replace(/'/g, "'\\''")}'`).join("\n");
   writeFileSync(path, `${body}\n`, "utf8");
 }
 
@@ -135,10 +154,20 @@ export function writeSegmentManifest(segments: Segment[], path: string): void {
   writeFileSync(
     path,
     JSON.stringify(
-      segments.map((s) => ({ id: s.id, hash: s.hash, cached: s.cached })),
+      segments.map((s) => ({ id: s.id, hash: s.hash, cached: s.cached, offset: s.offset })),
       null,
       2
     ),
     "utf8"
   );
+}
+
+/** Reads a previous manifest, for reporting what changed between runs. */
+export function readSegmentManifest(path: string): { id: string; hash: string }[] | undefined {
+  if (!existsSync(path)) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return undefined;
+  }
 }

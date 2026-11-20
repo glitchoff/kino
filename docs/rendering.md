@@ -38,6 +38,35 @@ The scene graph is unchanged — same elements, same order, same timing, same
 grade — so a preview shows what the full render will, at a lower pixel grid.
 Fine detail (a 1.5px stroke, a sub-pixel text offset) can round differently.
 
+## Incremental renders
+
+```typescript
+await render(comp, { output: "out.mp4", cache: true });
+// second run after editing one scene:
+// [kino] cached render: 1 segment(s) reused, 2 rendered
+```
+
+`cache: true` renders each scene as its own segment, keyed by a hash of that
+scene's content, and joins the segments with `-f concat -c copy`. Re-running
+after an edit re-encodes only the segments that changed.
+
+**A transition makes a scene and its neighbour one unit.** A fade draws from
+both scenes, so segment N renders scenes N-1 and N together and keeps only the
+slice it owns. Editing scene N therefore invalidates segment N and segment N+1 —
+never the whole timeline. Segments own abutting slices `[start_i, start_{i+1})`,
+so the join reproduces the timeline exactly.
+
+Costs:
+
+- A **one-shot render is slower** with the cache — one ffmpeg run per segment
+  plus a concat pass. It pays off from the second render onward.
+- Not compatible with `preview`, which composites at a smaller frame.
+- The cache never garbage-collects. It lives in `cacheDir` (default
+  `.kino-cache/` beside the output); delete that directory to reclaim space.
+
+`render()` returns `{ output, reused, rendered }` so a caller can report what
+was skipped.
+
 ## From code
 
 ```typescript
