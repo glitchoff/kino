@@ -104,6 +104,41 @@ was fine (1.5–3.7/255) — the problem was purely the round trip.
 
 ---
 
+## 2026-11-20 — A true live preview is not possible with a filtergraph batch renderer
+
+**Claim:** kino cannot preview like a video editor (play instantly, no encode)
+because one composited frame on demand costs **654 ms**, and an editor needs
+24–30 fps.
+
+**Evidence:** 640×360, one scene, text only. Compile the composition, extract
+the artifact, run the compiled filtergraph with `-frames:v 1 -f rawvideo`, and
+time it:
+
+```
+compile:  1654 ms   (once)
+one frame: 654 ms   (cold — spawn + graph build + decode + composite)
+```
+
+**How an editor differs.** Premiere or Resolve keeps a process alive, keeps
+decoded sources cached, and composites only the frame under the playhead. That
+is the same work as an export minus the encode and minus the file write, which
+is why it is instant. kino compiles the whole timeline into one ffmpeg
+filtergraph: asking for one frame means spawning ffmpeg, building the graph,
+decoding from the start of the relevant inputs, compositing, and exiting.
+
+**Implication:** a proxy is the only shape that gives smooth playback, because
+by the time you watch it, it *is* a video file. `serve()` does that: the proxy is
+an all-keyframe mp4, so `<video>` plays it at full speed and seeks instantly.
+The "instant" part is the seek, not the build. Calling the proxy build "live
+preview" is wrong — it is an export at proxy size.
+
+A real live preview would need a persistent renderer that keeps state between
+frames. That is a different engine, not a feature.
+
+**Cross-refs:** `tickets/021`, `src/pipeline/serve.ts`.
+
+---
+
 ## 2026-11-20 — `overlay_cuda` is slower than CPU overlay
 
 **Claim:** `overlay_cuda` loses to CPU `overlay` on a 4 GB laptop card, and the
