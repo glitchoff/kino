@@ -208,10 +208,13 @@ a real composition.
 
 ## Honest state at session end
 
-- The suite is **red**: 14 failures (captions 8, export 2, ytdlp 4). None are
-  from changes 1–3; 4 of the preview ones were and are now fixed. The 8 caption
-  failures were a real engine bug, now fixed and verified — captions are green
-  (change 11).
-- Changes 4–11 are uncommitted.
+- **Captions are green** — 40/40, after the path-escape fix (change 11). Before
+  the fix the file was 32/40; the 8 failures had been treated as pre-existing
+  and were a real engine bug.
+- The rest of the suite still carries **6 known failures** (export 2, ytdlp 4)
+  from the original baseline of 14. A full-suite run was still in flight when
+  this changelog was committed; re-run `npx vitest run` to confirm the count.
+- Changes 4–11 are committed in `fdcc73f`; changes 1–3 in `613f948`, `a1acb7e`,
+  `d799517`.
 - Eight scratch call sites still use `tmpdir()` directly; only `compile.ts` was
   migrated.
