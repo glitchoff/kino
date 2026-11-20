@@ -154,6 +154,8 @@ function coversFrame(elem: MediaLayerLike, frameW: number, frameH: number): bool
 export interface MediaLayerLike {
   width?: number | string;
   height?: number | string;
+  /** How the source is fitted into `width`/`height`. Mirrors the element option. */
+  fit?: "cover" | "contain" | "fill" | "none";
   animation?: { scale?: unknown; opacity?: unknown; x?: unknown; y?: unknown } | any;
   x?: number | string;
   y?: number | string;
@@ -202,12 +204,25 @@ export function applyMediaOverlay(
     if (ax.scale) {
       const scaleExpr = `max(0.01,(${ax.scale}))`;
       const np = `[img_scaled_${elemIdx}]`;
-      // Both dimensions get the same expression, each clamped to at least 2px.
-      // A derived height (`h=-2`) rounds to 0 for wide, thin elements — e.g. a
-      // 1100x3 rule at scale 0.01 becomes 11x0, which ffmpeg rejects with
-      // "Picture size 11x0 is invalid". Clamping height independently keeps the
-      // aspect ratio except at scales where the element is invisible anyway.
-      //
+
+      // The animated scale multiplies `iw`/`ih`, which is the *input* size. When
+      // the element also declares a size, that size has to be applied first or
+      // the animation scales the raw source instead of the laid-out element.
+      // A preview hit this hard: a 870x900 panel at 640x360 had no downscale at
+      // all, because the animation branch replaced the fit filter, so the panel
+      // was wider than the frame and hung off the edge.
+      const targetW = parsePixels(elem.width) ?? -1;
+      const targetH = parsePixels(elem.height) ?? -1;
+      const hasTarget = targetW > 0 && targetH > 0;
+      const fitTo =
+        hasTarget && elem.fit === "contain"
+          ? `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease,format=rgba,pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`
+          : hasTarget && elem.fit === "cover"
+            ? `scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH}`
+            : hasTarget
+              ? `scale=${targetW}:${targetH}`
+              : "";
+
       // `zoompan` does the same zoom in one pass instead of a per-frame resample
       // of the whole element: measured 1359 ms vs 3336 ms for 180 frames of a
       // 1080p push. Three things disqualify it, and each would be a silent
@@ -227,8 +242,9 @@ export function applyMediaOverlay(
           `${transPad}zoompan=z='${zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${frameW}x${frameH}:fps=${fps}${np}`
         );
       } else {
+        const prep = fitTo ? `${fitTo},` : "";
         filterComplex.push(
-          `${transPad}scale=w='max(2,iw*${scaleExpr})':h='max(2,ih*${scaleExpr})':eval=frame${np}`
+          `${transPad}${prep}scale=w='max(2,iw*${scaleExpr})':h='max(2,ih*${scaleExpr})':eval=frame${np}`
         );
       }
       transPad = np;

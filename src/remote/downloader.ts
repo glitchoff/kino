@@ -98,8 +98,12 @@ export function prestageRemoteAssets(
   norm: NormalizedComposition,
   options: RemoteCacheOptions = {}
 ): PrestageResult {
-  const isRemote = (src: string): boolean =>
-    src.startsWith("http://") || src.startsWith("https://");
+  // A `src` that is not a string is a TTS spec that never got resolved. It is
+  // not remote, and calling `.startsWith` on it crashed every `voice()`
+  // composition at compile time. `resolveTtsTracks()` is the fix; this guard
+  // keeps the failure local to the one track instead of taking the render down.
+  const isRemote = (src: unknown): boolean =>
+    typeof src === "string" && (src.startsWith("http://") || src.startsWith("https://"));
   const urls = new Set<string>();
   for (const scene of norm.scenes) {
     if (scene.background.type === "image" || scene.background.type === "video") {

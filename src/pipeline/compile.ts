@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+﻿import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { getFFmpegBinaryPath, hasScaleCuda } from "../encoder/probe.js";
 import { tmpdir } from "node:os";
@@ -36,8 +36,8 @@ import { scratchDir } from "./scratch.js";
  * rejects anything past 32,767 characters with ENAMETOOLONG. POSIX uses
  * ARG_MAX (~2 MB, shared with the environment).
  *
- * The Windows figure leaves headroom for the rest of the argv — inputs, encoder
- * flags, output path — under that ceiling. A graph between the two numbers is
+ * The Windows figure leaves headroom for the rest of the argv â€” inputs, encoder
+ * flags, output path â€” under that ceiling. A graph between the two numbers is
  * the case that used to fail: too long to spawn, too short to be written out.
  */
 const FILTERGRAPH_ARG_LIMIT = process.platform === "win32" ? 30_000 : 100_000;
@@ -55,7 +55,7 @@ import type {
 
 // Walk up to the package root: unbundled this module sits at `src/pipeline/`,
 // in the tsup bundle at `dist/`. Assuming either depth misses the other and
-// leaves `defaultFontRef` undefined, which does not fail — drawtext silently
+// leaves `defaultFontRef` undefined, which does not fail â€” drawtext silently
 // uses its own default font instead of the bundled one. The file is
 // `Inter-Regular.ttf`; the old `inter-regular.ttf` never existed.
 const DEFAULT_FONT_PATH = (() => {
@@ -76,7 +76,7 @@ const DEFAULT_FONT_PATH = (() => {
  * Re-expresses an element's geometry in preview space.
  *
  * A preview composites on a smaller frame, so an element's `width`, `height`,
- * `x` and `y` all have to be scaled by the same ratio or the layout drifts —
+ * `x` and `y` all have to be scaled by the same ratio or the layout drifts â€”
  * a centred element would sit off-centre, and a full-frame panel would spill
  * past the edge. Scaling the numbers keeps `overlay`'s `main_w - overlay_w`
  * centring correct, which inserting a `scale=` filter would not.
@@ -110,7 +110,7 @@ function previewScale(
  * End of a still element's on-screen window, in seconds from the scene start,
  * or `undefined` when it cannot be bounded.
  *
- * Returns `undefined` — meaning "no trim" — unless the element has an explicit
+ * Returns `undefined` â€” meaning "no trim" â€” unless the element has an explicit
  * `duration`. An element that runs to the end of its scene is already bounded
  * by the scene's own length, and one with neither option is visible throughout,
  * so trimming either would be guesswork. The overlay's `enable=between()`
@@ -315,7 +315,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     //
     // Appending `scale=-2:H` after the whole graph (Stage 3b) meant every scene,
     // transition and overlay ran at full resolution and the result was thrown
-    // away at the end — a 144p preview cost 1080p work. Downscaling each element
+    // away at the end â€” a 144p preview cost 1080p work. Downscaling each element
     // and background on entry makes the per-frame cost scale with the preview
     // size, which is what makes `--preview` a usable iteration tool.
     //
@@ -333,11 +333,11 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     // `drawtext` are CPU-only, so every element pays an upload and a download
     // per frame, and that round trip costs more than the resize saves. Opt in
     // with `scaleCuda: true` when the graph has no CPU-only filters in the
-    // chain — a pure still compositing pipeline, for instance.
+    // chain â€” a pure still compositing pipeline, for instance.
     const useScaleCuda =
       options?.scaleCuda === true && hasScaleCuda(getFFmpegBinaryPath(options?.ffmpegPath));
 
-    // ── Stage 1: Per-scene backgrounds ──────────────────────────────────────
+    // â”€â”€ Stage 1: Per-scene backgrounds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const sceneBgPads: string[] = [];
 
     for (let i = 0; i < norm.scenes.length; i++) {
@@ -353,7 +353,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
       sceneBgPads.push(bgPad);
     }
 
-    // ── Stage 2: Composite each scene (background + elements) ────────────────
+    // â”€â”€ Stage 2: Composite each scene (background + elements) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const useTextFiles = !options?.unsafeInlineText;
     const videoElemAudioPads: string[] = [];
     const sceneCompPads: string[] = [];
@@ -406,10 +406,21 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           } else {
             // Loop a still so it has a frame for the whole timeline. Without
             // this the input is a single frame at t=0, and the `fps=` below
-            // resamples that one frame into nothing — the overlay then finds no
+            // resamples that one frame into nothing â€” the overlay then finds no
             // image to place and every static image renders invisible.
             addFFmpegInput(inputs, stageAsset(media.src), { loop: true });
           }
+
+          // Preview space: a preview composites on a smaller frame, so an
+          // element's size *and* its position have to be scaled by the same
+          // ratio. Scaling only the size left the panel at its 1920-wide `x`
+          // inside a 640-wide frame, which pushed it off the right edge â€” the
+          // measured error was 213px, with the panel clipped at the frame edge.
+          //
+          // This one value feeds the scale filter, the overlay position, the
+          // animation expressions and the still-window trim, so they cannot
+          // disagree about which coordinate space they are in.
+          const previewMedia = pw === width ? media : { ...media, ...previewScale(media, pw / width) };
 
           // A shape is a PNG with transparency around the drawn region; `media`
           // is already `type: "image"` by here, so the flag has to be passed.
@@ -420,12 +431,11 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             : buildColorFilter((elem as { grade?: ColorAdjust }).grade, stageAsset);
           const scaleFilter =
             buildMediaScaleFilter({
-              ...media,
-              ...previewScale(media, pw / width),
+              ...previewMedia,
               cuda: useScaleCuda,
               preserveAlpha: elem.type === "shape" || undefined,
             }) + (colorFilter ? `,${colorFilter}` : "");
-          const ax = buildAnimationExpressions(media, "t");
+          const ax = buildAnimationExpressions(previewMedia, "t");
           const hasAnimation = !!(ax.opacity || ax.tx || ax.ty || ax.scale);
           // RGBA from the scale filter onward; never re-format to yuv420p or the
           // alpha is dropped. Shapes need this without a chroma key, so the two
@@ -466,7 +476,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             // decoding long after its element is off screen. `enable=between()`
             // in the overlay only hides the result; ffmpeg still runs the whole
             // branch every frame. Trimming to the element's own window drops the
-            // work — a panel on screen for 6s in a 238s timeline used to cost
+            // work â€” a panel on screen for 6s in a 238s timeline used to cost
             // 238s of decode.
             //
             // The trim is deliberately on the filter, not `-t` on the input:
@@ -478,7 +488,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             // sees the still at the scene's own clock. Trimming never moves it:
             // the first frame is at t=0 and the overlay's `enable` decides
             // visibility.
-            const stillWin = stillWindow(media, sceneDur);
+            const stillWin = stillWindow(previewMedia, sceneDur);
             const trimFilter = stillWin ? `,trim=end=${stillWin}` : "";
             filterComplex.push(
               `[${currInputIdx}:v]${scaleFilter},fps=${fps}${trimFilter},setpts=PTS-STARTPTS,settb=AVTB${keyFilter}${basePad}`
@@ -493,7 +503,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
             // composite once. Only this element's layer is sampled, so cost
             // scales with blurred elements rather than with the composition.
             const blurredPad = buildMotionBlurLayer(
-              filterComplex, elemIdx, startPad, lastScenePad, media,
+              filterComplex, elemIdx, startPad, lastScenePad, previewMedia,
               ax, hasAnimation, sceneDur, width, height, fps, blur
             );
             lastScenePad = applyBlendAndMask(
@@ -509,12 +519,12 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
               addFFmpegInput(inputs, stageAsset(elemBlend.mask.src), { loop: true });
             }
             lastScenePad = applyBlendAndMask(
-              filterComplex, elemIdx, startPad, lastScenePad, false, media, ax, hasAnimation,
+              filterComplex, elemIdx, startPad, lastScenePad, false, previewMedia, ax, hasAnimation,
               sceneDur, pw, ph, fps, maskInputIdx
             );
           } else {
             lastScenePad = applyMediaOverlay(
-              filterComplex, elemIdx, startPad, media, ax, hasAnimation, sceneDur, lastScenePad,
+              filterComplex, elemIdx, startPad, previewMedia, ax, hasAnimation, sceneDur, lastScenePad,
               { width: pw, height: ph, fps }, needsAlpha
             );
           }
@@ -528,7 +538,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
 
           // `drawtext` paints onto its input, so blending or masking text means
           // giving it a blank transparent frame to paint on and compositing the
-          // result — the same treatment media elements get.
+          // result â€” the same treatment media elements get.
           let inPad: string;
           if (special) {
             const canvas = `[txt_canvas_${elemIdx}]`;
@@ -541,7 +551,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
           }
 
           // Text is drawn straight onto the frame, so a preview has to shrink
-          // the font and move the position with it — otherwise the text is full
+          // the font and move the position with it â€” otherwise the text is full
           // size on a tiny canvas and runs off the edge.
           const previewText = previewScale({ width: item.fontSize, x: item.x, y: item.y }, pw / width);
           const textItem =
@@ -604,10 +614,10 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
       sceneCompPads.push(lastScenePad);
     }
 
-    // ── Stage 3: Transitions ─────────────────────────────────────────────────
+    // â”€â”€ Stage 3: Transitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let lastVideoPad = buildTransitionPipeline(filterComplex, norm.scenes as any, sceneCompPads, fps);
 
-    // ── Stage 3a: Composition grade ──────────────────────────────────────────
+    // â”€â”€ Stage 3a: Composition grade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // One pass over the finished frame, after every scene and transition, so a
     // look holds across the whole video. A preview grades its own smaller frame,
     // so the look is the same, just at lower resolution.
@@ -623,7 +633,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     // No output-stage downscale: a preview already composites on a smaller
     // frame, so the finished pad is the preview size.
 
-    // ── Stage 4: Audio ───────────────────────────────────────────────────────
+    // â”€â”€ Stage 4: Audio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // TTS tracks are resolved to WAV paths by `resolveTtsTracks()` before
     // compile() runs, so everything here is a real file.
     const audioTracks = norm.audio;
@@ -634,7 +644,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     }
     const finalAudioMap = buildAudioMix(filterComplex, audioTracks, audioInputIndices, videoElemAudioPads, duration);
 
-    // ── Stage 5: Assemble final FFmpeg args ───────────────────────────────────
+    // â”€â”€ Stage 5: Assemble final FFmpeg args â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const encoder = resolveEncoderSync(options);
     const encoderFlags =
       previewHeight !== undefined
@@ -670,7 +680,7 @@ export function compile(composition: KinoComposition, options?: Partial<RenderOp
     args.push("-t", String(duration), ...encoderFlags, output);
     const portableArgs = [...args.slice(0, -1), basename(output)];
 
-    // ── Stage 6: Write manifest & pack .kino ─────────────────────────────────
+    // â”€â”€ Stage 6: Write manifest & pack .kino â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const manifest = { ffmpegArgs: portableArgs, output: basename(output), kinoVersion: KINO_VERSION };
     writeFileSync(join(stagingDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
 

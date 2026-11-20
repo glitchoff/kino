@@ -54,6 +54,14 @@ export interface ServeOptions extends Omit<RenderOptions, "output" | "cache" | "
   port?: number;
   /** Height of the seek proxy, in pixels. Default 360. */
   height?: number;
+  /**
+   * RAM budget for the decoded frame cache, in megabytes. Default 512.
+   *
+   * Frames are decoded once into memory so a seek is an array lookup instead of
+   * a process spawn. A clip whose raw frames exceed this keeps the first part
+   * resident and seeks the proxy for the rest.
+   */
+  frameCacheMB?: number;
   /** Reload the page when the server restarts. Default true. */
   reload?: boolean;
   /** Directory for the proxy and segment cache. Default `.kino-serve` beside cwd. */
@@ -100,18 +108,46 @@ export async function serve(
     return next;
   }
 
+  /** Scene boundaries, so the timeline can show structure. */
+  const sceneMarkers = (() => {
+    const out: { id: string; start: number; duration: number }[] = [];
+    let t = 0;
+    for (const s of composition.scenes as { id?: string; duration?: number }[]) {
+      const d = s.duration ?? 0;
+      out.push({ id: s.id ?? `scene-${out.length + 1}`, start: t, duration: d });
+      t += d;
+    }
+    return out;
+  })();
+
   /** Builds the seek proxy. Slow once; flat cost per frame afterwards. */
   app.post("/api/proxy", async (c) => {
     const started = Date.now();
     try {
       if (!session) {
-        session = await enqueue(() => Preview.open(composition, { height, format: "jpg" }));
+        session = await enqueue(() =>
+          Preview.open(composition, {
+            height,
+            format: "jpg",
+            frameCacheMB: options.frameCacheMB,
+          })
+        );
       }
+      // Decode the proxy into RAM now, so the first scrub is not the first
+      // decode. This is the difference between a 640 ms frame and a 0.2 ms one.
+      const warmStart = Date.now();
+      await session.warmCache();
+      const cacheMs = Date.now() - warmStart;
+
       return c.json({
         success: true,
         ms: Date.now() - started,
+        cacheMs,
         duration: session.length,
         fps: session.frameRate,
+        size: session.size,
+        cache: session.cacheStats,
+        scenes: sceneMarkers,
       });
     } catch (err: unknown) {
       const e = err as { message?: string };
@@ -119,11 +155,38 @@ export async function serve(
     }
   });
 
-  /** One frame, by seeking the proxy. */
+  /**
+   * One frame.
+   *
+   * `?raw=1` returns rgb24 bytes with the dimensions in headers — the browser
+   * paints them with `putImageData`, which is a memcpy. That path is ~0.2 ms.
+   * Without `raw` the frame is JPEG, which needs a process spawn (~640 ms on
+   * Windows), so it exists for `<img>` and vision models, not for scrubbing.
+   */
   app.get("/api/frame", async (c) => {
     if (!session) return c.json({ success: false, error: "no proxy yet" }, 409);
     const t = Number(c.req.query("t") ?? "0");
     if (!Number.isFinite(t)) return c.json({ success: false, error: "bad t" }, 400);
+
+    if (c.req.query("raw")) {
+      // Cache hit is an array lookup; a miss seeks the proxy. Neither path
+      // errors for a valid timestamp, so dragging past the end of the cache
+      // feels slower instead of breaking.
+      try {
+        const frame = await session.rawFrameAt(t);
+        return new Response(new Uint8Array(frame.data), {
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Cache-Control": "no-store",
+            "X-Frame-Width": String(frame.width),
+            "X-Frame-Height": String(frame.height),
+          },
+        });
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        return c.json({ success: false, error: e?.message ?? String(err) }, 500);
+      }
+    }
 
     try {
       const frame = await session.frame(t);
@@ -193,11 +256,27 @@ export async function serve(
     return rangeServe(playPath, c.req.header("range"), "video/mp4");
   });
 
+  /**
+   * Pages are served `no-store`.
+   *
+   * A preview page is generated from the running code, so a cached copy is
+   * always wrong after a restart — and a stale page silently keeps the old
+   * behaviour while the server has moved on. There is nothing worth caching
+   * here: the page is a few KB and regenerated instantly.
+   */
+  const html = (body: string) =>
+    new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, must-revalidate",
+      },
+    });
+
   /** The preview player. Builds a proxy, then plays and scrubs it. */
-  app.get("/", (c) => c.html(previewPage(options.reload !== false)));
+  app.get("/", (c) => html(previewPage(options.reload !== false)));
 
   /** The render screen. Produces the final mp4. Separate from the preview. */
-  app.get("/render", (c) => c.html(renderPage(options.reload !== false)));
+  app.get("/render", (c) => html(renderPage(options.reload !== false)));
   const port = await freePort(options.port ?? 3333);
   const server = await new Promise<ReturnType<typeof honoServe>>((resolve, reject) => {
     const s = honoServe({ fetch: app.fetch, port }, () => resolve(s));

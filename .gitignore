@@ -330,3 +330,7 @@ examples/assets/q3-train.jpg
 
 # kino serve preview output
 .kino-serve/
+
+# local preview harness
+preview-ghost.ts
+.kino-ghost-preview/
