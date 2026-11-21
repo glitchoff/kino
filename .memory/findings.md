@@ -61,6 +61,68 @@ post-mortem in `.memory/findings-live-render.md`.
 
 ---
 
+## 2026-11-21 — `node:sqlite` cannot be statically imported into a tsup bundle
+
+**Claim:** `import { DatabaseSync } from "node:sqlite"` produces a bundle that
+dies at load with `ERR_MODULE_NOT_FOUND: Cannot find package 'sqlite'`. esbuild
+strips the `node:` scheme.
+
+**Evidence:** four attempts, each failing differently:
+
+| attempt | failure |
+| --- | --- |
+| static import | `from "sqlite"` in output → `ERR_MODULE_NOT_FOUND` |
+| `external: ["node:sqlite"]` | prefix still stripped, same error |
+| `onResolve` plugin marking it external | prefix still stripped |
+| `require("node:" + "sqlite")` | ESM bundle throws `Dynamic require of "node:sqlite" is not supported` |
+| top-level `await import(...)` | `Top-level await is currently not supported with the "cjs" output format` |
+
+**What works:**
+
+```ts
+import { createRequire } from "node:module";
+function loadSqlite() {
+  return createRequire(import.meta.url)("node:" + "sqlite");
+}
+```
+
+Called lazily from the constructor, so the built-in is only touched when a
+database is actually opened.
+
+**What it means:** any Node built-in added after `@types/node` was pinned will
+also need a local `.d.ts`. `src/types/node-sqlite.d.ts` exists for that reason
+and should be deleted if the types are ever raised to v22+.
+
+---
+
+## 2026-11-21 — A bad escape in a template literal kills the page silently
+
+**Claim:** when HTML is generated from a template literal, `"\n"` inside the
+inline `<script>` becomes a real newline, the script fails to parse, and **every
+line of it stops running** — with no visible error unless you open the console.
+
+**Evidence:** the showcase page rendered two empty `<select>`s. The markup
+contained both elements, so a presence check passed. Parsing the served script
+in `vm` gave the real cause:
+
+```
+page.js:268
+        hint.textContent = msg.split("
+                                     ^
+SyntaxError: Invalid or unexpected token
+```
+
+The source said `msg.split("\n")`; the served page had a literal newline. The
+fix is `"\\n"`.
+
+**What it means:** for generated pages, check that the script **parses and
+runs**, not that the markup contains the elements. `scripts/showcase/verify-page.mjs`
+does this: `new vm.Script(...)` then `vm.runInContext` against a DOM shim, then
+asserts the selects actually filled. Its shim must also copy the browser rule
+that a `<select>` takes the first option's value, or it reports a false failure.
+
+---
+
 ## 2026-11-20 — An absolute Windows path in a `drawtext` option breaks the filtergraph
 
 **Claim:** `drawtext=textfile='C:\Users\…\w.txt'` fails with

@@ -68,7 +68,8 @@ marked done is closed. Per-session detail: [`changelog-2026-11-20.md`](./changel
 | **030** | Assets in RAM, batched | Hold staged assets in memory under a byte budget; spill to disk when a scene exceeds it. Proposed. |
 | — | **Segment cache for the proxy** | Not a ticket yet. `renderSegmented` + `cacheDir` so an edit re-renders only changed scenes. The proxy build is 196 s for 177 s of video and is the only slow part left; this is the real fix. |
 | — | **Timeline UI** | Scene labels, audio strip from `audio-levels.ts` (written, not wired), current-scene indicator. |
-| — | **Pocket TTS for the chapter** | `kino-pocket.py` must be saved into paper-ghost (draft in `kino/.kino/`), then `chapter.mts` rewired. Blocker is outside kino. |
+| — | **Pocket TTS for the chapter** | Works over HTTP on `localhost:8200`. `chapter.mts` still needs rewiring to `pocket(...)`, and the 27 voices need auditioning per character. |
+| — | **Showcase engines** | `http` engines work; add others by pointing `http.url` at a server. A `command` engine still needs a script in the composition's project, which kino cannot write. |
 | — | **4 ytdlp tests** | Stub loses to the installed `.exe` via PATHEXT; `KINO_YTDLP` override added but the failure persists under vitest only. Isolate before closing. |
 
 Deliberately out of scope: adjustment layers, nesting, speed ramps, time
@@ -90,6 +91,16 @@ the common cases.
   word. It dominates `pnpm test`.
 
 ## Conventions worth knowing
+
+- **Servers need a start path that outlives the agent's shell.** A background
+  job dies when its timeout expires and takes the listening server with it —
+  silently. Use the `.cmd` scripts in `scripts/`: `start-preview.cmd` (:8000),
+  `start-pocket.cmd` (:8200), `start-showcase.cmd` (:4100). "It responded once"
+  is not verification; "it will still be running when the user tries it" is.
+- **Pocket TTS answers an unknown voice name with `VOICE_CLONING_UNSUPPORTED`.**
+  It treats the name as a path and falls through to cloning, which needs gated
+  weights. The message reads like a permissions problem; the real cause is a
+  bad voice name, or a server that has not loaded its catalog yet.
 
 - **On the GPU: upload to scale, download to overlay.** Measured on an RTX 3050
   4 GB, 300 frames at 1080p: CPU scale+overlay 10,949 ms, `scale_cuda`+CPU

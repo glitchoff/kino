@@ -362,6 +362,124 @@ scripts/probe/{proxy.mjs,videoonly.ts,serve-file.mjs}
 
 ---
 
+## 12. The voice showcase, rebuilt three times
+
+The first version rendered every voice at once into a grid of 27 players. That
+is not an audition, it is a wall of sound. The second tried a take sheet with
+counters, a shortlist and an "audition all" run. The third is the one that
+shipped, because the question was narrower than all of that.
+
+**What it is:** type a line, pick model and voice, press OK, and the player
+appears below. Session history of rendered clips, newest first, replayed by
+clicking. Newest render stops the previous one.
+
+**Routes** (`src/tts/showcase.ts`, exported as `serveShowcase`):
+
+| route | what |
+| --- | --- |
+| `GET /` | the page |
+| `GET /api/catalog` | engines, voices, presets, saved lines |
+| `GET /api/say?engine=&voice=&text=` | one clip |
+| `GET/POST/DELETE /api/lines` | saved lines, SQLite-backed |
+
+**Engines have two shapes.** A `command` engine spawns a script (Kokoro); an
+`http` engine POSTs to a server (Pocket). Both end as bytes plus a content type.
+
+### Pocket TTS: the API is the fix, not the adapter
+
+Pocket failed for four turns with `TTS command exited with code 2`, because the
+adapter `kino-pocket.py` has to live in paper-ghost and **kino cannot write
+there**. The adapter was never going to exist by itself.
+
+The fix was to stop needing it. Pocket ships a FastAPI server:
+
+```sh
+cd D:/Projects/Misc/paper-ghost
+.venv-pocket/Scripts/python.exe -m pocket_tts serve --port 8200
+```
+
+`POST http://localhost:8200/tts` with `text` and `voice_url` returns
+**audio/wav** directly — 182 KB, ~1 s. No file in the composition's project.
+
+Port 8200, not the default 8000, which the preview server owns.
+
+### Two bugs worth remembering
+
+**A `\n` in a template literal killed the whole page.** `showcase-page.ts`
+builds the HTML with a template literal, so `"\n"` became a real newline and the
+inline `<script>` failed to parse. Both dropdowns rendered empty and nothing
+worked. The fix is `"\\n"`. Checking that the *markup* contains an element is
+not the same as checking the *script runs* —
+`scripts/showcase/verify-page.mjs` now parses the served page in `vm` and
+executes it against a DOM shim before the page is called done.
+
+**`node:sqlite` does not survive bundling.** esbuild strips the `node:` scheme
+and emits `from "sqlite"`, which is not a package. Neither `external` nor an
+`onResolve` plugin kept the prefix; a bare `require` fails in the ESM bundle
+(`Dynamic require ... is not supported`); top-level await fails the CJS build.
+What works is `createRequire(import.meta.url)` with the id built as
+`"node:" + "sqlite"`, resolved lazily. `@types/node` here is v20, so
+`src/types/node-sqlite.d.ts` declares the small surface used.
+
+### A process note
+
+An ElevenLabs adapter was built and then deleted. It came from misreading a
+screenshot of the ElevenLabs UI as a request to integrate it. It was a design
+reference. Ask before building an integration; a screenshot is not a spec.
+
+---
+
+## 13. Folder hygiene
+
+Seven harnesses sat at the repo root. They moved, not deleted:
+
+```
+scripts/preview/{chapter,chapter-live,ghost}.ts
+scripts/showcase/{index.ts,verify.mjs,verify-page.mjs}
+scripts/probe/{proxy.mjs,videoonly.ts,serve-file.mjs}
+scripts/README.md
+```
+
+Root now holds only `tsup.config.ts`, `vitest.config.ts`, `vitest.dist.config.ts`.
+
+---
+
+## 14. Servers started in a background shell die with that shell
+
+**This bit twice in one session**, both times silently.
+
+The preview server, the showcase and Pocket's TTS server were all started as
+background jobs. A background job has a timeout, and when it expires the process
+is killed — taking the listening server with it. The symptom is not an error the
+user can act on:
+
+- the preview at :8000 simply stops answering;
+- the showcase reports `VOICE_CLONING_UNSUPPORTED`, because Pocket was gone and
+  a cold restart had not loaded the voice catalog, so names fell through to the
+  cloning path.
+
+The second one cost most of a turn: `VOICE_CLONING_UNSUPPORTED` reads like a
+permissions problem, and the real cause was "the server is not running".
+
+**The fix is `.cmd` scripts the user starts and leaves open:**
+
+| script | serves |
+| --- | --- |
+| `scripts/preview/start-preview.cmd` | the chapter at :8000 |
+| `scripts/showcase/start-pocket.cmd` | Pocket TTS at :8200 |
+| `scripts/showcase/start-showcase.cmd` | the showcase at :4100 |
+
+**What it means for verification.** "It responded once" is not the test. The
+test is "it will still be running when the user tries it". Any server handed
+over has to have a start path that does not depend on an agent's shell lifetime.
+
+**Also:** the showcase now turns a refused connection into
+`Pocket TTS is not running at http://localhost:8200/tts. Start it first — see
+scripts/showcase/start-pocket.cmd.`, and a `VOICE_CLONING_UNSUPPORTED` reply into
+`the server does not know the voice 'X'`. A traceback is not an error message.
+
+---
+
 ## Honest state at session end
 
 - Full suite: **5 failures across 2 files** — 1 export (`frames are named from
@@ -384,13 +502,13 @@ scripts/probe/{proxy.mjs,videoonly.ts,serve-file.mjs}
 
 ### Next steps, in order
 
-1. **Save `kino-pocket.py` into paper-ghost** (draft at
-   `kino/.kino/kino-pocket.py`), then rewire `chapter.mts`'s five voices to
-   `pocket(...)`. Nothing on the Pocket side can be verified until this exists.
-2. **Audition the 27 Pocket voices** at http://localhost:4100 and shortlist a
-   voice per character. Kaguya, Hayasaka, Chika, Ishigami, narrator. The
+1. **Audition the 27 Pocket voices** at http://localhost:4100 and shortlist a
+   voice per character — Kaguya, Hayasaka, Chika, Ishigami, narrator. The
    `am_michael` collision (narrator and Ishigami sharing one voice) should not
    survive the change.
+2. **Rewire `chapter.mts`** to `pocket(...)`. Pocket now runs over HTTP on
+   `localhost:8200` (`python -m pocket_tts serve --port 8200`), so no adapter
+   script is needed. Port 8200, not 8000 — the preview owns 8000.
 3. **Fix the 4 ytdlp tests.** The override is correct; isolate why the `.cmd`
    fails under vitest but succeeds standalone. Start by logging `res.stderr` and
    `process.env.KINO_YTDLP` from inside the test.

@@ -59,10 +59,15 @@ await serveShowcase({
       id: "pocket",
       label: "Pocket TTS",
       voices: pocketVoices,
-      options: {
-        engine: "command",
-        command: `${POCKET_PY} ${POCKET} --voice {voice} --text {text} --out {out}`,
+      // Pocket ships a FastAPI server (`python -m pocket_tts serve`), so no
+      // adapter script has to live in the composition's project. Its `/tts`
+      // endpoint takes a form POST: text plus the voice name.
+      http: {
+        url: "http://localhost:8200/tts",
+        textField: "text",
+        voiceField: "voice_url",
       },
+      options: { engine: "command" },
     },
     {
       id: "kokoro",

@@ -33,9 +33,34 @@ A voice audition server: any line, any engine, any voice, rendered on demand.
 npx tsx scripts/showcase/index.ts   # http://localhost:4100
 ```
 
-Saved lines and shortlisted voices persist in `.kino/showcase/`. Engine and
-voice lists are declared in `index.ts` — kino itself knows nothing about which
-voices exist, because every engine names its own.
+Saved lines persist in `.kino/showcase/showcase.db`. Session history of rendered
+clips is in memory only. Engine and voice lists are declared in `index.ts` — kino
+itself knows nothing about which voices exist, because every engine names its own.
+
+Engines come in two shapes: a `command` engine spawns a script, an `http` engine
+POSTs to a server. Pocket TTS uses the HTTP path, so no adapter file has to live
+in the composition's project.
+
+| helper | what |
+| --- | --- |
+| `verify-page.mjs` | parses and runs the served page — catches a broken script |
+| `verify.mjs` | exercises the DB routes: save/delete a line, toggle a pick |
+| `diff-voices.mjs` | compares the showcase's voice list with the server's catalog |
+
+## Starting the servers
+
+**These must outlive the shell that started them.** Running them as a background
+job means they die when the job's timeout expires, which has silently killed the
+preview mid-session more than once. Use the `.cmd` scripts and leave the window
+open:
+
+| script | serves |
+| --- | --- |
+| `scripts/preview/start-preview.cmd` | the chapter at :8000 |
+| `scripts/showcase/start-pocket.cmd` | Pocket TTS at :8200 |
+| `scripts/showcase/start-showcase.cmd` | the showcase at :4100 |
+
+Start Pocket before the showcase — the showcase calls it.
 
 ## probe/
 

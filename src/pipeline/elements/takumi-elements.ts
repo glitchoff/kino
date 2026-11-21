@@ -36,8 +36,10 @@ export async function renderTakumiElements(
       if (path) out.set(index, path);
     }
     return out;
-  } catch (err) {
+  } finally {
+    // Always remove the scratch dir, not only on failure. Cleaning up in a
+    // `catch` left one directory behind for every successful render — the same
+    // leak as ticket 029, just in the project instead of %TEMP%.
     rmSync(dir, { recursive: true, force: true });
-    throw err;
   }
 }
