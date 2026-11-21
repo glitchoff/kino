@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+﻿import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -9,6 +9,7 @@ import type { KinoComposition } from "../types/index.js";
 import { normalizeComposition } from "../normalize/composition.js";
 import { renderTakumiElements } from "./elements/takumi-elements.js";
 import type { FrameRequest, FrameResult, ExportOptions, ExportResult } from "../types/export.js";
+import { scratchDir } from "./scratch.js";
 
 /** Runs ffmpeg and rejects with its stderr on a non-zero exit. */
 function runFFmpeg(
@@ -44,7 +45,7 @@ type CwdLock = <T>(dir: string, fn: () => Promise<T>) => Promise<T>;
  * fail with "Cannot read file 'text-1.txt'" even though the file exists where
  * that graph expects it.
  *
- * The fix is to hold a process-wide lock across `chdir(dir)` → spawn →
+ * The fix is to hold a process-wide lock across `chdir(dir)` â†’ spawn â†’
  * restore, so only one render is in its lookup window at a time. Renders
  * still encode concurrently; only the spawn is serialised.
  *
@@ -117,13 +118,13 @@ function isWorkerThread(): boolean {
  *
  * Efficiency: the composition is compiled **once** and the staged assets are
  * shared by every output. `video` and `preview` still need one ffmpeg run each,
- * because a preview is a different filtergraph and encoder setting — there is
+ * because a preview is a different filtergraph and encoder setting â€” there is
  * no single invocation that produces both correctly.
  *
  * ```ts
  * const { frames } = await kino.export(comp, { frames: [0, 1.5, 3] });
- * frames[0].path   // "…/frame-0.png"
- * frames[0].data   // "data:image/png;base64,…"
+ * frames[0].path   // "â€¦/frame-0.png"
+ * frames[0].data   // "data:image/png;base64,â€¦"
  * ```
  */
 export async function exportComposition(
@@ -136,7 +137,7 @@ export async function exportComposition(
 
   if (wantsFrames && typeof compositionOrKinoPath === "string") {
     throw new Error(
-      "frames require a composition, not a .kino path — a compiled artifact cannot be seeked by scene."
+      "frames require a composition, not a .kino path â€” a compiled artifact cannot be seeked by scene."
     );
   }
 
@@ -220,7 +221,7 @@ async function runFromKino(
   options: ExportOptions,
   isolatedCwd: CwdLock
 ): Promise<string> {
-  const extractionDir = mkdtempSync(join(tmpdir(), "kino-export-"));
+  const extractionDir = scratchDir("kino-export-", { outputPath: output });
   try {
     extractKino(kinoPath, extractionDir);
     const manifest = readKinoManifest(kinoPath);
@@ -254,7 +255,9 @@ async function extractFrames(
   isolatedCwd: CwdLock,
   timing?: { duration: number; fps: number }
 ): Promise<FrameResult[]> {
-  const extractionDir = mkdtempSync(join(tmpdir(), "kino-frames-"));
+  // Frames are written into `frameDir`; scratch sits beside it rather than on
+  // the system temp drive.
+  const extractionDir = scratchDir("kino-frames-", { outputPath: options.frameDir });
   try {
     extractKino(kinoPath, extractionDir);
     const manifest = readKinoManifest(kinoPath);
@@ -275,11 +278,11 @@ async function extractFrames(
       mkdirSync(dirname(outPath), { recursive: true });
 
       // Clamp to just inside the composition. A seek at exactly the duration
-      // produces no frame — ffmpeg exits 0 and writes nothing — so asking for
+      // produces no frame â€” ffmpeg exits 0 and writes nothing â€” so asking for
       // the last instant would otherwise fail with ENOENT.
       // Clamp to the last whole frame inside the composition. A seek at or
-      // past the duration produces no frame — ffmpeg exits 0 and writes
-      // nothing — and so does a seek between frames, so subtract a frame
+      // past the duration produces no frame â€” ffmpeg exits 0 and writes
+      // nothing â€” and so does a seek between frames, so subtract a frame
       // rather than an arbitrary epsilon.
       const duration = timing?.duration ?? NaN;
       const fps = timing?.fps || 30;

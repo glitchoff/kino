@@ -1,6 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+﻿import { rmSync } from "node:fs";
+import { scratchDir } from "../scratch.js";
 import type { KinoComposition, NormalizedHtmlElement } from "../../types/index.js";
 import { normalizeComposition } from "../../normalize/composition.js";
 import { isTakumiMarkup } from "../../remote/takumi.js";
@@ -28,7 +27,7 @@ export async function renderTakumiElements(
     );
   if (indexed.length === 0) return new Map();
 
-  const dir = mkdtempSync(join(tmpdir(), "kino-takumi-"));
+  const dir = scratchDir("kino-takumi-");
   try {
     const paths = await renderTakumiBatch(indexed.map((e) => e.el) as never, dir);
     const out = new Map<unknown, string>();

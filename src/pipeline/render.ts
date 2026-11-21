@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+﻿import { spawn } from "node:child_process";
+import { existsSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { compile } from "./compile.js";
+import { scratchDir } from "./scratch.js";
 import { resolveTtsTracks, compositionHasTts } from "../tts/resolve.js";
 import { renderTakumiElements } from "./elements/takumi-elements.js";
 import { extractKino, readKinoManifest } from "../artifact/index.js";
@@ -88,7 +88,7 @@ export async function render(
     await assertDrawtextSupport(ffmpegBin, composition);
 
     // Incremental rendering: when the caller asked for the cache, render scene
-    // segments and join them. Only reached for a composition — a pre-built
+    // segments and join them. Only reached for a composition â€” a pre-built
     // `.kino` is a single artifact with no scene boundaries left.
     if (options.cache) {
       const cacheDir = options.cacheDir ?? join(dirname(resolve(options.output)), ".kino-cache");
@@ -108,7 +108,7 @@ export async function render(
         "[kino] Warning: unsafeInlineText disables textfile delivery; text with apostrophes may render blank on some platforms."
       );
     }
-    const kinoDir = mkdtempSync(join(tmpdir(), "kino-"));
+    const kinoDir = scratchDir("kino-", { outputPath: options.output });
     kinoPath = join(kinoDir, "composition.kino");
     ownsKinoFile = true;
     try {
@@ -119,7 +119,7 @@ export async function render(
     }
   }
 
-  const extractionDir = mkdtempSync(join(tmpdir(), "kino-extract-"));
+  const extractionDir = scratchDir("kino-extract-", { outputPath: options.output });
   try {
     extractKino(kinoPath, extractionDir);
     const manifest = readKinoManifest(kinoPath);
@@ -145,7 +145,7 @@ export async function render(
         if (typeof compositionOrKinoPath === "string") {
           throw err;
         }
-        const fbKinoDir = mkdtempSync(join(tmpdir(), "kino-"));
+        const fbKinoDir = scratchDir("kino-", { outputPath: options.output });
         try {
           const fbKinoPath = join(fbKinoDir, "composition.kino");
           compile(resolvedComposition ?? compositionOrKinoPath, {
