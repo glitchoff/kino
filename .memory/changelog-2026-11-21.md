@@ -297,6 +297,71 @@ Suite unchanged at **5 failures** (1 export, 4 ytdlp) — no new ones.
 
 ---
 
+## 10. Voice showcase server — audition any engine, any voice, any line
+
+The chapter's dialogue sounded flat because it runs on **Kokoro**, which reads
+punctuation as pauses rather than performance. `"So cuuu-uute! Kyaa-aaah!"` came
+out as spelled-out vowels with a comma where the exclamation is. Measured across
+the 27 Pocket voices, that same line runs **2.24 s to 6.48 s** — the long ones
+are acting it, the short ones are reading it.
+
+`src/tts/showcase.ts` — `serveShowcase()`, exported from the package.
+
+| route | what |
+| --- | --- |
+| `/` | audition page: line box, engine picker, one player per voice |
+| `/api/catalog` | engines, voices, presets, saved lines, picks |
+| `/api/say?engine=&voice=&text=&rate=` | one WAV, rendered on demand |
+| `POST /api/lines`, `DELETE /api/lines` | saved lines |
+| `POST /api/picks`, `DELETE /api/picks` | shortlisted engine+voice+line |
+
+Design notes worth keeping:
+
+- **kino does not know which voices exist.** Every engine names its own, so a
+  hard-coded list would go stale. The caller supplies the catalog — the
+  composition's business, not the engine's.
+- **`/api/say` is a GET** so a browser can use it directly as `<audio src>`.
+  That is what makes a grid of 27 players work with no client framework.
+- **Persistence is server-side**, in `.kino/showcase/{lines,picks}.json` beside
+  the output — not the system temp dir, and not `localStorage`, so a shortlist
+  survives a restart and can be inspected or committed.
+- A corrupt save returns the fallback rather than failing to start.
+
+Verified: `/api/catalog` reports **pocket(27), kokoro(10)**, 9 chapter presets;
+`/api/say` returns a valid RIFF/WAVE (83 KB, 74 KB non-silent) for
+`kokoro/af_bella`.
+
+**Blocker, and it is not kino's:** Pocket needs an adapter script in paper-ghost
+(`kino-pocket.py`), the same way Kokoro has `kino-kokoro.py`. A draft is at
+`kino/.kino/kino-pocket.py`; it has to be saved into paper-ghost by hand,
+because kino does not write to that project. Until then `/api/say?engine=pocket`
+correctly 500s with `can't open file ...kino-pocket.py`.
+
+**Timing**, which is why Chatterbox was rejected: Pocket ~1–2 s/line (~2–3 min
+for 70 scenes), Kokoro ~1 s/line, Chatterbox **23–56 s/line** (~30–60 min).
+
+---
+
+## 11. Folder hygiene — root scripts moved under `scripts/`
+
+Seven harnesses were sitting at the repo root. They are useful, so they moved
+rather than being deleted:
+
+```
+scripts/preview/{chapter,chapter-live,ghost}.ts
+scripts/showcase/index.ts
+scripts/probe/{proxy.mjs,videoonly.ts,serve-file.mjs}
+```
+
+`scripts/README.md` explains each folder. The repo root now holds only
+`tsup.config.ts`, `vitest.config.ts` and `vitest.dist.config.ts`.
+
+**Trap hit:** `git mv x y -ErrorAction SilentlyContinue` — PowerShell passes
+`-ErrorAction` through to git, which fails with `unknown switch 'E'`. Use plain
+`git mv`, or `Move-Item` for untracked files.
+
+---
+
 ## Honest state at session end
 
 - Full suite: **5 failures across 2 files** — 1 export (`frames are named from
@@ -319,13 +384,19 @@ Suite unchanged at **5 failures** (1 export, 4 ytdlp) — no new ones.
 
 ### Next steps, in order
 
-1. **Fix the 4 ytdlp tests.** The override is correct; isolate why the `.cmd`
+1. **Save `kino-pocket.py` into paper-ghost** (draft at
+   `kino/.kino/kino-pocket.py`), then rewire `chapter.mts`'s five voices to
+   `pocket(...)`. Nothing on the Pocket side can be verified until this exists.
+2. **Audition the 27 Pocket voices** at http://localhost:4100 and shortlist a
+   voice per character. Kaguya, Hayasaka, Chika, Ishigami, narrator. The
+   `am_michael` collision (narrator and Ishigami sharing one voice) should not
+   survive the change.
+3. **Fix the 4 ytdlp tests.** The override is correct; isolate why the `.cmd`
    fails under vitest but succeeds standalone. Start by logging `res.stderr` and
    `process.env.KINO_YTDLP` from inside the test.
-2. ~~**Ticket 029 — move the 8 `tmpdir()` call sites.**~~ **Done this session
+4. ~~**Ticket 029 — move the 8 `tmpdir()` call sites.**~~ **Done this session
    (change 9).** Verified: zero `kino-preview-*` dirs after a full run.
-3. **Segment cache for the proxy** (`renderSegmented` + `cacheDir`) so an edit
+5. **Segment cache for the proxy** (`renderSegmented` + `cacheDir`) so an edit
    re-renders only changed scenes. That is the real fix for the build wait.
-4. **Timeline UI**: scene labels, audio strip via `audio-levels.ts`, current-scene
+6. **Timeline UI**: scene labels, audio strip via `audio-levels.ts`, current-scene
    indicator.
-5. Delete the root-level `probe-*` scratch files and commit 5–8.

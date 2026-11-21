@@ -26,12 +26,12 @@ frame, and `s.tak()` renders HTML with no browser to install.
 | `src/remote/` | remote asset downloader; `ytdlp.ts` and `takumi.ts` prefix helpers |
 | `src/builder/` | code-first builder (`composition()`, element factories, animation helpers) and the scene-as-value API (`scene()`, `merge()`) |
 | `src/animation/` | easing curves and keyframe → ffmpeg expression compilation |
-| `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement |
+| `src/tts/` | Piper narration: `tts()` specs, `voice()` measurement, and `showcase.ts` — the voice audition server |
 | `src/captions/` | Word timings, karaoke/subtitle generation, `resolveCaptions()` seam |
 | `src/measure/` | Font-metric text measurement (`font.ts` parses hmtx/cmap) |
 | `src/inspect/` | `inspect()` — geometry and layout issues without rendering |
 | `studio/` | Vite + React visual editor, served by `studio/server.ts` |
-| `scripts/` | install helpers (ffmpeg, browser, obscura), Telegram utilities |
+| `scripts/` | helper programs, not published: `preview/` harnesses, `showcase/`, `probe/`, installers, Telegram |
 | `test/` | vitest suites, importing from `src/` |
 | `test-dist/` | vitest suites against the built `dist/` (`pnpm test:dist`) |
 | `docs-site/` | Astro site reading `docs/*.md`, deployed to GitHub Pages; `src/nav.ts` is the single source of sidebar order and prev/next; `src/plugins/preview-directive.mjs` embeds clips |
@@ -68,6 +68,7 @@ marked done is closed. Per-session detail: [`changelog-2026-11-20.md`](./changel
 | **030** | Assets in RAM, batched | Hold staged assets in memory under a byte budget; spill to disk when a scene exceeds it. Proposed. |
 | — | **Segment cache for the proxy** | Not a ticket yet. `renderSegmented` + `cacheDir` so an edit re-renders only changed scenes. The proxy build is 196 s for 177 s of video and is the only slow part left; this is the real fix. |
 | — | **Timeline UI** | Scene labels, audio strip from `audio-levels.ts` (written, not wired), current-scene indicator. |
+| — | **Pocket TTS for the chapter** | `kino-pocket.py` must be saved into paper-ghost (draft in `kino/.kino/`), then `chapter.mts` rewired. Blocker is outside kino. |
 | — | **4 ytdlp tests** | Stub loses to the installed `.exe` via PATHEXT; `KINO_YTDLP` override added but the failure persists under vitest only. Isolate before closing. |
 
 Deliberately out of scope: adjustment layers, nesting, speed ramps, time

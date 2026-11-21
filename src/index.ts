@@ -36,6 +36,8 @@ export {
   DEFAULT_VOICE,
 } from "./tts/piper.js";
 export type { TtsSpec, TtsOptions, VoiceSpec, Voice } from "./tts/piper.js";
+export { serveShowcase } from "./tts/showcase.js";
+export type { ShowcaseEngine, ShowcaseOptions } from "./tts/showcase.js";
 export { buildCommandArgs, quoteArg, commandCacheKey } from "./tts/command.js";
 export type { CommandContext, CommandEngineOptions } from "./tts/command.js";
 export {
