@@ -1,6 +1,6 @@
 # Current state
 
-Last updated: 2026-11-20
+Last updated: 2026-11-21
 
 ## What kino is
 
@@ -39,12 +39,16 @@ frame, and `s.tak()` renders HTML with no browser to install.
 
 ## Health
 
-- `pnpm test` — 414 tests passing (27 files)
+- `pnpm test` — 398/455 passing, **5 failures**: 1 export (`frames are named from
+  the timestamp`), 4 ytdlp (a Windows/vitest stub problem — see the 2026-11-21
+  findings entry; the tests' *cause* changed this session, not the count)
 - `pnpm test:dist` — 9 tests against the built bundle
 - `pnpm typecheck` — clean
 - `pnpm exec tsup` — builds library + CLI
 - all 18 `examples/*.ts` compile via `--dry-run`
 - docs site builds 12 pages, 27 preview clips; CI runs `test:dist` as its own step
+- preview verified on the real chapter: **`ALL FRAMES OK`** — 360p, 921,600 B per
+  frame, 1–8 ms sequential, ~1.4 s per jump. Build: 196 s for 177 s of video.
 
 ## Open
 
@@ -60,8 +64,11 @@ marked done is closed. Per-session detail: [`changelog-2026-11-20.md`](./changel
 | **026** | GPU `scale_cuda` | Measured: `scale_cuda` ~3× faster in isolation but **slower end to end** (44.5 s vs 39.1 s); `overlay_cuda` slower still. Shipped default-off. |
 | **027** | Incremental render | Segment cache by scene hash. Hash/plan written; blocked on transitions, which overlap their neighbours. |
 | **028** | Merge static layers | One overlay per scene instead of per layer, merging only provably-static groups. Proposed. |
-| **029** | Scratch on fast storage | Scratch is `<output dir>/.kino/`. `KINO_TMP` overrides (point it at a RAM disk). Wired into `compile.ts`. |
+| **029** | Scratch on fast storage | **Done 2026-11-21.** All eight `tmpdir()` sites now use `scratchDir()`; `Preview.open` adds an `exit` hook so a killed server cannot leave its proxy behind. |
 | **030** | Assets in RAM, batched | Hold staged assets in memory under a byte budget; spill to disk when a scene exceeds it. Proposed. |
+| — | **Segment cache for the proxy** | Not a ticket yet. `renderSegmented` + `cacheDir` so an edit re-renders only changed scenes. The proxy build is 196 s for 177 s of video and is the only slow part left; this is the real fix. |
+| — | **Timeline UI** | Scene labels, audio strip from `audio-levels.ts` (written, not wired), current-scene indicator. |
+| — | **4 ytdlp tests** | Stub loses to the installed `.exe` via PATHEXT; `KINO_YTDLP` override added but the failure persists under vitest only. Isolate before closing. |
 
 Deliberately out of scope: adjustment layers, nesting, speed ramps, time
 remapping. Real editor features that restructure the scene model; none unblock

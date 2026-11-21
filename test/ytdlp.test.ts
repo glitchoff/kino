@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { fetchWithYtdlp, isYtdlpSource, ytdlpUrl, ytdlpReason } from "../src/remote/ytdlp.js";
 
 describe("yt-dlp source markers", () => {
@@ -41,14 +41,24 @@ describe("fetchWithYtdlp (stubbed binary)", () => {
   let binDir: string;
   let workDir: string;
   let originalPath: string | undefined;
+  let originalBin: string | undefined;
   let lastArgs = "";
 
   beforeAll(() => {
     binDir = mkdtempSync(join(tmpdir(), "kino-ytdlp-bin-"));
     workDir = mkdtempSync(join(tmpdir(), "kino-ytdlp-work-"));
 
-    // Writes a tiny file at the -o template path and prints its final path.
-    const script = `#!/usr/bin/env node
+    // A fake `yt-dlp` on PATH lets the test exercise spawnSync, the
+    // `--print after_move:filepath` contract, and the cache without a network call.
+    //
+    // Windows cannot execute a `#!/usr/bin/env node` script the way Unix can: it
+    // has no shebang handling, ignores the `0o755` bit, and resolves a bare name
+    // through PATHEXT (`.EXE`, `.CMD`, ...). A script named `yt-dlp` with no
+    // extension was therefore invisible, and once a real yt-dlp was on PATH the
+    // test found *that* instead and hit the network. So the stub is a `.cmd`
+    // wrapper that hands the same body to node, and PATH is joined with the
+    // platform separator.
+    const script = `
 const fs = require("node:fs");
 const path = require("node:path");
 const args = process.argv.slice(2);
@@ -59,16 +69,35 @@ const file = out.replace("%(ext)s", "mp4");
 fs.writeFileSync(file, "fake-video-bytes");
 process.stdout.write(file + "\\n");
 `;
-    const bin = join(binDir, "yt-dlp");
-    writeFileSync(bin, script);
-    chmodSync(bin, 0o755);
+    const isWindows = process.platform === "win32";
+    const jsPath = join(binDir, "yt-dlp-stub.js");
+    writeFileSync(jsPath, script);
+
+    let bin: string;
+    if (isWindows) {
+      bin = join(binDir, "yt-dlp.cmd");
+      // `@node "..." %*` forwards every argument unchanged.
+      writeFileSync(bin, `@node "${jsPath}" %*\r\n`);
+    } else {
+      bin = join(binDir, "yt-dlp");
+      writeFileSync(bin, `#!/usr/bin/env node\n${script}`);
+      chmodSync(bin, 0o755);
+    }
 
     originalPath = process.env.PATH;
-    process.env.PATH = `${binDir}:${originalPath}`;
+    process.env.PATH = `${binDir}${delimiter}${originalPath}`;
+    // PATH alone is not enough on Windows: PATHEXT resolves `.exe` before
+    // `.cmd`, so a real yt-dlp already installed wins over the stub and the test
+    // hits the network. Naming the stub explicitly makes the test independent of
+    // what the machine has installed.
+    originalBin = process.env.KINO_YTDLP;
+    process.env.KINO_YTDLP = bin;
   });
 
   afterAll(() => {
     process.env.PATH = originalPath;
+    if (originalBin === undefined) delete process.env.KINO_YTDLP;
+    else process.env.KINO_YTDLP = originalBin;
     rmSync(binDir, { recursive: true, force: true });
     rmSync(workDir, { recursive: true, force: true });
   });
@@ -121,13 +150,19 @@ process.stdout.write(file + "\\n");
 
   test("reports a missing binary clearly", () => {
     const savedPath = process.env.PATH;
+    const savedBin = process.env.KINO_YTDLP;
+    // Point at a name that cannot resolve, and empty PATH so nothing else can
+    // satisfy it either.
     process.env.PATH = mkdtempSync(join(tmpdir(), "empty-path-"));
+    process.env.KINO_YTDLP = "kino-definitely-not-installed";
     try {
       expect(() =>
         fetchWithYtdlp("https://example.com/x", { stagingDir: mkdtempSync(join(tmpdir(), "s-")) })
       ).toThrow(/not found on PATH/);
     } finally {
       process.env.PATH = savedPath;
+      if (savedBin === undefined) delete process.env.KINO_YTDLP;
+      else process.env.KINO_YTDLP = savedBin;
     }
   });
 });

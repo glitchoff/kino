@@ -12,6 +12,55 @@ ticket teaches something that will outlive it, it belongs here.
 
 ---
 
+## 2026-11-21 — On Windows, `.EXE` beats `.CMD` on PATH regardless of order
+
+**Claim:** putting a stub directory first on `PATH` does **not** make a `.cmd`
+stub win over an installed `.exe` of the same name. Windows resolves a bare name
+through PATHEXT (`.COM;.EXE;.BAT;.CMD;…`), and the extension order decides — not
+the directory order.
+
+**Evidence:** `test/ytdlp.test.ts` put a stub dir first on PATH and still ran the
+real `C:\Users\Abhay\.bun\bin\yt-dlp.exe`:
+
+```
+where yt-dlp -> C:\Users\Abhay\.bun\bin\yt-dlp.exe
+                ...\Scripts\yt-dlp.exe
+```
+
+with `PATH has tmp: false` — the stub dir was not even reached. Before a real
+yt-dlp existed the same test failed with `ENOENT`; installing one changed the
+failure to a live network call to `example.com`, which is how it was caught.
+
+**What it means:** never rely on PATH precedence to shadow a Windows binary.
+Give the code an explicit override (`KINO_YTDLP` in `src/remote/ytdlp.ts`) and
+have the test point at the stub directly. Also: a `#!/usr/bin/env node` script
+with no extension cannot run on Windows at all, `chmod 0o755` is a no-op there,
+and `spawnSync` needs `shell: true` before it can launch a `.cmd`.
+
+---
+
+## 2026-11-21 — A stateful frame server was the wrong shape; the stateless probe was right
+
+**Claim:** compositing frames on demand through a long-lived ffmpeg looked like
+the fix for the multi-minute proxy build, but it was never made to serve a frame
+reliably over HTTP. The stateless shape — spawn, read N frames, exit — worked on
+the first try and is what the class now does.
+
+**Evidence:** the pruned video-only graph (1,838/2,057 chains) produced **120
+correct frames, exit 0**, at ~67 ms/frame, first frame 10.5–14.5 s, on the
+70-scene chapter at 144p. The same graph behind a stateful `LiveRenderer` failed
+four times in sequence: a listener leak (`MaxListenersExceededWarning: 11 data
+listeners on Socket`, then ECONNRESET), then consumed frames never re-served
+(`ended at frame 5351 before 300`), then a skip loop that pruned the frame it
+was waiting for, then every request returning 500.
+
+**What it means:** the proxy path stays the recommended preview (0.5–5 ms/frame
+after one build, verified end to end this session). The build wait is the real
+problem, and the answer is a **segment cache**, not another live renderer. Full
+post-mortem in `.memory/findings-live-render.md`.
+
+---
+
 ## 2026-11-20 — An absolute Windows path in a `drawtext` option breaks the filtergraph
 
 **Claim:** `drawtext=textfile='C:\Users\…\w.txt'` fails with

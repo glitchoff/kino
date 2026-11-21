@@ -40,6 +40,18 @@ export interface YtdlpFetchOptions {
 }
 
 /**
+ * The binary to run.
+ *
+ * `KINO_YTDLP` overrides it — useful for a non-standard install, and required by
+ * the tests: Windows resolves `yt-dlp` through PATHEXT, so a `.exe` on PATH wins
+ * over a `.cmd` stub no matter what order PATH is in. Pointing this at the stub
+ * makes the test independent of what the machine happens to have installed.
+ */
+function ytdlpBinary(): string {
+  return process.env.KINO_YTDLP?.trim() || "yt-dlp";
+}
+
+/**
  * Downloads `url` via yt-dlp into `stagingDir` and returns the file name.
  *
  * Trimming is NOT done here: `--download-sections` stream-copies, so cuts land
@@ -90,10 +102,15 @@ export function fetchWithYtdlp(url: string, options: YtdlpFetchOptions): string 
   if (options.cookies) args.push("--cookies", options.cookies);
   args.push(url);
 
-  const res = spawnSync("yt-dlp", args, {
+  // Windows resolves a bare name through PATHEXT. A real install is `yt-dlp.exe`
+  // and needs no shell, but a `.cmd` shim (pip's user-site wrapper, or the test
+  // stub) can only be launched through one. `shell: true` on Windows is the
+  // price of accepting both.
+  const res = spawnSync(ytdlpBinary(), args, {
     encoding: "utf-8",
     timeout: 600_000,
     maxBuffer: 32 * 1024 * 1024,
+    shell: process.platform === "win32",
   });
 
   if (res.error) {
