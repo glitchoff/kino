@@ -5,6 +5,10 @@ import { createServer } from "node:net";
 import { Preview } from "./preview.js";
 import { render } from "./render.js";
 import { previewPage, renderPage } from "./serve-pages.js";
+import { buildAudioLevels } from "./audio-levels.js";
+import { getFFmpegBinaryPath } from "../encoder/probe.js";
+import { normalizeComposition } from "../normalize/composition.js";
+import { resolveTtsTracks, compositionHasTts } from "../tts/resolve.js";
 import type { KinoComposition } from "../types/index.js";
 import type { RenderOptions } from "../types/render.js";
 
@@ -62,6 +66,17 @@ export interface ServeOptions extends Omit<RenderOptions, "output" | "cache" | "
    * resident and seeks the proxy for the rest.
    */
   frameCacheMB?: number;
+  /**
+   * Composite frames live instead of building a proxy. **Default false.**
+   *
+   * Kept as an option because the graph work behind it is sound (see
+   * `.memory/findings-live-render.md`), but it is not the recommended path: a
+   * heavy composition composites at ~15 fps and the HTTP path was never made
+   * reliable. The proxy is what works — build once, then 0.5-5 ms per frame.
+   *
+   * Enable it only to experiment, and expect it to be slower than the proxy.
+   */
+  live?: boolean;
   /** Reload the page when the server restarts. Default true. */
   reload?: boolean;
   /** Directory for the proxy and segment cache. Default `.kino-serve` beside cwd. */
@@ -120,6 +135,39 @@ export async function serve(
     return out;
   })();
 
+  /**
+   * Audio peaks for the timeline, built once.
+   *
+   * Audio is buffered differently from video on purpose: a second of it is tens
+   * of KB, so the whole clip's envelope fits in a few KB and there is nothing to
+   * window or evict. It is computed from the composition's resolved tracks (the
+   * proxy itself is video-only), which is also why it has to wait for TTS.
+   */
+  let audioLevels: Awaited<ReturnType<typeof buildAudioLevels>> | undefined;
+  let audioPromise: Promise<void> | undefined;
+
+  function ensureAudio(): Promise<void> {
+    if (audioLevels) return Promise.resolve();
+    if (audioPromise) return audioPromise;
+    audioPromise = (async () => {
+      try {
+        const resolved = compositionHasTts(composition)
+          ? await resolveTtsTracks(composition)
+          : composition;
+        const norm = normalizeComposition(resolved);
+        audioLevels = await buildAudioLevels(
+          getFFmpegBinaryPath(options.ffmpegPath),
+          norm.audio as { src: string; startTime?: number; duration?: number; volume?: number }[],
+          norm.duration
+        );
+      } catch (err) {
+        // A waveform is a nicety; a failure must not break the preview.
+        console.warn(`[kino] audio levels unavailable: ${(err as Error).message}`);
+      }
+    })();
+    return audioPromise;
+  }
+
   /** Builds the seek proxy. Slow once; flat cost per frame afterwards. */
   app.post("/api/proxy", async (c) => {
     const started = Date.now();
@@ -130,11 +178,12 @@ export async function serve(
             height,
             format: "jpg",
             frameCacheMB: options.frameCacheMB,
+            live: options.live,
           })
         );
       }
       // Decode the proxy into RAM now, so the first scrub is not the first
-      // decode. This is the difference between a 640 ms frame and a 0.2 ms one.
+      // decode. In live mode there is no proxy or cache, so this is a no-op.
       const warmStart = Date.now();
       await session.warmCache();
       const cacheMs = Date.now() - warmStart;
@@ -143,10 +192,11 @@ export async function serve(
         success: true,
         ms: Date.now() - started,
         cacheMs,
+        live: session.isLive,
         duration: session.length,
         fps: session.frameRate,
         size: session.size,
-        cache: session.cacheStats,
+        cache: await session.getCacheStats(),
         scenes: sceneMarkers,
       });
     } catch (err: unknown) {

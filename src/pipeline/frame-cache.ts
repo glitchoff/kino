@@ -1,140 +1,237 @@
 import { spawn } from "node:child_process";
 
 /**
- * A frame cache: decode the proxy once, then serve frames from memory.
+ * A sliding-window frame cache: decoded frames held in a ring, around the
+ * playhead.
  *
- * ## Why
+ * ## Why a window and not a prefix
  *
- * `Preview.frame()` used to spawn ffmpeg per call. On Windows a process spawn
- * costs ~640 ms — more than decoding 30 frames in one process. Measured:
+ * Decoding the proxy into memory made a seek an array lookup (0.0004 ms) instead
+ * of a process spawn (623 ms). But frames are big — 921 KB each at 640x360 — so
+ * a 266 s clip needs ~7 GB and cannot be held whole. The first version kept
+ * frames from t=0 until the budget ran out, which meant scrubbing was instant
+ * near the start and slow near the end. That is the wrong shape: you scrub
+ * wherever you are working.
  *
- *   spawn per frame          623 ms/frame
- *   spawn only (-version)    641 ms          <- the spawn *is* the cost
- *   30 frames, one process    17.7 ms/frame
- *   decode whole proxy once    0.0004 ms/frame
+ * A window keeps a fixed number of frames *around the current position*. Moving
+ * the playhead shifts the window; frames that fall out are overwritten. Memory
+ * is constant regardless of clip length, and every region becomes fast once it
+ * has been visited.
  *
- * So the only expensive thing was asking ffmpeg again. Decode the proxy to raw
- * RGB in a single pass, hold the frames, and a seek becomes an array index.
+ * ## The cost
  *
- * ## The budget
+ * The first visit to a region needs a decode. That is one ffmpeg run over the
+ * proxy, seeking to the window start, filling the ring. Until it completes, a
+ * frame outside the window falls back to seeking the proxy — slower (~17 ms) but
+ * correct, so a drag never shows a hole or an error.
  *
- * Raw frames are big: 360p is ~218 KB each, so 30 fps costs ~6.5 MB/s of clip.
- * A 266 s clip at 360p would be ~1.7 GB, which is not acceptable to hold by
- * default. The cache therefore has a budget. Below it, everything is resident
- * and seeks are free. Above it, the tail of the clip is not cached and those
- * timestamps fall back to seeking the proxy file (~17 ms, still 35x better than
- * a spawn).
+ * ## Layout
  *
- * Frames are stored at a fixed stride so a lookup is `index * stride` into one
- * flat buffer, not an array of Buffers.
+ * A single flat buffer of `capacity * stride` bytes. Slot for frame `i` is
+ * `i % capacity`, and `present` records whether that slot currently holds frame
+ * `i` or a stale one. No per-frame allocation, no Map churn.
  */
 export class FrameCache {
-  /** Raw bytes of one frame (width * height * 3, rgb24). */
+  /** Bytes of one frame (width * height * 4, rgba). */
   readonly stride: number;
-  /** How many frames at the start of the clip are resident. */
-  readonly cachedFrames: number;
   /** Total frames in the proxy. */
   readonly totalFrames: number;
-  /** Bytes actually held in RAM. */
+  /** How many frames the window can hold. */
+  readonly capacity: number;
+  /** Bytes held in RAM. */
   readonly bytes: number;
 
-  private readonly buf: Buffer;
+  private readonly buf: Buffer<ArrayBuffer>;
+  /** `present[slot]` is the frame index in that slot, or -1 when empty. */
+  private readonly present: Int32Array;
+  /** Inclusive window of frame indices currently resident, or -1 when none. */
+  private winStart = -1;
+  private winEnd = -1;
+
+  private readonly ffmpeg: string;
+  private readonly proxyPath: string;
+  private readonly fps: number;
+  private fillPromise?: Promise<void>;
 
   private constructor(
-    buf: Buffer,
+    ffmpeg: string,
+    proxyPath: string,
     stride: number,
-    cachedFrames: number,
-    totalFrames: number
+    totalFrames: number,
+    capacity: number,
+    fps: number
   ) {
-    this.buf = buf;
+    this.ffmpeg = ffmpeg;
+    this.proxyPath = proxyPath;
     this.stride = stride;
-    this.cachedFrames = cachedFrames;
     this.totalFrames = totalFrames;
-    this.bytes = cachedFrames * stride;
+    this.capacity = capacity;
+    this.fps = fps;
+    this.buf = Buffer.allocUnsafe(capacity * stride);
+    this.present = new Int32Array(capacity).fill(-1);
+    this.bytes = capacity * stride;
   }
 
   /**
-   * Decode `proxyPath` into memory, up to `budgetBytes`.
+   * Build a cache and fill the window around `atFrame`.
    *
-   * The whole file is decoded regardless — ffmpeg writes frames sequentially
-   * and there is no cheap way to stop early without knowing the frame count in
-   * advance. Only the frames inside the budget are kept; the rest are read and
-   * discarded, which costs one decode pass and then nothing.
+   * `totalFrames` is known from the proxy's duration and frame rate, so the
+   * window size is `min(totalFrames, budget / stride)` — a short clip is held
+   * entirely and never slides.
    */
-  static async build(
-    ffmpeg: string,
-    proxyPath: string,
-    width: number,
-    height: number,
-    budgetBytes: number
-  ): Promise<FrameCache> {
-    // rgba, not rgb24: the consumer is `putImageData`, which takes rgba. Decoding
-    // to rgb24 and expanding per request would cost a pass over every frame on
-    // the hot path — cheaper to store the extra byte once.
-    const stride = width * height * 4;
-    const maxFrames = Math.max(1, Math.floor(budgetBytes / stride));
+  static async open(opts: {
+    ffmpeg: string;
+    proxyPath: string;
+    width: number;
+    height: number;
+    fps: number;
+    duration: number;
+    budgetBytes: number;
+    /** Frame to centre the first window on. Default 0. */
+    atFrame?: number;
+  }): Promise<FrameCache> {
+    const stride = opts.width * opts.height * 4;
+    const totalFrames = Math.max(1, Math.round(opts.duration * opts.fps));
+    const capacity = Math.max(1, Math.min(totalFrames, Math.floor(opts.budgetBytes / stride)));
 
-    // Pre-allocate to the budget. A clip shorter than the budget leaves the
-    // buffer partly unused, which is why `cachedFrames` is tracked separately
-    // rather than derived from the buffer length.
-    let buf: Buffer<ArrayBuffer> = Buffer.allocUnsafe(maxFrames * stride);
-    let count = 0;
-    let total = 0;
+    const cache = new FrameCache(
+      opts.ffmpeg,
+      opts.proxyPath,
+      stride,
+      totalFrames,
+      capacity,
+      opts.fps
+    );
+    await cache.fill(opts.atFrame ?? 0);
+    return cache;
+  }
 
-    await new Promise<void>((resolve, reject) => {
+  /** True when frame `index` is resident and can be served without decoding. */
+  has(index: number): boolean {
+    if (index < 0 || index >= this.totalFrames) return false;
+    return this.present[index % this.capacity] === index;
+  }
+
+  /** Raw rgba bytes for a resident frame. Copies, so callers cannot mutate it. */
+  get(index: number): Buffer {
+    if (!this.has(index)) throw new RangeError(`[kino] frame ${index} not in window`);
+    const slot = index % this.capacity;
+    return Buffer.from(this.buf.subarray(slot * this.stride, (slot + 1) * this.stride));
+  }
+
+  /**
+   * Frame index for a timestamp, clamped into the clip.
+   *
+   * One helper so the cache and the caller agree on rounding — an off-by-one
+   * here shows as a one-frame flicker while scrubbing.
+   */
+  frameAt(seconds: number): number {
+    const i = Math.round(seconds * this.fps);
+    return Math.max(0, Math.min(this.totalFrames - 1, i));
+  }
+
+  /**
+   * Ensure the window covers `atFrame`, decoding if it does not.
+   *
+   * Idempotent and serialised: concurrent callers while a fill is running share
+   * that fill rather than spawning several ffmpeg processes over one proxy.
+   */
+  async ensure(atFrame: number): Promise<void> {
+    const target = Math.max(0, Math.min(this.totalFrames - 1, atFrame));
+    if (this.has(target)) return;
+    if (this.fillPromise) {
+      await this.fillPromise;
+      if (this.has(target)) return;
+    }
+    await this.fill(target);
+  }
+
+  /**
+   * Decode the proxy from the window start and fill the ring.
+   *
+   * The window is centred on `centre` but never runs past the clip's ends, so
+   * the last few seconds are held rather than half-empty.
+   */
+  private fill(centre: number): Promise<void> {
+    this.fillPromise = this.doFill(centre).finally(() => {
+      this.fillPromise = undefined;
+    });
+    return this.fillPromise;
+  }
+
+  private doFill(centre: number): Promise<void> {
+    const half = Math.floor(this.capacity / 2);
+    let start = Math.max(0, centre - half);
+    if (start + this.capacity > this.totalFrames) {
+      start = Math.max(0, this.totalFrames - this.capacity);
+    }
+    const count = Math.min(this.capacity, this.totalFrames - start);
+    const end = start + count - 1;
+
+    // Already covered: nothing to decode.
+    if (this.winStart === start && this.winEnd === end) return Promise.resolve();
+
+    const seek = start / this.fps;
+
+    return new Promise<void>((resolve) => {
       const child = spawn(
-        ffmpeg,
+        this.ffmpeg,
         [
           "-hide_banner", "-loglevel", "error",
-          "-i", proxyPath,
+          // Seek before -i: input seeking is a demuxer jump, and every frame in
+          // the proxy is a keyframe, so it lands exactly.
+          "-ss", String(seek),
+          "-i", this.proxyPath,
+          "-frames:v", String(count),
           "-f", "rawvideo", "-pix_fmt", "rgba", "-",
         ],
         { stdio: ["ignore", "pipe", "pipe"] }
       );
 
-      let pending: Buffer = Buffer.alloc(0);
-      let stderr = "";
-      child.stderr.on("data", (d) => {
-        if (stderr.length < 4000) stderr += d;
-      });
+      // Bytes are copied straight into the ring as they arrive.
+      //
+      // The obvious version — accumulate into a `pending` buffer with
+      // `Buffer.concat` and slice frames off it — is quadratic: every chunk
+      // reallocates and copies everything buffered so far. For a 256 MB window
+      // arriving in ~64 KB chunks that was 4,000 copies of a growing buffer,
+      // and it measured 5,763 ms where raw ffmpeg needed 1,532 ms. Keeping a
+      // write cursor into the ring removes the copying entirely.
+      let frameIndex = start;
+      let frameOffset = 0; // bytes already written into the current frame
 
-      child.stdout.on("data", (chunk: Buffer) => {
-        pending = pending.length === 0 ? chunk : Buffer.concat([pending, chunk]);
+      const writeChunk = (chunk: Buffer) => {
+        let read = 0;
+        while (read < chunk.length && frameIndex < start + count) {
+          const slot = frameIndex % this.capacity;
+          const dest = slot * this.stride + frameOffset;
+          const room = this.stride - frameOffset;
+          const take = Math.min(room, chunk.length - read);
 
-        while (pending.length >= stride) {
-          if (count < maxFrames) {
-            pending.copy(buf, count * stride, 0, stride);
-            count++;
+          chunk.copy(this.buf, dest, read, read + take);
+          read += take;
+          frameOffset += take;
+
+          if (frameOffset === this.stride) {
+            this.present[slot] = frameIndex;
+            frameIndex++;
+            frameOffset = 0;
           }
-          total++;
-          pending = pending.subarray(stride);
         }
-      });
+      };
 
-      child.on("error", reject);
-      child.on("close", (code) => {
-        if (code !== 0 && total === 0) {
-          reject(new Error(`[kino] frame cache decode failed: ${stderr.trim()}`));
-          return;
+      child.stdout.on("data", writeChunk);
+
+      const finish = () => {
+        const written = frameIndex - start;
+        if (written > 0) {
+          this.winStart = start;
+          this.winEnd = start + written - 1;
         }
         resolve();
-      });
+      };
+
+      child.on("error", finish);
+      child.on("close", finish);
     });
-
-    // Shrink to what was actually filled so the reported byte count is honest.
-    if (count < maxFrames) buf = buf.subarray(0, count * stride);
-
-    return new FrameCache(buf, stride, count, total);
-  }
-
-  /** True when `index` is resident and can be served without touching disk. */
-  has(index: number): boolean {
-    return index >= 0 && index < this.cachedFrames;
-  }
-
-  /** The raw rgb24 bytes for a resident frame. Copies, so callers can't mutate the cache. */
-  get(index: number): Buffer {
-    if (!this.has(index)) throw new RangeError(`[kino] frame ${index} not cached`);
-    return Buffer.from(this.buf.subarray(index * this.stride, (index + 1) * this.stride));
   }
 }
