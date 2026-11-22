@@ -154,6 +154,14 @@ function validateTextElement(elem: Record<string, unknown>, elemPath: string, is
   if (elem.maxWidth !== undefined && !isFlexiblePositiveNumber(elem.maxWidth)) {
     issues.push({ path: `${elemPath}.maxWidth`, message: `Expected a positive number or unit dimension, received ${elem.maxWidth}` });
   }
+  if (
+    elem.widthRatio !== undefined &&
+    (typeof elem.widthRatio !== "number" || !(elem.widthRatio > 0 && elem.widthRatio <= 1))
+  ) {
+    // A ratio above 1 would let text exceed the frame, which is the failure it
+    // exists to prevent; 0 would wrap every word onto its own line.
+    issues.push({ path: `${elemPath}.widthRatio`, message: `Expected a number in (0, 1], received ${elem.widthRatio}` });
+  }
   if (elem.textAlign !== undefined) {
     if (typeof elem.textAlign !== "string" || !["left", "center", "right"].includes(elem.textAlign)) {
       issues.push({ path: `${elemPath}.textAlign`, message: `Expected "left", "center", or "right", received ${JSON.stringify(elem.textAlign)}` });

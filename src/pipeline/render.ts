@@ -102,7 +102,7 @@ export async function render(
     // `tak:` markup is rendered here because compile() is synchronous and
     // Takumi is not. Elements without the prefix still go to a browser inside
     // compile().
-    const takumiRenders = await renderTakumiElements(composition);
+    const takumi = await renderTakumiElements(composition);
     if (options.unsafeInlineText) {
       console.warn(
         "[kino] Warning: unsafeInlineText disables textfile delivery; text with apostrophes may render blank on some platforms."
@@ -112,10 +112,14 @@ export async function render(
     kinoPath = join(kinoDir, "composition.kino");
     ownsKinoFile = true;
     try {
-      compile(composition, { ...renderOptions, kinoPath, takumiRenders });
+      compile(composition, { ...renderOptions, kinoPath, takumiRenders: takumi.paths });
     } catch (err) {
       rmSync(kinoDir, { recursive: true, force: true });
       throw err;
+    } finally {
+      // compile() has copied the PNGs into the .kino by now. Cleaning up any
+      // earlier would delete files the caller still has to read.
+      takumi.cleanup();
     }
   }
 

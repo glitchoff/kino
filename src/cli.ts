@@ -279,8 +279,15 @@ async function main() {
       // `tak:` elements are rendered by Takumi before `compile()` runs, because
       // compile() is synchronous and Takumi is not. A dry run has to do the same
       // work or it fails on any composition using `s.tak()`.
-      const takumiRenders = await renderTakumiElements(dryComposition);
-      const { args: ffmpegArgs, kinoFilePath } = compile(dryComposition, { ...opts, takumiRenders });
+      const takumi = await renderTakumiElements(dryComposition);
+      let compiled: ReturnType<typeof compile>;
+      try {
+        compiled = compile(dryComposition, { ...opts, takumiRenders: takumi.paths });
+      } finally {
+        // compile() has copied the PNGs into the .kino by now.
+        takumi.cleanup();
+      }
+      const { args: ffmpegArgs, kinoFilePath } = compiled;
       console.log(`[kino dry-run] Compiled portable .kino artifact: ${kinoFilePath}`);
       console.log(`[kino dry-run] FFmpeg command (relative paths, cwd = extraction dir):\nffmpeg ${ffmpegArgs.join(" ")}`);
       return;

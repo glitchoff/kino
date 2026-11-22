@@ -39,6 +39,7 @@ export const GROUPS: NavGroup[] = [
       { id: "sound", title: "Sound" },
       { id: "checking", title: "Checking your work" },
       { id: "rendering", title: "Rendering" },
+      { id: "cli", title: "Command line" },
     ],
   },
   {
@@ -47,7 +48,9 @@ export const GROUPS: NavGroup[] = [
       { id: "api-reference", title: "Programmatic API" },
       { id: "schema-reference", title: "Composition shape" },
       { id: "studio", title: "Kino Studio" },
-      { id: "previews", title: "Previews" },
+      // `previews` is a site-only route (`src/pages/previews.astro`), not a
+      // markdown file, so it must not be listed here — a nav id with no file
+      // behind it produces a dead link.
     ],
   },
 ];

@@ -39,7 +39,11 @@ describe("exportComposition", () => {
         frames: [0.5, { at: 1.5, name: "second" }],
         frameDir: dir,
       });
-      expect(frames!.map((f) => f.path.split("/").pop())).toEqual([
+      // Split on both separators. On Windows `path` is `C:\…\frame-0_5.png`,
+      // where `split("/")` finds nothing and `pop()` returns the whole path —
+      // so this assertion only ever passed on POSIX.
+      const base = (p: string) => p.split(/[\\/]/).pop();
+      expect(frames!.map((f) => base(f.path))).toEqual([
         "frame-0_5.png",
         "second.png",
       ]);

@@ -103,6 +103,16 @@ export {
   alignerInstallDir,
   defaultCaptionCacheDir,
 } from "./captions/index.js";
+export {
+  CAPTION_PRESETS,
+  isCaptionPresetName,
+  resolveCaptionPreset,
+  bundledAsset,
+} from "./captions/presets.js";
+export type {
+  CaptionPreset,
+  CaptionPresetName,
+} from "./captions/presets.js";
 export type {
   CaptionOptions,
   CaptionImageOptions,

@@ -7,6 +7,7 @@ import type {
   NormalizedShapeElement,
 } from "../types/normalized.js";
 import { normalizeChromaKey } from "../pipeline/elements/media.js";
+import { measureText } from "../measure/index.js";
 import {
   parseDuration,
   parseLineHeight,
@@ -60,6 +61,57 @@ export function wrapText(content: string, fontSize: number, maxWidth?: number): 
     if (currentLine) wrappedLines.push(currentLine);
   }
 
+  return wrappedLines.join("\n");
+}
+
+/**
+ * Rendered width of `text`, from the font's real advance table when possible.
+ *
+ * Falls back to the character-class estimator when no font file is given, which
+ * is what {@link estimateTextWidth} does — so callers that do not know the font
+ * behave exactly as before.
+ */
+function textWidth(text: string, fontSize: number, fontFile?: string): number {
+  if (!fontFile) return estimateTextWidth(text, fontSize);
+  return measureText(text, { fontSize, fontFile }).width;
+}
+
+/**
+ * {@link wrapText}, measuring with real glyph advances when a font is known.
+ *
+ * Same greedy algorithm and the same "a word longer than the line stays on its
+ * own line" behaviour, so only the measurement differs. The estimate is kept as
+ * the fallback because it needs no font file and never throws.
+ */
+export function wrapTextMeasured(
+  content: string,
+  fontSize: number,
+  maxWidth?: number,
+  fontFile?: string
+): string {
+  if (!maxWidth || maxWidth <= 0 || !content || !fontFile) {
+    return wrapText(content, fontSize, maxWidth);
+  }
+
+  const wrappedLines: string[] = [];
+  for (const line of content.split("\n")) {
+    if (textWidth(line, fontSize, fontFile) <= maxWidth) {
+      wrappedLines.push(line);
+      continue;
+    }
+    let current = "";
+    for (const word of line.split(" ")) {
+      if (!current) {
+        current = word;
+      } else if (textWidth(`${current} ${word}`, fontSize, fontFile) <= maxWidth) {
+        current = `${current} ${word}`;
+      } else {
+        wrappedLines.push(current);
+        current = word;
+      }
+    }
+    if (current) wrappedLines.push(current);
+  }
   return wrappedLines.join("\n");
 }
 
@@ -266,8 +318,48 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
 
   const rawContent = elem.content || "";
   const fontSize = parsePixels(elem.fontSize, canvasHeight);
-  const effectiveFontSize = fontSize ?? 48;
-  const content = maxWidth ? wrapText(rawContent, effectiveFontSize, maxWidth) : rawContent;
+  let effectiveFontSize = fontSize ?? 48;
+
+  // A caption may declare how much of the frame it wants, rather than a pixel
+  // width — the preset system does this, because it is built before the frame
+  // size is known. Resolve it here, where the canvas is available.
+  //
+  // Without this a preset that sets a large font and a ratio wraps to nothing
+  // and runs off both edges, which is exactly the bug the ratio exists to stop.
+  const declaredRatio = (elem as { widthRatio?: number }).widthRatio;
+  const resolvedMaxWidth =
+    maxWidth ??
+    (declaredRatio !== undefined && canvasWidth ? Math.round(canvasWidth * declaredRatio) : undefined);
+
+  // Wrap with the *rendered* width, not the character-class estimate.
+  //
+  // `estimateTextWidth` prices every lowercase letter at 0.52em. That is close
+  // for Inter and badly wrong for a condensed face like Anton (~0.38em), so a
+  // caption it reports as fitting is visibly cut off at both edges. When a font
+  // file is known, measure the real advances instead.
+  //
+  // A single word cannot be wrapped, so if it still overflows the frame the
+  // font comes down until it fits — clipped text is worse than small text.
+  const fontFile = elem.fontFile;
+  if (resolvedMaxWidth && fontFile) {
+    const words = rawContent.split(/\s+/).filter(Boolean);
+    if (words.length) {
+      const widest = words.reduce((a: string, b: string) =>
+        textWidth(b, effectiveFontSize, fontFile) > textWidth(a, effectiveFontSize, fontFile) ? b : a
+      );
+      let guard = 0;
+      while (
+        textWidth(widest, effectiveFontSize, fontFile) > resolvedMaxWidth &&
+        effectiveFontSize > 12 &&
+        guard++ < 200
+      ) {
+        effectiveFontSize -= 1;
+      }
+    }
+  }
+  const content = resolvedMaxWidth
+    ? wrapTextMeasured(rawContent, effectiveFontSize, resolvedMaxWidth, fontFile)
+    : rawContent;
 
   const boxPadding = parsePixels(elem.boxPadding, canvasWidth);
 
@@ -276,13 +368,16 @@ export function normalizeElement(elem: any, options: NormalizeElementOptions = {
     ...(colorAdjust ? { grade: colorAdjust } : {}),
       ...compositing,
     content,
-    fontSize,
+    // `effectiveFontSize`, not `fontSize`: shrink-to-fit above may have reduced
+    // it, and writing the original back would silently undo the fit while the
+    // wrap had already used the smaller size.
+    fontSize: effectiveFontSize,
     fontColor: elem.fontColor,
     fontFile: elem.fontFile,
     box: elem.box,
     boxColor: elem.boxColor,
     boxPadding,
-    maxWidth,
+    maxWidth: resolvedMaxWidth,
     textAlign: elem.textAlign,
     lineHeight,
     stroke: elem.stroke

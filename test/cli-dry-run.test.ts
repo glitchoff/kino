@@ -87,12 +87,27 @@ describe.skipIf(process.platform !== "linux")("--dry-run", () => {
       "tak-asset"
     );
     expect(r.code).toBe(0);
-    // An image input appears for the rendered markup.
-    expect(r.output).toMatch(/-loop 1 -i asset-\d+\.png/);
+    // An image input appears for the rendered markup. The staging name is
+    // `takumi-<n>.png` (`pipeline/elements/takumi.ts`), not `asset-<n>.png` —
+    // `asset-` is the name for copied files in `compile.ts`, a different
+    // mechanism. This test was written against the wrong one and only ever ran
+    // on Linux, where it failed for that reason.
+    expect(r.output).toMatch(/-loop 1 -i \S*takumi-\d+\.png/);
   }, 180_000);
 });
 
-describe("filtergraph length", () => {
+/**
+ * The inline-vs-script decision depends on the platform's argv ceiling:
+ * `FILTERGRAPH_ARG_LIMIT` is 30,000 on Windows and 100,000 elsewhere
+ * (`pipeline/compile.ts`). A graph near 30k is therefore written to a script on
+ * Windows and kept inline on POSIX, so asserting one behaviour everywhere fails
+ * on the other platform.
+ *
+ * The Windows branch is the one worth guarding: it exists because
+ * `CreateProcess` rejects a command line past 32,767 characters with
+ * ENAMETOOLONG, and nothing else exercises that path.
+ */
+describe.skipIf(process.platform !== "win32")("filtergraph length (Windows argv ceiling)", () => {
   /**
    * Windows stores a command line in a 16-bit length field, so CreateProcess
    * rejects anything past 32,767 characters. A filtergraph between that ceiling

@@ -39,6 +39,7 @@ import { getFFmpegBinaryPath } from "../encoder/probe.js";
 import { parsePixels } from "../normalize/unit-parser.js";
 import { escapeFFmpegStr } from "../pipeline/position.js";
 import type { ImageElement, TextElement, CaptionWord } from "../types/elements.js";
+import { CAPTION_PRESETS, isCaptionPresetName, resolveCaptionPreset } from "./presets.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,6 +73,13 @@ export type CaptionStyle =
   | "block";
 
 export interface CaptionOptions {
+  /**
+   * A named look from {@link CAPTION_PRESETS}, e.g. `"shout"`.
+   *
+   * Resolved *under* the rest of these options, so a preset sets the style and
+   * you override only what you want to change. See `captions/presets.ts`.
+   */
+  preset?: string;
   /**
    * How to time the words. `"auto"` uses forced alignment when
    * `mms-forced-align` is installed and falls back to even distribution.
@@ -580,31 +588,49 @@ export function captionElements(
   timings: WordTiming[],
   options: CaptionOptions = {}
 ): TextElement[] {
-  const style = options.style ?? "karaoke";
-  const fontSize = options.fontSize ?? 56;
-  const color = options.color ?? "#f8fafc";
-  const highlight = options.highlight ?? "#38bdf8";
-  const fade = options.fade ?? 0.12;
-  const at = options.at ?? 0;
+  // `withPreset` is defined below; hoisted function declaration, so calling it
+  // here is fine and keeps preset handling in exactly one place.
+  const opts = withPreset(options);
+  const style = opts.style ?? "karaoke";
+  const fontSize = opts.fontSize ?? 56;
+  const color = opts.color ?? "#f8fafc";
+  const highlight = opts.highlight ?? "#38bdf8";
+  const fade = opts.fade ?? 0.12;
+  const at = opts.at ?? 0;
 
   if (!timings.length) return [];
 
   if (style === "word") {
     // One word at a time: the word changing is the emphasis, so no highlight.
-    return timings.map(
-      (word) =>
-        ({
-          type: "text",
-          content: word.word,
-          fontSize,
-          fontColor: color,
-          animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
-          ...baseOptions(options, at + word.start, word.end - word.start + (options.hold ?? 0.35)),
-        }) as TextElement
-    );
+    //
+    // Each word holds until the *next* word begins, not until its own speech
+    // ends. Two simpler rules both fail:
+    //
+    //   - `end - start + hold` makes each word outlast its span, so two words
+    //     are on screen at once — and since every element is centred at the
+    //     same x/y they draw on top of each other as stacked glyphs;
+    //   - `end - start` alone drops the word the moment speech stops, which
+    //     blanks the frame during a pause and loses the final word entirely.
+    //
+    // Holding to the next start means exactly one word is always visible, with
+    // no overlap and no gap. The last word runs to the end of the line plus
+    // `hold`, so the caption does not vanish before the audio does.
+    const tail = opts.hold ?? 0.35;
+    return timings.map((word, i) => {
+      const next = timings[i + 1];
+      const end = next ? next.start : word.end + tail;
+      return {
+        type: "text",
+        content: word.word,
+        fontSize,
+        fontColor: color,
+        animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
+        ...baseOptions(opts, at + word.start, Math.max(0.05, end - word.start)),
+      } as TextElement;
+    });
   }
 
-  const lines = buildCaptionLines(groupWords(timings, groupOptions(options)), options);
+  const lines = buildCaptionLines(groupWords(timings, groupOptions(opts)), opts);
 
   if (style === "reveal") {
     // `reveal` used to emit one element per word, positioned by hand. That made
@@ -637,7 +663,7 @@ export function captionElements(
         captionWords,
         highlight,
         animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
-        ...baseOptions(options, lineStart, lineDuration),
+        ...baseOptions(opts, lineStart, lineDuration),
       } as TextElement;
     });
   }
@@ -667,7 +693,7 @@ export function captionElements(
       fontColor: color,
       ...(captionWords.length ? { captionWords, highlight } : {}),
       animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
-      ...baseOptions(options, lineStart, lineDuration),
+      ...baseOptions(opts, lineStart, lineDuration),
     } as TextElement;
   });
 }
@@ -691,7 +717,8 @@ export function captions(
         `or \`await captionsAsync(voice, options)\`.`
     );
   }
-  return captionElements(evenTimings(voice.text, voice.seconds), { ...options, timing });
+  const resolved = withPreset(options);
+  return captionElements(evenTimings(voice.text, voice.seconds), { ...resolved, timing });
 }
 
 /**
@@ -707,8 +734,28 @@ export async function captionsAsync(
   voice: { text: string; seconds: number; path?: string },
   options: CaptionOptions = {}
 ): Promise<TextElement[]> {
-  const timings = await timeWords(voice.text, voice.seconds, voice.path, options);
-  return captionElements(timings, options);
+  const resolved = withPreset(options);
+  const timings = await timeWords(voice.text, voice.seconds, voice.path, resolved);
+  return captionElements(timings, resolved);
+}
+
+/**
+ * Applies `options.preset` when one is named, and passes options through
+ * untouched when it is not.
+ *
+ * Unknown names throw rather than falling back to defaults: a typo like
+ * `preset: "shoutt"` would otherwise render a perfectly valid caption in the
+ * default style, which looks like the preset silently not working.
+ */
+function withPreset(options: CaptionOptions): CaptionOptions {
+  if (options.preset === undefined) return options;
+  if (!isCaptionPresetName(options.preset)) {
+    const known = Object.keys(CAPTION_PRESETS).join(", ");
+    throw new Error(
+      `Unknown caption preset '${options.preset}'. Known presets: ${known}.`
+    );
+  }
+  return resolveCaptionPreset(options.preset, options);
 }
 
 // ---------------------------------------------------------------------------

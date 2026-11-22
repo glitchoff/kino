@@ -142,6 +142,84 @@ stacks captions on screen.
 Word-level alignment to real audio is optional and cache-based; see
 `captionsAsync`.
 
+### Presets
+
+A style says *how words appear*; a preset says *what they look like*. Presets
+bundle both, because a recognisable caption look is the whole package — Anton
+with a hairline stroke is a different thing from Inter with a fat one.
+
+```typescript
+s.addAll(captions(line, { preset: "shout" }));
+
+// Anything passed explicitly wins over the preset.
+s.addAll(captions(line, { preset: "shout", fontSize: 120 }));
+
+// `text` merges one level deep, so this adds a shadow and keeps the stroke.
+s.addAll(captions(line, { preset: "shout", text: { shadow: { color: "#000", x: 2, y: 2 } } }));
+```
+
+| Preset | Look | Font |
+| --- | --- | --- |
+| `shout` | All caps, thick black stroke, centred on the art, one word at a time | Anton |
+| `shout-band` | The same face as a bottom-band line with a karaoke sweep | Anton |
+| `plain` | Conventional subtitles: sentence case, thin outline, bottom-centre | Inter |
+
+:::preview name="feature-caption-preset" caption="preset: shout"
+:::
+
+:::preview name="feature-caption-shout-band" caption="preset: shout-band"
+:::
+
+:::preview name="feature-caption-plain" caption="preset: plain"
+:::
+
+The four built-in styles, for comparison:
+
+:::preview name="feature-caption-karaoke" caption="style: karaoke"
+:::
+
+:::preview name="feature-caption-reveal" caption="style: reveal"
+:::
+
+:::preview name="feature-caption-word" caption="style: word"
+:::
+
+An unknown preset name **throws** rather than falling back to the default style,
+so a typo like `"shoutt"` cannot quietly render something else.
+
+#### Fitting is automatic
+
+A preset measures itself against the frame and fits, so you do not size text by
+hand:
+
+- **It wraps** to `widthRatio` of the frame width (default `0.9`).
+- **It shrinks** when a single word is still too wide, because a word cannot be
+  wrapped and clipped text is worse than small text.
+
+Both use the font's real advance table, not a character-class estimate. That
+distinction is not pedantry: the estimate prices every lowercase letter at
+`0.52em`, where Anton runs closer to `0.38em`, so a line it reports as fitting
+is visibly cut off at both edges.
+
+Override the margin with `widthRatio`, or pin an exact width with `maxWidth`:
+
+```typescript
+captions(line, { preset: "plain", widthRatio: 0.8 });
+```
+
+### How `word` timing works
+
+`style: "word"` shows one word at a time. Each word holds **until the next word
+starts**, not until its own speech ends. Both simpler rules fail:
+
+- *its own duration only* — the frame goes blank during a pause, and the final
+  word disappears before the audio does;
+- *its own duration plus `hold`* — two words are on screen at once, and since
+  every element is centred at the same point they draw as stacked glyphs.
+
+Holding to the next start means exactly one word is always visible. The last
+word gets the trailing `hold`.
+
 :::preview name="feature-captions" caption="karaoke captions"
 :::
 

@@ -453,6 +453,41 @@ Also accepts the `CaptionOptions` shared with `captions()`: `wordsPerLine`
 Pass every timing at once. Lines are grouped and each line's hold is trimmed
 against the following line, so calling this per line stacks captions on screen.
 
+### Presets
+
+#### `CAPTION_PRESETS`
+
+The built-in looks: `shout`, `shout-band`, `plain`. Each is a `CaptionPreset` —
+a `CaptionOptions` bundle plus a bundled `fontFile`.
+
+#### `captions(line, { preset })`
+
+`preset` is accepted by `captions()`, `captionsAsync()` and `captionElements()`.
+It resolves *under* the other options, so anything you pass explicitly wins.
+
+#### `resolveCaptionPreset(name, options?, frameWidth?, text?)`
+
+Merges a preset under `options`. Pass `frameWidth` and `text` to also fit the
+result; without them the preset still resolves, but a large font can overflow.
+
+#### `fitFontSize(words, fontSize, frameWidth, fontFile?, widthRatio?)`
+
+Largest size at or below `fontSize` at which the widest word fits. Returns
+`fontSize` unchanged when it already fits.
+
+#### `isCaptionPresetName(name)`
+
+Type guard. Unknown preset names throw at render time rather than silently
+falling back.
+
+### `widthRatio`
+
+Builder-only field on `TextElement`, in `(0, 1]`. The normalizer resolves it to
+a pixel `maxWidth` once the canvas size is known — captions are built inside a
+scene callback, before `build()`, so the frame width is not available when the
+element is created. Prefer it over `maxWidth` when the same element may render
+at more than one frame size, since previews composite on a smaller frame.
+
 ---
 
 ## Rendering

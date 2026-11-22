@@ -171,6 +171,15 @@ export interface TextElement extends BaseElement {
   boxColor?: string;
   boxPadding?: number | string;
   maxWidth?: number | string;
+  /**
+   * Fraction of the frame width the text may occupy, `0`–`1`.
+   *
+   * Builder-only convenience for captions: resolved to a pixel `maxWidth` by
+   * the normalizer, which is the first place the canvas size is known. Prefer
+   * this over `maxWidth` when the same element may render at more than one
+   * frame size (previews do).
+   */
+  widthRatio?: number;
   textAlign?: "left" | "center" | "right";
   lineHeight?: number | string;
   stroke?: {

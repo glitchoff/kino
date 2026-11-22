@@ -162,13 +162,33 @@ export async function exportComposition(
   // and for the video; only the preview needs its own compile, because its
   // downscale is baked into the filtergraph.
   // `tak:` markup must be rendered before compile(), which is synchronous.
-  const takumiRenders = await renderTakumiElements(compositionOrKinoPath as KinoComposition);
+  //
+  // The files stay alive until the last compile that needs them — the preview
+  // build reuses the same PNGs, so cleaning up after the shared compile would
+  // leave it pointing at deleted files.
+  const takumi = await renderTakumiElements(compositionOrKinoPath as KinoComposition);
 
-  const sharedKino = compile(compositionOrKinoPath as KinoComposition, {
-    takumiRenders,
-    ...options,
-    preview: false,
-  }).kinoFilePath;
+  let sharedKino: string;
+  let previewKino: string | undefined;
+  try {
+    sharedKino = compile(compositionOrKinoPath as KinoComposition, {
+      takumiRenders: takumi.paths,
+      ...options,
+      preview: false,
+    }).kinoFilePath;
+
+    if (options.preview) {
+      // Its own compile: the preview scale lives in the graph.
+      previewKino = compile(compositionOrKinoPath as KinoComposition, {
+        takumiRenders: takumi.paths,
+        ...options,
+        preview: options.preview,
+      }).kinoFilePath;
+    }
+  } finally {
+    // Both compiles have copied the PNGs into their .kino by now.
+    takumi.cleanup();
+  }
 
   try {
     if (wantsFrames) {
@@ -187,13 +207,7 @@ export async function exportComposition(
       result.video = await runFromKino(sharedKino, options.video!, ffmpegBin, options, isolatedCwd);
     }
 
-    if (wantsPreview) {
-      // Its own compile: the preview scale lives in the graph.
-      const previewKino = compile(compositionOrKinoPath as KinoComposition, {
-        takumiRenders,
-        ...options,
-        preview: options.preview,
-      }).kinoFilePath;
+    if (wantsPreview && previewKino) {
       try {
         result.preview = await runFromKino(
           previewKino,

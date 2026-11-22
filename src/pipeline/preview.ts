@@ -145,18 +145,24 @@ export class Preview {
         composition = await resolveTtsTracks(composition);
       }
 
-      const takumiRenders = await renderTakumiElements(composition);
+      const takumi = await renderTakumiElements(composition);
       const height = options.height ?? 360;
       // `preview` bakes the downscale into the filtergraph and switches the
-      // encoder to ultrafast/CRF 30 â€” exactly the proxy this needs. Adding a
+      // encoder to ultrafast/CRF 30 — exactly the proxy this needs. Adding a
       // `-vf` on top is not possible: the compiled args already use
       // `-filter_complex`, and ffmpeg refuses simple and complex filtering on
       // the same stream.
-      const kino = compile(composition, {
-        output: join(dir, "full.mp4"),
-        takumiRenders,
-        preview: height,
-      });
+      let kino;
+      try {
+        kino = compile(composition, {
+          output: join(dir, "full.mp4"),
+          takumiRenders: takumi.paths,
+          preview: height,
+        });
+      } finally {
+        // compile() has copied the PNGs into the .kino by now.
+        takumi.cleanup();
+      }
 
       // Read the manifest straight from the archive; extracting is only needed
       // for the assets, and ffmpeg is pointed at the extracted directory.

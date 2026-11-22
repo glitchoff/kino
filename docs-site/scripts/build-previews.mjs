@@ -60,6 +60,25 @@ const label = (s, content, extra = {}) =>
   });
 
 /**
+ * One caption look, as a looping clip.
+ *
+ * Timings are written out by hand rather than measured from TTS: a preview has
+ * no audio and is muted, so what matters is the look and the word rhythm, not
+ * real speech sync. A dark panel stands in for artwork so the stroke and
+ * highlight are visible against something other than flat black.
+ */
+const captionClip = (k, options, words) =>
+  k
+    .composition({ width: WIDTH, height: HEIGHT, fps: FPS })
+    .scene({ duration: 3, background: "#111827" }, (s) => {
+      // A mid-grey block behind the text, so white-on-stroke reads the way it
+      // will over a real panel instead of against pure black.
+      s.add(k.rect({ width: WIDTH, height: 120, x: 0, y: HEIGHT / 2 - 60, fill: "#2a3446" }));
+      s.addAll(k.captionElements(words, options));
+    })
+    .build();
+
+/**
  * One clip per feature that shipped after the first release, so every row in
  * the docs has something moving next to it. Each is the smallest composition
  * that shows the feature doing its actual job — not a mockup.
@@ -203,6 +222,83 @@ const FEATURE_PREVIEWS = [
           });
         })
         .build(),
+  },
+  {
+    // One clip per caption look, so the docs table has something moving beside
+    // every row. Timings are written out rather than measured from TTS, because
+    // a preview has no audio — the point is the look, not the sync.
+    name: "feature-caption-preset",
+    build: (k) =>
+      captionClip(k, { preset: "shout" }, [
+        { word: "SHADY", clean: "SHADY", start: 0.1, end: 0.9 },
+        { word: "MAN", clean: "MAN", start: 1.0, end: 1.8 },
+        { word: "BIZARRE", clean: "BIZARRE", start: 1.9, end: 2.8 },
+      ]),
+  },
+  {
+    name: "feature-caption-shout-band",
+    build: (k) =>
+      captionClip(k, { preset: "shout-band" }, [
+        { word: "Pallet", clean: "Pallet", start: 0.1, end: 0.5 },
+        { word: "Town.", clean: "Town", start: 0.55, end: 0.9 },
+        { word: "Two", clean: "Two", start: 1.0, end: 1.25 },
+        { word: "hills,", clean: "hills", start: 1.3, end: 1.7 },
+        { word: "a", clean: "a", start: 1.75, end: 1.85 },
+        { word: "few", clean: "few", start: 1.9, end: 2.2 },
+        { word: "houses.", clean: "houses", start: 2.25, end: 2.8 },
+      ]),
+  },
+  {
+    name: "feature-caption-plain",
+    build: (k) =>
+      captionClip(k, { preset: "plain" }, [
+        { word: "The", clean: "The", start: 0.1, end: 0.3 },
+        { word: "boy", clean: "boy", start: 0.32, end: 0.6 },
+        { word: "asked", clean: "asked", start: 0.62, end: 0.9 },
+        { word: "Black", clean: "Black", start: 0.95, end: 1.3 },
+        { word: "Jack", clean: "Jack", start: 1.32, end: 1.6 },
+        { word: "to", clean: "to", start: 1.62, end: 1.75 },
+        { word: "treat", clean: "treat", start: 1.78, end: 2.1 },
+        { word: "his", clean: "his", start: 2.12, end: 2.3 },
+        { word: "mother", clean: "mother", start: 2.32, end: 2.9 },
+      ]),
+  },
+  {
+    name: "feature-caption-karaoke",
+    build: (k) =>
+      captionClip(k, { style: "karaoke", fontSize: 30, y: "bottom-40" }, [
+        { word: "Karaoke", clean: "Karaoke", start: 0.1, end: 0.6 },
+        { word: "sweeps", clean: "sweeps", start: 0.65, end: 1.1 },
+        { word: "the", clean: "the", start: 1.15, end: 1.35 },
+        { word: "word", clean: "word", start: 1.4, end: 1.75 },
+        { word: "being", clean: "being", start: 1.8, end: 2.15 },
+        { word: "spoken.", clean: "spoken", start: 2.2, end: 2.8 },
+      ]),
+  },
+  {
+    name: "feature-caption-reveal",
+    build: (k) =>
+      captionClip(k, { style: "reveal", fontSize: 30, y: "bottom-40" }, [
+        { word: "Words", clean: "Words", start: 0.1, end: 0.45 },
+        { word: "appear", clean: "appear", start: 0.5, end: 0.9 },
+        { word: "one", clean: "one", start: 0.95, end: 1.2 },
+        { word: "at", clean: "at", start: 1.25, end: 1.4 },
+        { word: "a", clean: "a", start: 1.45, end: 1.55 },
+        { word: "time", clean: "time", start: 1.6, end: 1.95 },
+        { word: "and", clean: "and", start: 2.0, end: 2.25 },
+        { word: "stay.", clean: "stay", start: 2.3, end: 2.8 },
+      ]),
+  },
+  {
+    name: "feature-caption-word",
+    build: (k) =>
+      captionClip(k, { style: "word", fontSize: 40, y: "center" }, [
+        { word: "One", clean: "One", start: 0.1, end: 0.5 },
+        { word: "word", clean: "word", start: 0.55, end: 0.95 },
+        { word: "at", clean: "at", start: 1.0, end: 1.2 },
+        { word: "a", clean: "a", start: 1.25, end: 1.4 },
+        { word: "time.", clean: "time", start: 1.45, end: 2.4 },
+      ]),
   },
   {
     name: "feature-preview-api",
