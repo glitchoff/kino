@@ -191,7 +191,7 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
     // the scene's absolute start, which is only known here.
     const narration = (scene as { narration?: unknown[] }).narration;
     if (narration?.length) {
-      for (const spec of narration) {
+      for (const [ni, spec] of narration.entries()) {
         audioTracks.push({
           // Already a WAV path when resolveTtsTracks() ran; otherwise a spec
           // that normalizeAudio() rejects loudly.
@@ -199,6 +199,10 @@ function normalizeCompositionFull(comp: KinoComposition): NormalizedComposition 
           startTime: sceneStart,
           volume: 1,
           speech: true,
+          // Speech tracks need an id: ducking resolves `duck.by` to track ids
+          // and the compiler looks them up in a map keyed by id. Without one,
+          // `duck: true` finds no speech to duck under and throws.
+          id: `narration-${i}-${ni}`,
         });
       }
     }

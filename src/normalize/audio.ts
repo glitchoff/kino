@@ -62,9 +62,13 @@ export function resolveDucking(
     if (t.id) byId.set(t.id, t);
   }
 
-  raw.forEach((track, i) => {
+  raw.forEach((track) => {
     if (track.duck === undefined || track.duck === false) return;
-    const target = tracks[i];
+
+    // Resolve the target by id, not by position. `tracks` gains narration and
+    // sfx entries before this runs, so an index into `raw` no longer points at
+    // the same track in `tracks` once anything has been appended ahead of it.
+    const target = track.id ? byId.get(track.id) : undefined;
     if (!target) return;
 
     const config = track.duck === true ? {} : track.duck;
@@ -81,7 +85,7 @@ export function resolveDucking(
         .map((t) => t.id!);
       if (sources.length === 0) {
         throw new Error(
-          `Audio track${target.id ? ` '${target.id}'` : ` #${i}`} has duck: true but there is no speech to duck under. ` +
+          `Audio track${target.id ? ` '${target.id}'` : ""} has duck: true but there is no speech to duck under. ` +
             `Add a tts()/s.say() track, or name one with duck: { by: "..." }.`
         );
       }
@@ -94,7 +98,7 @@ export function resolveDucking(
       if (!byId.has(source)) {
         const known = [...byId.keys()];
         throw new Error(
-          `Audio track${target.id ? ` '${target.id}'` : ` #${i}`} ducks under '${source}', which does not exist. ` +
+          `Audio track${target.id ? ` '${target.id}'` : ""} ducks under '${source}', which does not exist. ` +
             (known.length ? `Known ids: ${known.join(", ")}.` : "No track has an id.")
         );
       }
