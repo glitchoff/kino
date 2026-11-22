@@ -14,20 +14,39 @@
 import { mkdirSync } from "node:fs";
 import { composition, captionElements, rect, render } from "./src/index.js";
 
-const WIDTH = 480;
-const HEIGHT = 270;
+// Must match `build-previews.mjs`, or this checks a different picture than the
+// one the docs site shows.
+const WIDTH = 960;
+const HEIGHT = 540;
 const FPS = 24;
 const FFMPEG =
   "D:/Projects/Misc/kino/node_modules/.pnpm/ffmpeg-static@5.3.0/node_modules/ffmpeg-static/ffmpeg.exe";
 
 type Word = { word: string; clean: string; start: number; end: number };
 
-/** Mirrors `captionClip` in docs-site/scripts/build-previews.mjs. */
+/**
+ * Mirrors `captionClip` in docs-site/scripts/build-previews.mjs, including the
+ * scaling from the presets' 1280px-tall portrait frame to this one. If the two
+ * drift, this check passes on a clip nobody sees.
+ */
 function captionClip(options: Record<string, unknown>, words: Word[]) {
+  const scale = HEIGHT / 1280;
+  const sized: Record<string, unknown> = { ...options };
+  if (typeof sized.fontSize === "number") {
+    sized.fontSize = Math.max(18, Math.round(sized.fontSize * scale * 1.9));
+  }
+  const text = sized.text as { stroke?: { width: number | string } } | undefined;
+  if (text?.stroke) {
+    sized.text = {
+      ...text,
+      stroke: { ...text.stroke, width: Math.max(1, Math.round(Number(text.stroke.width) * scale * 1.9)) },
+    };
+  }
+
   return composition({ width: WIDTH, height: HEIGHT, fps: FPS })
     .scene({ duration: 3, background: "#111827" }, (s) => {
-      s.add(rect({ width: WIDTH, height: 120, x: 0, y: HEIGHT / 2 - 60, fill: "#2a3446" }));
-      s.addAll(captionElements(words as never, options as never));
+      s.add(rect({ width: WIDTH, height: 240, x: 0, y: HEIGHT / 2 - 120, fill: "#2a3446" }));
+      s.addAll(captionElements(words as never, sized as never));
     })
     .build();
 }

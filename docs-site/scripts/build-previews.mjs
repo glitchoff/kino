@@ -18,8 +18,13 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "..", "public", "previews");
 
-const WIDTH = 480;
-const HEIGHT = 270;
+// Rendered at 2x the on-screen size and scaled down by CSS. The grid cells are
+// a few hundred pixels wide, but they are viewed on retina displays and at
+// browser zoom, where a 480x270 source is visibly soft — and text is the first
+// thing to show it. Doubling costs a little render time and no page weight
+// worth worrying about, because every clip is a flat two-second loop.
+const WIDTH = 960;
+const HEIGHT = 540;
 const FPS = 24;
 const BG_A = "#141c30";
 const BG_B = "#312e81";
@@ -66,17 +71,42 @@ const label = (s, content, extra = {}) =>
  * no audio and is muted, so what matters is the look and the word rhythm, not
  * real speech sync. A dark panel stands in for artwork so the stroke and
  * highlight are visible against something other than flat black.
+ *
+ * The presets are tuned for a 720x1280 portrait frame, and this clip is 960x540
+ * landscape. Using their font sizes unchanged made the text far too large for
+ * the frame and — because `shout-band` carries a 5px stroke meant for 52px text
+ * — left the letters looking blunt and half-filled. Sizes and strokes are
+ * scaled to the preview's own height instead.
  */
-const captionClip = (k, options, words) =>
-  k
+const captionClip = (k, options, words) => {
+  // The portrait presets assume a 1280px-tall frame; this one is 540.
+  const scale = HEIGHT / 1280;
+  const sized = { ...options };
+  if (typeof sized.fontSize === "number") {
+    // Never below 18px: a caption nobody can read demonstrates nothing.
+    sized.fontSize = Math.max(18, Math.round(sized.fontSize * scale * 1.9));
+  }
+  if (sized.text?.stroke) {
+    sized.text = {
+      ...sized.text,
+      // A stroke scales with the text it outlines, never independently.
+      stroke: {
+        ...sized.text.stroke,
+        width: Math.max(1, Math.round(Number(sized.text.stroke.width) * scale * 1.9)),
+      },
+    };
+  }
+
+  return k
     .composition({ width: WIDTH, height: HEIGHT, fps: FPS })
     .scene({ duration: 3, background: "#111827" }, (s) => {
       // A mid-grey block behind the text, so white-on-stroke reads the way it
       // will over a real panel instead of against pure black.
-      s.add(k.rect({ width: WIDTH, height: 120, x: 0, y: HEIGHT / 2 - 60, fill: "#2a3446" }));
-      s.addAll(k.captionElements(words, options));
+      s.add(k.rect({ width: WIDTH, height: 240, x: 0, y: HEIGHT / 2 - 120, fill: "#2a3446" }));
+      s.addAll(k.captionElements(words, sized));
     })
     .build();
+};
 
 /**
  * One clip per feature that shipped after the first release, so every row in

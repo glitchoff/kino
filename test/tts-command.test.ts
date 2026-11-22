@@ -53,9 +53,19 @@ describe("command engine: template", () => {
 
   test("quoteArg escapes an embedded quote", () => {
     const q = quoteArg(`a"b`);
-    expect(q.startsWith('"')).toBe(true);
-    expect(q.endsWith('"')).toBe(true);
-    expect(q).not.toBe('"a"b"');
+    // The rule is platform-specific: Windows uses MSVCRT backslash-escaping
+    // inside double quotes, POSIX uses single quotes (where `"` needs no
+    // escaping at all). Asserting `"` on both platforms only passed on Windows.
+    if (process.platform === "win32") {
+      expect(q.startsWith('"')).toBe(true);
+      expect(q.endsWith('"')).toBe(true);
+      expect(q).not.toBe('"a"b"');
+    } else {
+      expect(q.startsWith("'")).toBe(true);
+      expect(q.endsWith("'")).toBe(true);
+      // Single quotes neutralise a double quote without escaping it.
+      expect(q).toBe(`'a"b'`);
+    }
   });
 });
 

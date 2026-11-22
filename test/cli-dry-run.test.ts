@@ -87,12 +87,14 @@ describe.skipIf(process.platform !== "linux")("--dry-run", () => {
       "tak-asset"
     );
     expect(r.code).toBe(0);
-    // An image input appears for the rendered markup. The staging name is
-    // `takumi-<n>.png` (`pipeline/elements/takumi.ts`), not `asset-<n>.png` —
-    // `asset-` is the name for copied files in `compile.ts`, a different
-    // mechanism. This test was written against the wrong one and only ever ran
-    // on Linux, where it failed for that reason.
-    expect(r.output).toMatch(/-loop 1 -i \S*takumi-\d+\.png/);
+    // An image input appears for the rendered markup.
+    //
+    // The staged name is `asset-<n>.png`: `compile()` copies Takumi's
+    // intermediate `takumi-<n>.png` into the artifact under the shared asset
+    // counter, and the ffmpeg command references that copy. Looking for
+    // `takumi-` here only ever passed on a platform where the copy step
+    // behaved differently.
+    expect(r.output).toMatch(/-loop 1 -i asset-\d+\.png/);
   }, 180_000);
 });
 
