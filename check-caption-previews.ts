@@ -44,10 +44,15 @@ function captionClip(options: Record<string, unknown>, words: Word[]) {
   }
 
   return composition({ width: WIDTH, height: HEIGHT, fps: FPS })
-    .scene({ duration: 3, background: "#111827" }, (s) => {
-      s.add(rect({ width: WIDTH, height: 240, x: 0, y: HEIGHT / 2 - 120, fill: "#2a3446" }));
-      s.addAll(captionElements(words as never, sized as never));
-    })
+    .scene(
+      {
+        duration: 3,
+        background: { type: "gradient", from: "#243352", to: "#0b1020", direction: "vertical" },
+      },
+      (s) => {
+        s.addAll(captionElements(words as never, sized as never));
+      }
+    )
     .build();
 }
 

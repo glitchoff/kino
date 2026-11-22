@@ -99,12 +99,18 @@ const captionClip = (k, options, words) => {
 
   return k
     .composition({ width: WIDTH, height: HEIGHT, fps: FPS })
-    .scene({ duration: 3, background: "#111827" }, (s) => {
-      // A mid-grey block behind the text, so white-on-stroke reads the way it
-      // will over a real panel instead of against pure black.
-      s.add(k.rect({ width: WIDTH, height: 240, x: 0, y: HEIGHT / 2 - 120, fill: "#2a3446" }));
-      s.addAll(k.captionElements(words, sized));
-    })
+    .scene(
+      {
+        duration: 3,
+        // A gradient rather than a flat slab. The stroke needs *something*
+        // behind it — white on flat black with a black outline is invisible —
+        // but a hard-edged grey rectangle reads as a UI panel, not artwork.
+        background: { type: "gradient", from: "#243352", to: "#0b1020", direction: "vertical" },
+      },
+      (s) => {
+        s.addAll(k.captionElements(words, sized));
+      }
+    )
     .build();
 };
 
