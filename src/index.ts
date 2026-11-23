@@ -117,6 +117,7 @@ export type {
   CaptionOptions,
   CaptionImageOptions,
   CaptionStyle,
+  CaptionRender,
   CaptionTiming,
   CaptionLine,
   WordTiming,

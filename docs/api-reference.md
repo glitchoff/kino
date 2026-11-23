@@ -577,6 +577,9 @@ async function render(
 - `browserPath?: string` — Custom Chrome/Chromium executable path for `HtmlElement` compilation. If omitted, Puppeteer uses its bundled browser or automatically installs Chrome when needed.
 - `browser?: "chrome" | "obscura" | "auto"` — Which engine rasterises `HtmlElement`s. Defaults to `"chrome"`. `"obscura"` connects to a running [Obscura](https://docs.obscura.sh/) instance; `"auto"` uses Obscura when one is reachable and Chrome otherwise.
 - `browserUrl?: string` — Obscura's CDP endpoint. Defaults to `OBSCURA_URL`, then `http://127.0.0.1:9222`.
+- `gpuText?: boolean | number` — Render caption text through a GPU glyph atlas instead of `drawtext`. `false` (default) keeps every caption on `drawtext`; `true` sends every caption to the GPU; a **number is a cap**, so only a caption track with more lines than that switches. A caption's own `render` option wins over this. Needs the `gpucap` binary — see `gpuTextPath`. Without it, the GPU path falls back to `drawtext` and logs once.
+- `gpuTextThreshold?: number` — Line count at which `render: "auto"` picks the GPU path. Default `20`.
+- `gpuTextPath?: string` — Path to the `gpucap` binary. Defaults to `gpucap` on `PATH`.
 - `preview?: boolean | number` — Fast preview mode. `true` downscales the output to 144p; a number sets the height in pixels (width follows the source aspect). The encoder also switches to `ultrafast` unless `preset` is given. Only the **output stage** changes, so the scene graph a preview shows is identical to a full render.
 - `assetCache?: boolean` — Cache remote assets on disk, keyed by a SHA-256 of the URL, so re-renders skip the download. Defaults to `true`.
 - `assetCacheDir?: string` — Where the asset cache lives. Defaults to `.kino-cache/` in the working directory, falling back to `~/.cache/kino/assets` if that is not writable.

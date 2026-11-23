@@ -167,6 +167,50 @@ s.addAll(captions(line, { preset: "shout", text: { shadow: { color: "#000", x: 2
 :::preview name="feature-caption-preset" caption="preset: shout"
 :::
 
+### GPU text (opt-in)
+
+`drawtext` is ffmpeg's text filter, and each karaoke word costs it about four
+filters — a `split`, a `crop` to the word box, a second `drawtext` in the
+highlight colour, and an `overlay` to paste it back. That is fine for a handful
+of lines and it is **not** fine for a chapter: a 100-line track emits thousands
+of filters in one serial chain, and the render stalls on the text rather than on
+the encoder.
+
+`render: "gpu"` swaps that for a glyph atlas. Text is laid out with
+cosmic-text, each glyph is rasterised once, and every word becomes a quad — so
+word count stops mattering.
+
+```typescript
+// Opt in per call.
+s.addAll(captions(line, { preset: "shout-band", render: "gpu" }));
+```
+
+It is **off by default and never switches on its own**. Three ways to enable it:
+
+```typescript
+// 1. per caption call
+captions(line, { render: "gpu" })
+
+// 2. every caption in a render
+await render(comp, { output: "out.mp4", gpuText: true })
+
+// 3. a cap: only tracks longer than N lines take the GPU path
+await render(comp, { output: "out.mp4", gpuText: 20 })
+```
+
+A caption's own `render` wins over the render options. `render: "auto"` picks
+`gpu` when the track exceeds `gpuTextThreshold` (default 20 lines) and
+`drawtext` otherwise.
+
+**Requires the `gpucap` binary** on `PATH`, or `gpuTextPath` pointing at it. It
+is not a dependency of kino; without it, `render: "gpu"` falls back to
+`drawtext` and logs once.
+
+**What stays on `drawtext`:** a stroke. The GPU path currently draws fill only,
+so white text over a pale panel has no outline. If a caption needs a stroke
+today, leave it on `drawtext`.
+
+
 :::preview name="feature-caption-shout-band" caption="preset: shout-band"
 :::
 

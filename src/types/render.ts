@@ -122,6 +122,23 @@ export interface RenderOptions {
   scene?: string;
   /** Netscape cookie jar forwarded to yt-dlp as `--cookies`. */
   ytdlpCookies?: string;
+  /**
+   * Render captions through the GPU glyph atlas instead of `drawtext`.
+   *
+   * `false` (default) keeps every caption on `drawtext`. `true` sends every
+   * caption through the GPU renderer. A number is a **cap**: a caption track
+   * with more lines than this switches to the GPU, and a shorter one stays on
+   * `drawtext` — which is the useful default for a chapter, where most scenes
+   * carry one line and a few carry a hundred.
+   *
+   * A caption's own `render` option wins over this. Needs the `gpucap` binary;
+   * see {@link gpuTextPath}.
+   */
+  gpuText?: boolean | number;
+  /** Line count at which `gpuText: true`-style auto-switching kicks in. */
+  gpuTextThreshold?: number;
+  /** Path to the `gpucap` binary. Default `gpucap` on PATH. */
+  gpuTextPath?: string;
 }
 
 /** Preview output height in pixels; `true` maps to 144p. */

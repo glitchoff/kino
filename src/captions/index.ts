@@ -72,8 +72,17 @@ export type CaptionStyle =
   /** A group appears together and stays; no per-word emphasis. */
   | "block";
 
-export interface CaptionOptions {
-  /**
+/**
+ * Which renderer draws caption text.
+ *
+ * `drawtext` is ffmpeg's built-in text filter: crisp, cheap for a handful of
+ * lines, and it costs roughly four filters per karaoke word. `gpu` lays text
+ * out with cosmic-text and draws it through a glyph atlas, which rasterises
+ * each glyph once no matter how many words are on screen.
+ */
+export type CaptionRender = "drawtext" | "gpu" | "auto";
+
+export interface CaptionOptions {  /**
    * A named look from {@link CAPTION_PRESETS}, e.g. `"shout"`.
    *
    * Resolved *under* the rest of these options, so a preset sets the style and
@@ -115,6 +124,23 @@ export interface CaptionOptions {
   at?: number;
   /** Extra text options applied to every generated element. */
   text?: Partial<Omit<TextElement, "type" | "content" | "startAt" | "duration">>;
+  /**
+   * Which text renderer draws these captions.
+   *
+   * - `"drawtext"` (default) — ffmpeg's `drawtext`. Crisp and cheap for a few
+   *   lines, but each karaoke word costs a `split` + `crop` + a second
+   *   `drawtext` + `overlay`. A chapter with a hundred lines emits thousands of
+   *   filters in one serial chain and the render stalls.
+   * - `"gpu"` — text is laid out by cosmic-text and drawn through a GPU glyph
+   *   atlas, then composited. Every glyph is rasterised once, so word count
+   *   stops mattering. Requires the `gpucap` binary (see `render.gpuText`).
+   * - `"auto"` — `"gpu"` when the line count is above
+   *   {@link RenderOptions.gpuTextThreshold}, otherwise `"drawtext"`.
+   *
+   * Opt in per call. Nothing switches renderer on its own unless you ask for
+   * `"auto"`.
+   */
+  render?: CaptionRender;
 }
 
 /** One caption on screen for a span of time, with its words. */
