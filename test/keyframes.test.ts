@@ -10,7 +10,15 @@ import { validateComposition, KinoValidationError } from "../src/validate/index.
 import { getFFmpegBinaryPath } from "../src/encoder/probe.js";
 import type { Easing } from "../src/types/animation.js";
 
-/** Leftmost lit column of a PNG, or -1. */
+/**
+ * Leftmost lit column of a PNG, or -1 when nothing was drawn.
+ *
+ * The frame size is checked rather than assumed: the raw buffer is indexed as
+ * `y * W + x`, so a frame that is not exactly W x H makes every measurement
+ * silently wrong instead of throwing. A -1 here means the glyph never reached
+ * the frame — a font or layout failure — and the caller should say so rather
+ * than compare it against a threshold.
+ */
 function inkLeft(png: string): number {
   const buf = execFileSync(
     getFFmpegBinaryPath(),
@@ -18,10 +26,35 @@ function inkLeft(png: string): number {
     { maxBuffer: 64 * 1024 * 1024 }
   );
   const W = 400;
+  const H = 180;
+  if (buf.length !== W * H) {
+    throw new Error(
+      `inkLeft expected a ${W}x${H} frame but got ${buf.length} bytes; ` +
+        `the measurement below would be meaningless.`
+    );
+  }
   for (let x = 0; x < W; x++) {
-    for (let y = 0; y < 180; y++) if (buf[y * W + x] > 40) return x;
+    for (let y = 0; y < H; y++) if (buf[y * W + x] > 40) return x;
   }
   return -1;
+}
+
+/**
+ * Sample a slide and fail with a useful message when nothing was drawn.
+ *
+ * Without this the -1 from `inkLeft` flows into the assertions and reports
+ * "expected 0 to be greater than 40", which names neither the cause (no glyph
+ * on the frame) nor the fix. CI hit exactly that.
+ */
+async function slideSamples(animation: unknown, times: number[]): Promise<number[]> {
+  const xs = await slide(animation, times);
+  if (xs.some((x) => x < 0)) {
+    throw new Error(
+      `no glyph was drawn at t=${times[xs.indexOf(-1)]}s — the text element ` +
+        `rendered nothing, so this frame cannot measure the animation.`
+    );
+  }
+  return xs;
 }
 
 /** A single glyph sliding right, sampled at the given times. */
@@ -125,7 +158,7 @@ describe("easing expressions", () => {
 
 describe.skipIf(process.platform !== "linux")("keyframed animation — rendered", () => {
   test("a keyframe list moves and then holds", async () => {
-    const xs = await slide(
+    const xs = await slideSamples(
       {
         keyframes: [
           { at: 0, value: 0 },
@@ -146,20 +179,20 @@ describe.skipIf(process.platform !== "linux")("keyframed animation — rendered"
   }, 120_000);
 
   test("the from/to form still works", async () => {
-    const xs = await slide({ from: 0, to: 200, duration: 2, easing: "linear" }, [0, 1, 2]);
+    const xs = await slideSamples({ from: 0, to: 200, duration: 2, easing: "linear" }, [0, 1, 2]);
     expect(xs[0]).toBeLessThan(20);
     expect(xs[1]).toBeGreaterThan(80);
     expect(xs[2]).toBeGreaterThan(180);
   }, 120_000);
 
   test("easeOutBack overshoots its target", async () => {
-    const xs = await slide({ from: 0, to: 100, duration: 1, easing: "easeOutBack" }, [0.6]);
+    const xs = await slideSamples({ from: 0, to: 100, duration: 1, easing: "easeOutBack" }, [0.6]);
     // Overshoot is the whole point: it must pass the end value before settling.
     expect(xs[0]).toBeGreaterThan(104);
   }, 120_000);
 
   test("easeOutBounce rises in steps rather than smoothly", async () => {
-    const xs = await slide({ from: 0, to: 100, duration: 1, easing: "easeOutBounce" }, [0.25, 0.5]);
+    const xs = await slideSamples({ from: 0, to: 100, duration: 1, easing: "easeOutBounce" }, [0.25, 0.5]);
     // A bounce is ahead of linear early and close to the target by halfway.
     expect(xs[0]).toBeGreaterThan(40);
     expect(xs[1]).toBeGreaterThan(70);
@@ -168,7 +201,7 @@ describe.skipIf(process.platform !== "linux")("keyframed animation — rendered"
   test("stills match the video at the same timestamp", async () => {
     // `-ss` used to be an input option, and the lavfi background cannot be
     // seeked: every still came back as t=0, so animations looked frozen.
-    const xs = await slide({ from: 0, to: 200, duration: 2, easing: "linear" }, [0, 0.5, 1, 1.5, 2]);
+    const xs = await slideSamples({ from: 0, to: 200, duration: 2, easing: "linear" }, [0, 0.5, 1, 1.5, 2]);
     for (let i = 1; i < xs.length; i++) {
       expect(xs[i]).toBeGreaterThan(xs[i - 1]);
     }
