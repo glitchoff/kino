@@ -24,7 +24,9 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+const HERE = dirname(
+  typeof __dirname !== "undefined" ? __dirname : fileURLToPath(import.meta.url)
+);
 const PACKAGE_ROOT = resolve(HERE, "..", "..");
 
 /** `win32-x64`, `darwin-arm64`, `linux-x64`, … — the release asset folder name. */
