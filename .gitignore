@@ -334,3 +334,11 @@ examples/assets/q3-train.jpg
 # local preview harness
 preview-ghost.ts
 .kino-ghost-preview/
+
+# Rust build output for the optional gpucap text renderer.
+# Cargo.lock IS committed on purpose: it pins the crates the release was built
+# from, so a local build matches the shipped binary. Excluding it would let a
+# dependency drift between a green CI run and a release — the same trap as a
+# stale dist/.
+rust/gpucap/target/
+bin/

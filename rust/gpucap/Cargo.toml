@@ -1,0 +1,17 @@
+[package]
+name = "gpucap"
+version = "0.1.0"
+edition = "2021"
+description = "GPU caption rasteriser: cosmic-text layout + glyphon glyph atlas, offscreen wgpu render to PNG"
+
+[dependencies]
+wgpu = "30"
+glyphon = "0.12"
+image = { version = "0.25", default-features = false, features = ["png"] }
+pollster = "0.3"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+
+[[bin]]
+name = "gpucap"
+path = "src/main.rs"

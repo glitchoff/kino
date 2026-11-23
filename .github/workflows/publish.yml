@@ -45,5 +45,31 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # gpucap is optional, but a release that ships without it cannot honour
+      # `render: "gpu"` on any machine. Wait for the binary job and assert the
+      # assets exist before publishing, so a missing binary is caught here
+      # rather than by a user whose captions silently fall back to drawtext.
+      - name: Verify gpucap release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          for asset in gpucap-win32-x64.zip gpucap-linux-x64.zip gpucap-darwin-arm64.zip; do
+            found=0
+            for attempt in $(seq 1 40); do
+              if gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$asset"; then
+                found=1
+                break
+              fi
+              echo "waiting for $asset (attempt $attempt)"
+              sleep 15
+            done
+            if [ "$found" -ne 1 ]; then
+              echo "::error::release $tag is missing $asset — the gpucap workflow must finish first"
+              exit 1
+            fi
+          done
+          echo "all gpucap assets present on $tag"
+
       - name: Publish to npm (OIDC trusted publishing)
         run: npm publish

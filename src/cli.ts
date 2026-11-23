@@ -33,8 +33,33 @@ async function setupObscura(): Promise<void> {
   }
 }
 
-async function setupFFmpeg(): Promise<void> {
+/**
+ * Download the optional `gpucap` text renderer for this platform.
+ *
+ * Not a hard requirement: without it captions render with `drawtext`, which is
+ * what they did before this existed. The installer reports that clearly and
+ * exits 0 rather than failing a setup run for a feature nobody asked for.
+ */
+async function setupGpuCap(): Promise<void> {
   const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const script = resolve(moduleDir, "../scripts/install-gpucap.mjs");
+  const { spawnSync } = await import("node:child_process");
+  const result = spawnSync(process.execPath, [script], { stdio: "inherit" });
+  if (result.status !== 0) {
+    console.error("[kino] gpucap setup failed. See the errors above.");
+    process.exit(1);
+  }
+  const { resolveGpuCap } = await import("./captions/gpu.js");
+  const found = resolveGpuCap();
+  if (found) {
+    console.log(`\n  gpucap ready: ${found}`);
+    console.log("  Opt in per caption:  captions(line, { render: \"gpu\" })");
+  } else {
+    console.log("\n  gpucap is not installed. Captions will use drawtext.");
+  }
+}
+
+async function setupFFmpeg(): Promise<void> {  const moduleDir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
   const script = resolve(moduleDir, "../scripts/install-ffmpeg.mjs");
   console.log("[kino] Setting up ffmpeg...");
   const result = spawnSync(process.execPath, [script], { stdio: "inherit", timeout: 900000 });
@@ -172,7 +197,7 @@ async function main() {
     } else if (target === "captions") {
       await setupCaptions();
     } else {
-      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|obscura|ffmpeg|tts|captions]`);
+      console.error(`Error: Unknown setup target '${target}'. Usage: npx kino setup [browser|obscura|ffmpeg|tts|captions|gpucap]`);
       process.exit(1);
     }
     return;
@@ -207,7 +232,7 @@ async function main() {
     npx kino <file> [options]
     npx kino render <file> [options]
     npx kino preview <file> [--port <number>] [--height <px>]
-    npx kino setup [browser|ffmpeg|tts|captions]
+    npx kino setup [browser|ffmpeg|tts|captions|gpucap]
 
   Commands:
     preview <file>         Serve a live preview: scrub by seeking a proxy, or render a playable mp4
@@ -215,6 +240,7 @@ async function main() {
     setup ffmpeg           Install/verify the bundled ffmpeg (downloads the drawtext-enabled Linux build; verifies ffmpeg-static elsewhere)
     setup tts [voice]      Check for Piper and download a voice (pip install piper-tts first)
     setup captions         Install the optional aligner and download its model (~317 MB, for word-perfect captions)
+    setup gpucap           Download the optional GPU text renderer (~10 MB, for render: "gpu" captions)
     render <file>          Render composition to video file
 
   File formats:

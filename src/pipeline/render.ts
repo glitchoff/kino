@@ -5,6 +5,7 @@ import { compile } from "./compile.js";
 import { scratchDir } from "./scratch.js";
 import { resolveTtsTracks, compositionHasTts } from "../tts/resolve.js";
 import { renderTakumiElements } from "./elements/takumi-elements.js";
+import { renderGpuCaptions } from "./elements/gpu-text.js";
 import { extractKino, readKinoManifest } from "../artifact/index.js";
 import { renderSegmented } from "./render-segmented.js";
 import {
@@ -103,6 +104,10 @@ export async function render(
     // Takumi is not. Elements without the prefix still go to a browser inside
     // compile().
     const takumi = await renderTakumiElements(composition);
+    // GPU captions for the same reason: spawning gpucap is async in spirit and
+    // compile() is not. Returns undefined when nothing opted in or the binary
+    // is missing, in which case every caption stays on drawtext.
+    const gpuText = renderGpuCaptions(composition, renderOptions);
     if (options.unsafeInlineText) {
       console.warn(
         "[kino] Warning: unsafeInlineText disables textfile delivery; text with apostrophes may render blank on some platforms."

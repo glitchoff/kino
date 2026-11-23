@@ -1,0 +1,11 @@
+[toolchain]
+# Pinned so local builds and CI agree. `rust/gpucap/Cargo.lock` pins the crates
+# on top of this; bump both together and rebuild dist/ before tagging.
+#
+# Why a pin at all: `wgpu = "30"` resolves to the newest 30.x, so an upstream
+# minor can break the build between a green CI run and a release. This is the
+# same class of failure as a stale `dist/` — the build succeeds and produces
+# something you did not test.
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

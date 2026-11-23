@@ -30,8 +30,33 @@ Nothing below is required. Each one enables a single feature.
 | Narration (`tts()`, `s.say()`) | [Piper](https://github.com/OHF-Voice/piper1-gpl) on `PATH` | see [Sound](#sound) |
 | `yt:` sources | `yt-dlp` on `PATH` | see [Images and video](#images-and-video) |
 | Word-level caption alignment | an aligner | see [Captions](#captions) |
+| GPU caption text (`render: "gpu"`) | the `gpucap` binary | `npx kino setup gpucap` |
 
 Using Obscura instead of Chrome is covered in [Rendering](#rendering).
+
+### GPU caption text
+
+`gpucap` is a small Rust binary that draws caption text through a GPU glyph
+atlas instead of ffmpeg's `drawtext`. It matters for long karaoke tracks: each
+word costs `drawtext` about four filters, so a chapter emits thousands and the
+render stalls on text rather than on the encoder.
+
+```bash
+npx kino setup gpucap      # downloads the binary for this platform
+```
+
+Without it, captions render with `drawtext` exactly as before — the feature is
+opt-in and its absence is never an error. To build it yourself:
+
+```bash
+cd rust/gpucap && cargo build --release   # needs Rust; see rust-toolchain.toml
+```
+
+Then either put `gpucap` on `PATH`, or point `gpuTextPath` at it. The toolchain
+is pinned in `rust-toolchain.toml` and the crates in `Cargo.lock`, so a local
+build matches the released one.
+
+See [Content](./content.md#gpu-text-opt-in) for the options.
 
 ---
 

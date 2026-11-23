@@ -19,7 +19,8 @@
   "files": [
     "dist",
     "assets",
-    "scripts"
+    "scripts",
+    "bin"
   ],
   "publishConfig": {
     "access": "public"

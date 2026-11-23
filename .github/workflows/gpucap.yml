@@ -1,0 +1,107 @@
+name: gpucap binaries
+
+# Builds the optional `gpucap` text renderer for every platform kino supports
+# and attaches the archives to a GitHub release. `scripts/install-gpucap.mjs`
+# downloads from that release by package version, so the tag must match
+# package.json.
+#
+# Runs on `v*` tags (alongside publish.yml) and can be triggered by hand to
+# backfill an existing release.
+#
+# Deliberately independent of the npm publish: a failing Rust build must not
+# block the TypeScript package, because gpucap is optional and captions fall
+# back to drawtext without it. publish.yml asserts the assets exist before it
+# publishes, so a missing binary is caught at release time, not by a user.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to (re)upload binaries to"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win32-x64
+            asset: gpucap-win32-x64.zip
+            binary: gpucap.exe
+          - os: ubuntu-latest
+            target: linux-x64
+            asset: gpucap-linux-x64.zip
+            binary: gpucap
+          - os: macos-latest
+            target: darwin-arm64
+            asset: gpucap-darwin-arm64.zip
+            binary: gpucap
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/gpucap/target
+          key: gpucap-${{ matrix.target }}-${{ hashFiles('rust/gpucap/Cargo.toml', 'rust/gpucap/Cargo.lock') }}
+          restore-keys: gpucap-${{ matrix.target }}-
+
+      - name: Build
+        working-directory: rust/gpucap
+        run: cargo build --release --locked
+
+      - name: Check the binary exists
+        working-directory: rust/gpucap
+        shell: bash
+        run: |
+          test -f "target/release/${{ matrix.binary }}" || { echo "no binary produced"; exit 1; }
+          ls -lh "target/release/${{ matrix.binary }}"
+
+      # A binary that cannot open any adapter is useless to everyone. The Linux
+      # runner has no GPU, so this proves the software fallback works.
+      - name: Smoke test (Linux, software adapter)
+        if: matrix.target == 'linux-x64'
+        working-directory: rust/gpucap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1
+          ./target/release/gpucap --text "smoke test" --out /tmp/smoke.png || {
+            echo "gpucap could not render on a software adapter"; exit 1; }
+          test -s /tmp/smoke.png || { echo "no PNG written"; exit 1; }
+
+      - name: Package
+        working-directory: rust/gpucap
+        shell: bash
+        run: |
+          cd target/release
+          if [ "${{ matrix.binary }}" = "gpucap.exe" ]; then
+            7z a -tzip "${{ github.workspace }}/${{ matrix.asset }}" gpucap.exe
+          else
+            zip "${{ github.workspace }}/${{ matrix.asset }}" "${{ matrix.binary }}"
+          fi
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: ${{ matrix.asset }}
+          fail_on_unmatched_files: true
+          draft: false
