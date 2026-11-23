@@ -103,6 +103,7 @@ export {
   alignerInstallDir,
   defaultCaptionCacheDir,
 } from "./captions/index.js";
+export { resolveGpuCap, bundledGpuCapPath, gpuCapPlatform } from "./captions/gpu.js";
 export {
   CAPTION_PRESETS,
   isCaptionPresetName,

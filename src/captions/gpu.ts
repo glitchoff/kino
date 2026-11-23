@@ -27,7 +27,27 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(
   typeof __dirname !== "undefined" ? __dirname : fileURLToPath(import.meta.url)
 );
-const PACKAGE_ROOT = resolve(HERE, "..", "..");
+
+/**
+ * The package root, found by walking up for `package.json`.
+ *
+ * Not `resolve(HERE, "..", "..")`: this module is bundled into `dist/`, so two
+ * levels up is the folder *containing* the package — `D:\Projects\Misc` when
+ * run from the repo — and the binary is looked for in the wrong place. Walking
+ * up works from `dist/`, from a chunk file, and from `node_modules`.
+ */
+function findPackageRoot(start: string): string {
+  let dir = start;
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(join(dir, "package.json"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return resolve(start, "..");
+}
+
+const PACKAGE_ROOT = findPackageRoot(HERE);
 
 /** `win32-x64`, `darwin-arm64`, `linux-x64`, … — the release asset folder name. */
 export function gpuCapPlatform(): string {

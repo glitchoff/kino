@@ -718,6 +718,10 @@ export function captionElements(
       fontSize,
       fontColor: color,
       ...(captionWords.length ? { captionWords, highlight } : {}),
+      // Carry the renderer choice onto the element: `renderGpuCaptions` reads
+      // it there. Without this the option is accepted and silently ignored,
+      // and every caption renders with drawtext however it was asked for.
+      ...(opts.render ? { render: opts.render } : {}),
       animation: { opacity: { from: 0, to: 1, duration: fade, easing: "easeOut" } },
       ...baseOptions(opts, lineStart, lineDuration),
     } as TextElement;

@@ -162,6 +162,12 @@ export interface TextElement extends BaseElement {
    * the full line, so the element renders sensibly without it.
    */
   captionWords?: CaptionWord[];
+  /**
+   * Which renderer draws this text. Set by `captions(..., { render })`; read by
+   * the GPU caption pass. `undefined` means "whatever the render options say",
+   * which defaults to `drawtext`.
+   */
+  render?: "drawtext" | "gpu" | "auto";
   /** Colour used for the word being spoken. Default `#38bdf8`. */
   highlight?: string;
   fontSize?: number | string;

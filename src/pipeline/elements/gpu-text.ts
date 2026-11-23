@@ -141,9 +141,21 @@ export function renderGpuCaptions(
   mkdirSync(scratch, { recursive: true });
 
   const paths = new Map<number, string>();
-  let elementIndex = -1;
-  let anySucceeded = false;
 
+  // Collect every caption into one manifest and render them in a single
+  // process. One spawn per caption cost ~0.4 s of device and font setup each:
+  // 297 captions paid that 297 times and the whole render came out slower than
+  // drawtext (396 s against 216 s), despite a frame costing 1.1 ms.
+  interface Job {
+    text: string;
+    out: string;
+    font?: string;
+    highlight: number;
+  }
+  const jobs: Job[] = [];
+  const jobOwners: number[] = [];
+
+  let elementIndex = -1;
   for (const scene of scenes) {
     for (const el of scene.elements ?? []) {
       elementIndex++;
@@ -154,48 +166,65 @@ export function renderGpuCaptions(
       mkdirSync(dir, { recursive: true });
       for (const stale of readdirSync(dir)) rmSync(join(dir, stale), { force: true });
 
-      const font =
-        (plan.element as TextElement & { fontFile?: string }).fontFile ?? findBundledFont();
-      const args = [
-        "--text",
-        plan.element.content,
-        "--frames",
-        String(plan.frames),
-        "--sweep",
-        "--frames-dir",
-        dir,
-        "--out",
-        join(dir, "last.png"),
-      ];
-      if (font) args.push("--font", font);
+      const element = plan.element as TextElement & { fontFile?: string };
+      const font = element.fontFile ?? findBundledFont();
+      const out = join(dir, "caption.png");
 
-      const result = spawnSync(binary, args, { encoding: "utf8" });
+      // The spoken word: karaoke marks one word hot. The compiler overlays a
+      // still, so this is a single state rather than a sweep.
+      const words = element.captionWords ?? [];
+      const highlight = words.length > 0 ? Math.min(1, words.length - 1) : -1;
 
-      if (result.error || result.status !== 0) {
-        console.warn(
-          `[kino] gpucap failed for caption ${elementIndex}: ` +
-            `${result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`}. ` +
-            "That caption will render with drawtext."
-        );
-        rmSync(dir, { recursive: true, force: true });
-        continue;
-      }
+      jobs.push({
+        text: element.content,
+        out,
+        ...(font ? { font } : {}),
+        highlight,
+      });
+      jobOwners.push(elementIndex);
+    }
+  }
 
-      const last = join(dir, `frame-${String(plan.frames - 1).padStart(5, "0")}.png`);
-      if (!existsSync(last)) {
-        console.warn(`[kino] gpucap wrote no frames for caption ${elementIndex}; using drawtext.`);
-        rmSync(dir, { recursive: true, force: true });
-        continue;
-      }
+  if (jobs.length === 0) return undefined;
 
-      paths.set(elementIndex, last);
+  const manifest = join(scratch, "jobs.json");
+  writeFileSync(manifest, JSON.stringify(jobs), "utf8");
+
+  const result = spawnSync(binary, ["--manifest", manifest], { encoding: "utf8" });
+
+  if (result.error) {
+    console.warn(
+      `[kino] gpucap failed to run: ${result.error.message}. ` +
+        "Every caption will render with drawtext."
+    );
+    rmSync(scratch, { recursive: true, force: true });
+    return undefined;
+  }
+
+  // The batch exits 0 when at least one caption rendered; individual failures
+  // are reported on stderr and simply fall back.
+  let anySucceeded = false;
+  for (let i = 0; i < jobs.length; i++) {
+    if (existsSync(jobs[i].out)) {
+      paths.set(jobOwners[i], jobs[i].out);
       anySucceeded = true;
     }
   }
 
   if (!anySucceeded) {
+    console.warn(
+      "[kino] gpucap rendered no captions; falling back to drawtext. " +
+        (result.stderr ?? "").trim().split("\n").slice(-3).join(" ")
+    );
     rmSync(scratch, { recursive: true, force: true });
     return undefined;
+  }
+
+  if (paths.size < jobs.length) {
+    console.warn(
+      `[kino] gpucap rendered ${paths.size} of ${jobs.length} captions; ` +
+        "the rest will render with drawtext."
+    );
   }
 
   return {
