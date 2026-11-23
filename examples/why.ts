@@ -11,16 +11,15 @@
  *   npx tsx examples/why.ts
  *   npx tsx examples/why.ts --preview     # 360p, fast, for checking layout
  *
- * Needs the Kokoro venv and model files in the workspace:
- *   .venv-kokoro/Scripts/python.exe
- *   models/kokoro/kokoro-v1.0.onnx
- *   models/kokoro/voices-v1.0.bin
+ * Narration defaults to Piper, which needs only the `piper` binary on PATH
+ * (`pip install piper-tts`). To use a local Kokoro install instead, set
+ * KINO_KOKORO_DIR to the folder holding `.venv-kokoro` and `kokoro-tts.py`.
  *
  * The narration text reaches Kokoro through a file, never an argument:
  * PowerShell mangles Devanagari on the command line.
  */
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -38,13 +37,28 @@ import {
 } from "@glitchoff/kino";
 
 // ---------------------------------------------------------------------------
-// Kokoro as a `command` engine
+// Narration engine
 // ---------------------------------------------------------------------------
+//
+// Defaults to Piper: it is a single binary on PATH, and CI installs it
+// (`pip install piper-tts`) precisely so the TTS examples run there. Point at a
+// local Kokoro instead with KINO_KOKORO_DIR — the venv and kokoro-tts.py are in
+// the paper-ghost workspace, not in this repo.
+//
+// The point of the example is the `command` engine, so it keeps showing how a
+// model Kino does not know about plugs in; Piper is only the default so the
+// file works on a machine that has nothing but kino.
 
-const WORKSPACE = "D:\\Projects\\Misc\\3d-anim";
-const PYTHON = join(WORKSPACE, ".venv-kokoro", "Scripts", "python.exe");
+const WORKSPACE = process.env.KINO_KOKORO_DIR ?? "";
+const PYTHON =
+  process.platform === "win32"
+    ? join(WORKSPACE, ".venv-kokoro", "Scripts", "python.exe")
+    : join(WORKSPACE, ".venv-kokoro", "bin", "python");
 const SCRIPT = join(WORKSPACE, "kokoro-tts.py");
 const VOICE_ID = "hf_alpha";
+
+/** True when a local Kokoro install is present. */
+const KOKORO_READY = WORKSPACE !== "" && existsSync(PYTHON) && existsSync(SCRIPT);
 
 /** A `tts()` spec that runs Kokoro, with the text passed through a file. */
 function kokoro(line: string, rate = 1): TtsOptions {
@@ -63,7 +77,9 @@ function kokoro(line: string, rate = 1): TtsOptions {
 }
 
 /** Synthesises a line now and returns its measured length. */
-const say = (line: string) => voice(line, kokoro(line));
+const say = (line: string) =>
+  KOKORO_READY ? voice(line, kokoro(line)) : voice(line, { engine: "piper", voice: "en_US-lessac-medium" });
+
 
 // ---------------------------------------------------------------------------
 // Look
@@ -276,7 +292,7 @@ const video = {
 export default video;
 
 // Render when run directly.
-if (import.meta.main) {
+if (import.meta.main && !process.argv.includes("--dry-run")) {
   const preview = process.argv.includes("--preview");
   await render(video, {
     output: preview ? "out/why-preview.mp4" : "out/why.mp4",
