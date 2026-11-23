@@ -89,14 +89,23 @@ the common cases.
   Obscura works; `s.tak()` needs neither.
 - **The caption suite takes ~145 s** — `captionImages` rasterises one PNG per
   word. It dominates `pnpm test`.
+- **`drawtext` costs ~4 filters per karaoke word** — `split`, `crop`, a second
+  `drawtext` in the highlight colour, `overlay`. Measured on a real 101-caption
+  chapter: **656 `drawtext`, 554 `crop`, 602 `overlay`** in one serial chain.
+  The render stalls on text, not on the encoder. `render: "gpu"` is the opt-in
+  escape (see `docs/content.md` § "GPU text (opt-in)"); it draws **fill only**,
+  so a caption needing a stroke stays on `drawtext` for now.
 
 ## Conventions worth knowing
 
 - **Servers need a start path that outlives the agent's shell.** A background
   job dies when its timeout expires and takes the listening server with it —
   silently. Use the `.cmd` scripts in `scripts/`: `start-preview.cmd` (:8000),
-  `start-pocket.cmd` (:8200), `start-showcase.cmd` (:4100). "It responded once"
-  is not verification; "it will still be running when the user tries it" is.
+  `start-pocket.cmd` (:8200), `start-showcase.cmd` (:4100). To hand a server
+  over from an agent turn, spawn it with PowerShell `Start-Process` (unowned, so
+  it survives) rather than the shell tool's background mode (owned, so it does
+  not). "It responded once" is not verification; "it will still be running when
+  the user tries it" is.
 - **Pocket TTS answers an unknown voice name with `VOICE_CLONING_UNSUPPORTED`.**
   It treats the name as a path and falls through to cloning, which needs gated
   weights. The message reads like a permissions problem; the real cause is a

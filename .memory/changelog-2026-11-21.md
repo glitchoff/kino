@@ -469,6 +469,19 @@ permissions problem, and the real cause was "the server is not running".
 | `scripts/showcase/start-pocket.cmd` | Pocket TTS at :8200 |
 | `scripts/showcase/start-showcase.cmd` | the showcase at :4100 |
 
+**An agent can also detach a server from its own lifetime** with PowerShell,
+which is what makes a hand-off survive the turn:
+
+```powershell
+Start-Process -FilePath ".\.venv-pocket\Scripts\python.exe" `
+  -ArgumentList "-m","pocket_tts","serve","--port","8200" `
+  -WindowStyle Hidden
+```
+
+`Start-Process` spawns a process the agent's shell does not own, so it is not
+killed when the shell's timeout expires. A background job from the shell tool
+**is** owned, and is always killed.
+
 **What it means for verification.** "It responded once" is not the test. The
 test is "it will still be running when the user tries it". Any server handed
 over has to have a start path that does not depend on an agent's shell lifetime.
