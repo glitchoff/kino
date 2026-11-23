@@ -92,9 +92,15 @@ the common cases.
 - **`drawtext` costs ~4 filters per karaoke word** — `split`, `crop`, a second
   `drawtext` in the highlight colour, `overlay`. Measured on a real 101-caption
   chapter: **656 `drawtext`, 554 `crop`, 602 `overlay`** in one serial chain.
-  The render stalls on text, not on the encoder. `render: "gpu"` is the opt-in
-  escape (see `docs/content.md` § "GPU text (opt-in)"); it draws **fill only**,
-  so a caption needing a stroke stays on `drawtext` for now.
+  The render stalls on text, not on the encoder.
+- **The GPU text path is SLOWER end to end, despite being faster per frame.**
+  Four full 5:16 renders of the same chapter: `drawtext` **216 s**; GPU with a
+  PNG per caption frame 532 s; GPU one-process-per-caption 396 s; GPU **batch
+  mode 238 s**. The 1.1 ms/frame figure is real but measures the wrong unit — a
+  *caption* costs 22 ms plus a PNG written, read back, decoded and uploaded,
+  while `drawtext` runs entirely inside ffmpeg with no I/O. `render: "gpu"` is
+  opt-in and correct; it is not a speed-up at 720×1280. The one untried lever is
+  piping raw RGBA instead of PNGs.
 
 ## Conventions worth knowing
 

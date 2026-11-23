@@ -37,13 +37,16 @@ Using Obscura instead of Chrome is covered in [Rendering](#rendering).
 ### GPU caption text
 
 `gpucap` is a small Rust binary that draws caption text through a GPU glyph
-atlas instead of ffmpeg's `drawtext`. It matters for long karaoke tracks: each
-word costs `drawtext` about four filters, so a chapter emits thousands and the
-render stalls on text rather than on the encoder.
+atlas instead of ffmpeg's `drawtext`.
 
 ```bash
 npx kino setup gpucap      # downloads the binary for this platform
 ```
+
+**It is not automatically faster.** On a real 5:16 chapter it rendered 10%
+*slower* than `drawtext` (238 s against 216 s), because each caption becomes a
+PNG that is written, read back, decoded and uploaded. Measure before switching a
+chapter over — see [Content](./content.md#measure-before-you-switch).
 
 Without it, captions render with `drawtext` exactly as before — the feature is
 opt-in and its absence is never an error. To build it yourself:

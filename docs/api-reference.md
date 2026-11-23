@@ -579,7 +579,9 @@ async function render(
 - `browserUrl?: string` — Obscura's CDP endpoint. Defaults to `OBSCURA_URL`, then `http://127.0.0.1:9222`.
 - `gpuText?: boolean | number` — Render caption text through a GPU glyph atlas instead of `drawtext`. `false` (default) keeps every caption on `drawtext`; `true` sends every caption to the GPU; a **number is a cap**, so only a caption track with more lines than that switches. A caption's own `render` option wins over this. Needs the `gpucap` binary — see `gpuTextPath`. Without it, the GPU path falls back to `drawtext` and logs once.
 - `gpuTextThreshold?: number` — Line count at which `render: "auto"` picks the GPU path. Default `20`.
-- `gpuTextPath?: string` — Path to the `gpucap` binary. Defaults to `gpucap` on `PATH`.
+- `gpuTextPath?: string` — Path to the `gpucap` binary. Defaults to `gpucap` on `PATH`, then the binary shipped in `bin/<platform>-<arch>/`. A path given here that does not exist **throws**, because it is a configuration mistake; every other failure falls back to `drawtext`.
+
+> **The GPU path is not automatically faster.** Measured on a 5:16 chapter at 720×1280 it was 10% *slower* than `drawtext` (238 s against 216 s) — a caption costs 22 ms plus a PNG round-trip, against a filtergraph that runs entirely inside ffmpeg. Time both before switching. See [Content](./content.md#measure-before-you-switch).
 - `preview?: boolean | number` — Fast preview mode. `true` downscales the output to 144p; a number sets the height in pixels (width follows the source aspect). The encoder also switches to `ultrafast` unless `preset` is given. Only the **output stage** changes, so the scene graph a preview shows is identical to a full render.
 - `assetCache?: boolean` — Cache remote assets on disk, keyed by a SHA-256 of the URL, so re-renders skip the download. Defaults to `true`.
 - `assetCacheDir?: string` — Where the asset cache lives. Defaults to `.kino-cache/` in the working directory, falling back to `~/.cache/kino/assets` if that is not writable.

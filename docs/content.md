@@ -206,9 +206,31 @@ A caption's own `render` wins over the render options. `render: "auto"` picks
 is not a dependency of kino; without it, `render: "gpu"` falls back to
 `drawtext` and logs once.
 
-**What stays on `drawtext`:** a stroke. The GPU path currently draws fill only,
-so white text over a pale panel has no outline. If a caption needs a stroke
-today, leave it on `drawtext`.
+**Strokes are supported.** The outline is drawn as the text at N points around
+a circle of the stroke radius, which stays even at any width. It costs about
+11% of a frame (1.24 against 1.12 ms for `shout-band`).
+
+### Measure before you switch
+
+The GPU path is **not automatically faster**. On a 105-beat, 5:16 chapter at
+720×1280 the whole render came out **10% slower** than `drawtext`:
+
+| render | time |
+|---|---|
+| `drawtext` | **216 s** |
+| GPU, one PNG per caption frame | 532 s |
+| GPU, one process per caption | 396 s |
+| GPU, batch mode (current) | 238 s |
+
+The reason: a frame costs 1.1 ms, but a *caption* costs 22 ms plus a PNG that
+is written to disk, read back, decoded and uploaded. That round-trip is larger
+than the filtergraph it replaces at this size. `drawtext` runs entirely inside
+the ffmpeg process, with no I/O at all.
+
+Where the GPU path is likely to win: many more captions, a larger frame, or a
+machine where the filtergraph is the measured bottleneck. Time both before
+switching a chapter over — and count frames afterwards, because a render that
+loses captions still exits 0.
 
 
 :::preview name="feature-caption-shout-band" caption="preset: shout-band"
