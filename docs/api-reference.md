@@ -296,26 +296,11 @@ preview.close();
 | `height` | `number` | Proxy height in pixels. Default 360 |
 | `format` | `"png" \| "jpg"` | Default `png` |
 | `ffmpegPath` | `string` | Override the binary |
-| `startAt` | `number` | Timeline second the proxy starts at. Default 0 |
-| `windowSeconds` | `number` | Timeline seconds the proxy covers. Default `Infinity` |
-| `frameCacheMB` | `number` | RAM budget for decoded frames. Default 512 |
 
 **Cost.** Measured on a 10-second 640×360 composition: opening a session is
 ~570 ms (compile plus proxy render), then each frame is ~30 ms. `exportComposition({ frames })`
 costs ~200 ms per frame for the same composition, so a session is roughly 5×
 cheaper from the second frame onward.
-
-**On a long composition, window it.** A full proxy is a complete render of every
-frame before the first one appears — 58 s on a 164 s chapter at 360p. The same
-chapter windowed to 4 s opens in **1.7 s** (35×). A window is a faithful slice:
-scenes compile identically wherever they sit, because each scene's clock starts at
-zero. The window snaps back to the containing scene's start and trims only the
-tail, so no timing is re-based, and frames from two windows over the same region
-are byte-identical.
-
-```typescript
-const preview = await Preview.open(comp, { height: 360, startAt: 40, windowSeconds: 4 });
-```
 
 The proxy is deliberately small and lossy — a preview is for judging layout and
 timing, not colour. Render with `render()` when it looks right.

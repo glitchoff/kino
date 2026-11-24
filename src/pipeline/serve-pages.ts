@@ -285,19 +285,13 @@ async function build() {
     dur.textContent = fmt(DURATION);
 
     // Scene markers, so the timeline shows structure instead of one bar.
-    //
-    // The server sends only the scenes the proxy covers, already shifted into
-    // proxy-local time, so these positions are relative to what is on screen.
     scenes.innerHTML = "";
     if (d.scenes && d.scenes.length) {
       for (const s of d.scenes) {
-        const left = Math.max(0, Math.min(DURATION, s.start));
-        const right = Math.max(0, Math.min(DURATION, s.start + s.duration));
-        if (right <= left) continue;
         const m = document.createElement("div");
         m.className = "scene";
-        m.style.left = (left / DURATION) * 100 + "%";
-        m.style.width = ((right - left) / DURATION) * 100 + "%";
+        m.style.left = (s.start / DURATION) * 100 + "%";
+        m.style.width = (s.duration / DURATION) * 100 + "%";
         m.title = s.id + " — " + s.duration.toFixed(2) + "s";
         scenes.appendChild(m);
       }

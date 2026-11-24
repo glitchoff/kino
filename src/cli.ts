@@ -212,9 +212,7 @@ async function main() {
   if (args[0] === "preview" || args[0] === "serve") {
     const file = args.slice(1).find((a) => !a.startsWith("-"));
     if (!file) {
-      console.error(
-        "Usage: npx kino preview <composition.ts> [--port <n>] [--height <px>] [--start <s>] [--window <s>]"
-      );
+      console.error("Usage: npx kino preview <composition.ts> [--port <n>] [--height <px>]");
       process.exit(1);
     }
 
@@ -223,19 +221,12 @@ async function main() {
     const heightIdx = args.findIndex((a) => a === "--height");
     const height = heightIdx !== -1 && args[heightIdx + 1] ? Number(args[heightIdx + 1]) || 360 : 360;
 
-    // A window makes the first frame appear in seconds instead of minutes on a
-    // long composition: the proxy only builds the scenes you are looking at.
-    const startIdx = args.findIndex((a) => a === "--start");
-    const startAt = startIdx !== -1 && args[startIdx + 1] ? Number(args[startIdx + 1]) : undefined;
-    const windowIdx = args.findIndex((a) => a === "--window");
-    const windowSeconds = windowIdx !== -1 && args[windowIdx + 1] ? Number(args[windowIdx + 1]) : undefined;
-
     const fullPath = resolve(file);
     const composition = await loadComposition(fullPath);
     const { serve } = await import("./pipeline/serve.js");
     // Held open until the process is killed; a watcher restarting the process
     // is how a source change reaches the browser.
-    await serve(composition, { port, height, startAt, windowSeconds });
+    await serve(composition, { port, height });
     return;
   }
 
@@ -246,7 +237,7 @@ async function main() {
   Usage:
     npx kino <file> [options]
     npx kino render <file> [options]
-    npx kino preview <file> [--port <number>] [--height <px>] [--start <s>] [--window <s>]
+    npx kino preview <file> [--port <number>] [--height <px>]
     npx kino setup [browser|ffmpeg|tts|captions|gpucap]
 
   Commands:
@@ -270,8 +261,6 @@ async function main() {
   }
   console.log(`    -p, --port <number>    Port for the preview server (default: 3333)
     --height <px>          Preview proxy height (default: 360)
-    --start <seconds>      Build the proxy from this timeline position (default: 0)
-    --window <seconds>     Proxy length; omit for the whole composition
 `);
     process.exit(0);
   }

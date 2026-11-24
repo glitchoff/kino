@@ -35,8 +35,6 @@ npx kino preview composition.ts --height 480
 | --- | --- | --- |
 | `-p, --port <number>` | `3333` | Port for the preview server |
 | `--height <px>` | `360` | Height of the preview proxy |
-| `--start <seconds>` | `0` | Timeline position the proxy starts at |
-| `--window <seconds>` | whole clip | Proxy length; a 4 s window on a 164 s chapter builds in 1.7 s against 58 s |
 
 `serve` is an alias for `preview`.
 
