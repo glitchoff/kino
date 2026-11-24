@@ -67,6 +67,24 @@ export interface ServeOptions extends Omit<RenderOptions, "output" | "cache" | "
    */
   frameCacheMB?: number;
   /**
+   * Timeline second the proxy should cover. Default 0.
+   *
+   * The proxy is built for a window of the timeline rather than the whole
+   * composition, because a full build is a complete render of every frame
+   * before the first one appears. Measured on a 164 s chapter at 360p: 61.8 s
+   * full against 1.3 s for a 4 s window.
+   */
+  startAt?: number;
+  /**
+   * Timeline seconds the proxy should cover. Default `Infinity`, meaning the
+   * whole composition.
+   *
+   * Set this when iterating on one region of a long clip. A seek past the
+   * window clamps to its end rather than failing; restart with a different
+   * `startAt` to move the window.
+   */
+  windowSeconds?: number;
+  /**
    * Composite frames live instead of building a proxy. **Default false.**
    *
    * Kept as an option because the graph work behind it is sound (see
@@ -179,6 +197,8 @@ export async function serve(
             format: "jpg",
             frameCacheMB: options.frameCacheMB,
             live: options.live,
+            startAt: options.startAt,
+            windowSeconds: options.windowSeconds,
           })
         );
       }
@@ -188,16 +208,38 @@ export async function serve(
       await session.warmCache();
       const cacheMs = Date.now() - warmStart;
 
+      // Captured once: the object below is built inside `c.json()`, where TS
+      // cannot carry the narrowing from the `if (!session)` above.
+      const s = session;
       return c.json({
         success: true,
         ms: Date.now() - started,
         cacheMs,
-        live: session.isLive,
-        duration: session.length,
-        fps: session.frameRate,
-        size: session.size,
-        cache: await session.getCacheStats(),
-        scenes: sceneMarkers,
+        live: s.isLive,
+        // What this proxy covers, not the composition's full length: the page
+        // lays its scrub bar out from these, and a windowed proxy holds only
+        // its window's frames.
+        duration: s.window,
+        offset: s.offset,
+        totalDuration: s.length,
+        fps: s.frameRate,
+        size: s.size,
+        cache: await s.getCacheStats(),
+        // Only the scenes this proxy can show, in proxy-local time. Sending the
+        // whole timeline's markers made the page lay out 56 bars over a 4 s
+        // window, 42 of them past its end.
+        //
+        // Shifted into proxy time, kept if they overlap it, and clamped to its
+        // ends: the scene straddling the window's edge is genuinely cut there,
+        // so its bar must stop at the edge too.
+        scenes: sceneMarkers
+          .map((m) => ({ ...m, start: m.start - s.offset, end: m.start + m.duration - s.offset }))
+          .filter((m) => m.end > 0 && m.start < s.window)
+          .map((m) => {
+            const start = Math.max(0, m.start);
+            const end = Math.min(s.window, m.end);
+            return { id: m.id, start, duration: end - start };
+          }),
       });
     } catch (err: unknown) {
       const e = err as { message?: string };
@@ -215,7 +257,10 @@ export async function serve(
    */
   app.get("/api/frame", async (c) => {
     if (!session) return c.json({ success: false, error: "no proxy yet" }, 409);
-    const t = Number(c.req.query("t") ?? "0");
+    // `t` is in the proxy's own clock (0 .. duration), which is what the page
+    // lays its scrub bar out in. `rawFrameAt` wants timeline-absolute seconds,
+    // so a windowed proxy has its offset added here rather than in the page.
+    const t = Number(c.req.query("t") ?? "0") + session.offset;
     if (!Number.isFinite(t)) return c.json({ success: false, error: "bad t" }, 400);
 
     if (c.req.query("raw")) {

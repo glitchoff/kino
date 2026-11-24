@@ -45,6 +45,38 @@ The first interaction in either mode is a full render at proxy size. There is no
 way around that: nothing can show you a frame it has not drawn yet. For a real
 266 s composition that build is ~580 s at 144p; everything after it is realtime.
 
+## Window the proxy while you iterate
+
+Building the whole timeline to look at one beat is the expensive part, and it is
+avoidable. `--start` and `--window` build the proxy for a slice of the timeline
+only:
+
+```bash
+npx kino preview composition.ts --start 40 --window 4
+```
+
+Measured on a 164 s, 56-scene chapter at 360p: **58 s for the whole proxy against
+1.7 s for a 4 s window** — 35x to the first frame.
+
+A window is a faithful slice, not an approximation. Every scene's clock starts at
+zero (`setpts=PTS-STARTPTS`, scene-relative `startAt`, `enable='between(t,…)'`),
+so a scene compiles identically whether it is at the start of a window or in the
+middle of the timeline. The window snaps back to the start of the scene
+containing `--start`, and trims only the **tail**, so no timing has to be
+re-based. Frames from a 4 s window and an 8 s window over the same region are
+byte-identical.
+
+A seek past the window clamps to its end rather than failing. Move the window by
+restarting with a different `--start`; the segments that did not change are
+reused.
+
+From code:
+
+```ts
+await serve(video, { startAt: 40, windowSeconds: 4 });
+await Preview.open(video, { startAt: 40, windowSeconds: 4 });
+```
+
 ## HMR
 
 `serve()` writes a boot id on start, and the page polls it. When the id changes

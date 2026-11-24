@@ -4,6 +4,8 @@ export type { ServeOptions, ServeHandle } from "./pipeline/serve.js";
 export { getFFmpegBinaryPath } from "./encoder/probe.js";
 export { Preview, previewFrames } from "./pipeline/preview.js";
 export type { PreviewOptions, PreviewFrame } from "./pipeline/preview.js";
+export { windowComposition, sceneSpans, compositionDuration } from "./pipeline/window.js";
+export type { SceneSpan } from "./pipeline/window.js";
 export { inspect } from "./inspect/index.js";
 export type {
   InspectReport,

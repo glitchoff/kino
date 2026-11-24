@@ -10,6 +10,7 @@ import { FrameCache } from "./frame-cache.js";
 import { LiveRenderer } from "./live-renderer.js";
 import { videoOnlyArgs } from "./video-only.js";
 import { scratchDir } from "./scratch.js";
+import { windowComposition } from "./window.js";
 import { resolveTtsTracks, compositionHasTts } from "../tts/resolve.js";
 
 /**
@@ -47,6 +48,27 @@ export interface PreviewOptions {
    * it. See `scratchRoot`.
    */
   scratchDir?: string;
+  /**
+   * Timeline second the proxy should start at. Default 0.
+   *
+   * The proxy is built for a window of the timeline, not the whole thing,
+   * because a full build is a complete render of every frame before the first
+   * one is shown. Measured on a 164 s chapter at 360p: 61.8 s full against 1.3 s
+   * for a 4 s window. See `window.ts`.
+   *
+   * The window snaps back to the start of the scene containing `startAt`, so
+   * nothing is ever trimmed at its head — a scene's clock always begins at zero,
+   * which is what keeps `enable` windows and animations correct.
+   */
+  startAt?: number;
+  /**
+   * How many timeline seconds the proxy should cover. Default `Infinity`.
+   *
+   * Ignored when it exceeds the composition, so a short clip compiles whole.
+   * A seek past the window is clamped to its end rather than failing; ask for a
+   * new window to cover a different region.
+   */
+  windowSeconds?: number;
   /**
    * Composite frames live instead of building a proxy file. **Experimental.**
    *
@@ -102,7 +124,11 @@ export class Preview {
     width: number,
     height: number,
     frameCacheMB: number,
-    live?: LiveRenderer
+    live?: LiveRenderer,
+    /** Timeline seconds at which this proxy starts. 0 when it covers everything. */
+    private readonly windowStart = 0,
+    /** Timeline seconds this proxy covers. Equal to `duration` when unbounded. */
+    private readonly windowSeconds = 0
   ) {
     this.width = width;
     this.height = height;
@@ -147,6 +173,10 @@ export class Preview {
 
       const takumi = await renderTakumiElements(composition);
       const height = options.height ?? 360;
+      // The proxy covers a window of the timeline, not the timeline. Its length
+      // and its frame count both come from the window, so the frame cache
+      // indexes it correctly and a seek maps to `windowStart + t`.
+      const win = windowComposition(composition, options.startAt ?? 0, options.windowSeconds ?? Infinity);
       // `preview` bakes the downscale into the filtergraph and switches the
       // encoder to ultrafast/CRF 30 — exactly the proxy this needs. Adding a
       // `-vf` on top is not possible: the compiled args already use
@@ -154,7 +184,11 @@ export class Preview {
       // the same stream.
       let kino;
       try {
-        kino = compile(composition, {
+        // A window is compiled on its own, so `compile()` sizes every scene's
+        // background by that scene's duration instead of the whole timeline's.
+        // A 164 s chapter compiles to ~35 ms of graph instead of ~1,450 ms and
+        // renders in ~1.3 s instead of ~62 s — see window.ts.
+        kino = compile(win.composition, {
           output: join(dir, "full.mp4"),
           takumiRenders: takumi.paths,
           preview: height,
@@ -172,6 +206,7 @@ export class Preview {
 
       const { normalizeComposition } = await import("../normalize/composition.js");
       const norm = normalizeComposition(composition);
+      const winNorm = normalizeComposition(win.composition);
       const proxyHeight = height;
       const proxyWidth = Math.round((height * norm.width) / norm.height / 2) * 2;
 
@@ -221,7 +256,8 @@ export class Preview {
       ], extractDir);
 
       // Duration comes from the normalized composition; asking ffprobe would be
-      // another process for a number we already have.
+      // another process for a number we already have. A windowed proxy reports
+      // the window's length, because that is what its frames span.
       return new Preview(
         proxyPath,
         dir,
@@ -231,7 +267,10 @@ export class Preview {
         ffmpeg,
         proxyWidth,
         proxyHeight,
-        options.frameCacheMB ?? 512
+        options.frameCacheMB ?? 512,
+        undefined,
+        win.start,
+        winNorm.duration
       );
     } catch (err) {
       rmSync(dir, { recursive: true, force: true });
@@ -242,6 +281,29 @@ export class Preview {
   /** Duration of the composition, in seconds. */
   get length(): number {
     return this.duration;
+  }
+
+  /** Timeline seconds this proxy actually covers. */
+  get window(): number {
+    return this.windowSeconds > 0 ? this.windowSeconds : this.duration;
+  }
+
+  /** Timeline second at which the proxy starts. 0 for a full proxy. */
+  get offset(): number {
+    return this.windowStart;
+  }
+
+  /**
+   * Map a timeline timestamp onto the proxy's own clock.
+   *
+   * The proxy may cover only a window, so `t` is shifted by `windowStart` and
+   * clamped into `[0, windowSeconds)`. A caller keeps asking in whole-timeline
+   * seconds and never has to know a window exists.
+   */
+  private toProxyTime(at: number): number {
+    const span = this.windowSeconds > 0 ? this.windowSeconds : this.duration;
+    const local = at - this.windowStart;
+    return Math.max(0, Math.min(span - 1 / this.fps, local));
   }
 
   /**
@@ -283,7 +345,10 @@ export class Preview {
       width: this.width,
       height: this.height,
       fps: this.fps,
-      duration: this.duration,
+      // The proxy's length, not the composition's: a windowed proxy holds only
+      // its window's frames, and a cache sized for the whole timeline would
+      // index past its own end and serve nothing.
+      duration: this.window,
       budgetBytes: this.cacheBytes,
     })
       .then((c) => {
@@ -320,8 +385,7 @@ export class Preview {
    * back to {@link rawFrameBySeeking}.
    */
   rawFrame(at: number): { data: Buffer; width: number; height: number } | undefined {
-    const clamped = Math.max(0, Math.min(this.duration - 1 / this.fps, at));
-    const data = this.cachedFrameAt(clamped);
+    const data = this.cachedFrameAt(this.toProxyTime(at));
     if (!data) return undefined;
     return { data, width: this.width, height: this.height };
   }
@@ -334,7 +398,7 @@ export class Preview {
    * to know which mode is running.
    */
   async rawFrameBySeeking(at: number): Promise<{ data: Buffer; width: number; height: number }> {
-    const clamped = Math.max(0, Math.min(this.duration - 1 / this.fps, at));
+    const clamped = this.toProxyTime(at);
 
     if (this.live) {
       const frame = await this.live.frame(clamped);
@@ -366,8 +430,7 @@ export class Preview {
     // costs one decode; a miss after that would mean seeking, so this is what
     // keeps a drag inside a region fast.
     if (this.cache) {
-      const clamped = Math.max(0, Math.min(this.duration - 1 / this.fps, at));
-      await this.cache.ensure(this.cache.frameAt(clamped));
+      await this.cache.ensure(this.cache.frameAt(this.toProxyTime(at)));
     }
     return this.rawFrame(at) ?? (await this.rawFrameBySeeking(at));
   }
@@ -425,7 +488,7 @@ export class Preview {
    */
   async frame(at: number): Promise<PreviewFrame> {
     const t0 = Date.now();
-    const clamped = Math.max(0, Math.min(this.duration - 1 / this.fps, at));
+    const clamped = this.toProxyTime(at);
     const mime = this.format === "jpg" ? "image/jpeg" : "image/png";
 
     await this.ensureCache();
