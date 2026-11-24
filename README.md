@@ -7,8 +7,9 @@ A TypeScript library that compiles video compositions to MP4 through FFmpeg.
 - **Fast by default** — GPU hardware encoding with automatic CPU fallback.
 - **Portable** — compile to a self-contained `.kino` artifact and render offline anywhere.
 
-> JSON compositions are still accepted everywhere and remain supported, but new
-> work targets the scripting API. See [Code Compositions](./docs/getting-started.md#-code-compositions).
+> JSON is not an input format. Compositions are authored in TypeScript so
+> options are typed, defaults resolve, and helpers like `voice()` can be awaited.
+> See [Code Compositions](./docs/getting-started.md#-code-compositions).
 
 ## Installation
 

@@ -141,7 +141,6 @@ async function setupCaptions(): Promise<void> {
 /**
  * Load a composition from disk.
  *
- * - `.json`        parsed as JSON
  * - `.mjs` / `.js` imported as an ES module
  * - `.ts`          transpiled in-process, then imported (no extra dependency
  *                  required — uses Node's built-in type stripping where
@@ -150,13 +149,20 @@ async function setupCaptions(): Promise<void> {
  * A module may `export default <composition | builder>`, or export a named
  * `composition` / `scene`. A function export is called (and awaited) so a
  * composition can be generated per run.
+ *
+ * `.json` compositions are not supported. A composition is authored in code so
+ * that options are typed, defaults are resolved, and helper functions like
+ * `voice()` can be awaited; a JSON file bypasses all of that.
  */
 async function loadComposition(fullPath: string): Promise<KinoComposition> {
   const ext = fullPath.slice(fullPath.lastIndexOf("."));
   const isModule = [".ts", ".mts", ".js", ".mjs"].includes(ext);
 
   if (!isModule) {
-    return JSON.parse(readFileSync(fullPath, "utf-8")) as KinoComposition;
+    throw new Error(
+      `${fullPath} is not a composition file. kino reads .ts, .mts, .js and .mjs; ` +
+        `JSON compositions are not supported.`
+    );
   }
 
   const mod = await import(pathToFileURL(fullPath).href);
@@ -245,7 +251,6 @@ async function main() {
 
   File formats:
     .ts / .js / .mjs       Code composition, e.g. export default composition(...).build()
-    .json                  JSON composition file (still supported)
     .kino                  Pre-compiled .kino artifact (renders without recompiling)
 
   Options:
@@ -269,7 +274,7 @@ async function main() {
   const isUnsafeInlineText = opts.unsafeInlineText ?? false;
 
   if (!inputPath) {
-    console.error("Error: Please provide a valid input file (.ts, .json or .kino) or use `npx kino preview <file>`.");
+    console.error("Error: Please provide a valid input file (.ts, .js, .mjs or .kino) or use `npx kino preview <file>`.");
     process.exit(1);
   }
 

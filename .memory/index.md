@@ -1,12 +1,12 @@
 # Current state
 
-Last updated: 2026-11-21
+Last updated: 2026-11-24
 
 ## What kino is
 
 Scripting-first video engine: TypeScript compositions compiled to MP4 via
-FFmpeg. Published as `@glitchoff/kino`. JSON compositions are still accepted as
-the legacy/interop format.
+FFmpeg. Published as `@glitchoff/kino`. **JSON is not an input format** — the
+CLI reads `.ts`/`.mts`/`.js`/`.mjs` and `.kino` artifacts only.
 
 Agents are the primary author. That shapes the design: `inspect()` and
 `measureText()` answer questions without rendering, `Preview` scrubs at ~30 ms a

@@ -14,8 +14,10 @@ The input can be:
 | Extension | What it is |
 | --- | --- |
 | `.ts` / `.js` / `.mjs` | A code composition, e.g. `export default composition(...).build()` |
-| `.json` | A JSON composition |
 | `.kino` | A pre-compiled artifact, which renders without recompiling |
+
+JSON compositions are **not** supported. Author in code so options are typed,
+defaults resolve, and helpers such as `voice()` can be awaited.
 
 ## Preview while you work
 

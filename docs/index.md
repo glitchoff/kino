@@ -54,7 +54,7 @@ The same file runs from the command line:
 npx kino hello.ts -o out.mp4
 ```
 
-> **JSON is legacy but supported.** A composition is plain JSON-safe data, so
-> object literals and `.json` files work anywhere the builder does. New features
-> land in the builder first; the data shape is documented in the
-> [Composition Reference](./schema-reference.md).
+> **JSON is not an input format.** A composition is authored in code, so options
+> are typed, defaults are resolved, and helpers such as `voice()` can be awaited.
+> `.json` files are rejected by the CLI. The data shape the builder produces is
+> documented in the [Composition Reference](./schema-reference.md).
