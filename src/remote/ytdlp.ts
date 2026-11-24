@@ -58,6 +58,25 @@ function ytdlpBinary(): string {
  * on keyframes. Kino trims afterwards with `trimStart`/`duration`, which is
  * frame-accurate.
  */
+/**
+ * Quote one argument for `cmd.exe`.
+ *
+ * `spawnSync` with `shell: true` joins argv with spaces and hands the result to
+ * cmd, so an argument is only safe if it contains nothing cmd interprets. The
+ * format selector `bv*[height<=720]+ba/b[height<=720]/bv*+ba/b` does: `<` and
+ * `>` are redirection operators, `&` and `|` are separators.
+ *
+ * Double quotes suppress all of them. An argument with no metacharacter is left
+ * alone so ordinary paths stay readable in a logged command line.
+ */
+function quoteForShell(arg: string): string {
+  if (arg === "") return '""';
+  if (!/[\s<>&|^()"'%]/.test(arg)) return arg;
+  // cmd has no escape for `"` inside a quoted string; doubling it is the
+  // documented convention for these paths.
+  return `"${arg.replace(/"/g, '""')}"`;
+}
+
 export function fetchWithYtdlp(url: string, options: YtdlpFetchOptions): string {
   const maxHeight = options.maxHeight ?? 720;
   const key = cacheKey(url, maxHeight);
@@ -106,11 +125,21 @@ export function fetchWithYtdlp(url: string, options: YtdlpFetchOptions): string 
   // and needs no shell, but a `.cmd` shim (pip's user-site wrapper, or the test
   // stub) can only be launched through one. `shell: true` on Windows is the
   // price of accepting both.
-  const res = spawnSync(ytdlpBinary(), args, {
+  //
+  // **The cost is quoting.** With a shell, Node concatenates argv without
+  // escaping it, so cmd reinterprets characters in the arguments themselves.
+  // The format selector contains `<` and `>`, which cmd reads as redirection:
+  // `bv*[height<=720]` makes it look for a file named `height=` and the spawn
+  // dies with "The system cannot find the file specified". Quoting every
+  // argument that holds a shell metacharacter is what keeps the selector intact.
+  const useShell = process.platform === "win32";
+  const argv = useShell ? args.map(quoteForShell) : args;
+
+  const res = spawnSync(ytdlpBinary(), argv, {
     encoding: "utf-8",
     timeout: 600_000,
     maxBuffer: 32 * 1024 * 1024,
-    shell: process.platform === "win32",
+    shell: useShell,
   });
 
   if (res.error) {

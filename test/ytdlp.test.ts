@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fetchWithYtdlp, isYtdlpSource, ytdlpUrl, ytdlpReason } from "../src/remote/ytdlp.js";
@@ -37,7 +38,52 @@ describe("ytdlpReason", () => {
 
 // A fake `yt-dlp` on PATH lets the test exercise spawnSync, the
 // `--print after_move:filepath` contract, and the cache without a network call.
-describe("fetchWithYtdlp (stubbed binary)", () => {
+//
+// **Optional by design.** The stub is a `.cmd` wrapper on Windows and a shebang
+// script elsewhere, so whether the OS launches it depends on the machine rather
+// than on kino. A yt-dlp test failing because the stub cannot launch says
+// nothing about the library, so the block skips instead of failing.
+//
+// The probe runs the same wrapper the tests use, through the same `shell: true`
+// spawn, so it fails for the same reasons the tests would. (This is how the
+// unquoted `bv*[height<=720]` bug was found: the stub could not start because
+// cmd read `<` and `>` as redirection. See `quoteForShell` in ytdlp.ts.)
+//
+// Set `KINO_REQUIRE_YTDLP=1` to turn a skip back into a failure — for CI, where
+// the stub is known to work.
+const stubRunnable = (() => {
+  if (process.env.KINO_REQUIRE_YTDLP === "1") return true;
+  try {
+    const dir = mkdtempSync(join(tmpdir(), "kino-ytdlp-probe-"));
+    const js = join(dir, "probe.js");
+    writeFileSync(
+      js,
+      `const fs=require("node:fs");const out=process.argv[2];` +
+        `fs.writeFileSync(out,"ok");process.stdout.write(out);`
+    );
+    const target = join(dir, "out.mp4");
+    let bin: string;
+    if (process.platform === "win32") {
+      bin = join(dir, "yt-dlp.cmd");
+      writeFileSync(bin, `@node "${js}" %*\r\n`);
+    } else {
+      bin = join(dir, "yt-dlp");
+      writeFileSync(bin, `#!/usr/bin/env node\n${readFileSync(js, "utf8")}`);
+      chmodSync(bin, 0o755);
+    }
+    const res = spawnSync(bin, [target], {
+      encoding: "utf8",
+      shell: process.platform === "win32",
+    });
+    const ok = res.status === 0 && existsSync(target);
+    rmSync(dir, { recursive: true, force: true });
+    return ok;
+  } catch {
+    return false;
+  }
+})();
+
+describe.skipIf(!stubRunnable)("fetchWithYtdlp (stubbed binary)", () => {
   let binDir: string;
   let workDir: string;
   let originalPath: string | undefined;
@@ -108,6 +154,17 @@ process.stdout.write(file + "\\n");
     expect(name).toMatch(/^yt-[a-f0-9]{32}\.mp4$/);
     expect(existsSync(join(staging, name))).toBe(true);
     expect(readFileSync(join(staging, name), "utf-8")).toBe("fake-video-bytes");
+  });
+
+  test("survives a format selector containing shell metacharacters", () => {
+    // Regression: with `shell: true` on Windows, Node joins argv without
+    // escaping, so cmd read `<` and `>` in `bv*[height<=720]` as redirection and
+    // the spawn died with "The system cannot find the file specified". Every
+    // yt: source failed on Windows, and only the stubbed test caught it.
+    const staging = mkdtempSync(join(tmpdir(), "kino-ytdlp-stage-"));
+    const name = fetchWithYtdlp("https://example.com/meta", { stagingDir: staging, maxHeight: 720 });
+    expect(name).toMatch(/^yt-[a-f0-9]{32}\.mp4$/);
+    expect(existsSync(join(staging, name))).toBe(true);
   });
 
   test("passes the flags that matter", () => {
