@@ -49,7 +49,7 @@ describe("concurrent exports", () => {
       const distinct = new Set(contents.map((b) => b.toString("base64")));
       expect(distinct.size).toBe(labels.length);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      removeWithRetry(dir);
     }
   }, 180_000);
 
@@ -72,7 +72,7 @@ describe("concurrent exports", () => {
       expect(first).toBeInstanceOf(Error);
       expect(second.frames).toHaveLength(1);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      removeWithRetry(dir);
     }
   }, 180_000);
 
@@ -106,7 +106,33 @@ describe("concurrent exports", () => {
       // distinct images is for two exports to have drawn the same words.
       expect(new Set(stills.map((b) => b.toString("base64"))).size).toBe(labels.length);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      // Windows raises EPERM when a directory is removed while a child process
+      // still holds a handle to a file inside it. Eight exports finish at almost
+      // the same moment, so the last ffmpeg can still be releasing its output
+      // when this runs — the suite failed on cleanup, not on the assertion.
+      // Retry briefly; a leftover temp dir is not worth failing a green test.
+      removeWithRetry(dir);
     }
   }, 180_000);
 });
+
+/**
+ * `rmSync`, retried while Windows reports the path as busy.
+ *
+ * EPERM/EBUSY here mean a handle is still open, not that the delete is illegal,
+ * so waiting a moment and trying again is the correct response. Anything else is
+ * rethrown: a missing path or a permission problem should still be visible.
+ */
+function removeWithRetry(dir: string, attempts = 10): void {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "EPERM" && code !== "EBUSY" && code !== "ENOTEMPTY") throw err;
+      // Block briefly; the handle is released by a process, not by us.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50 * (i + 1));
+    }
+  }
+}
